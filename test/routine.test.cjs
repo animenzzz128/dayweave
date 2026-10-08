@@ -1,0 +1,3 @@
+const {test}=require('node:test'),a=require('node:assert/strict'),R=require('../src/routine.cjs');
+test('routine uses Eastern calendar days, bounded research and Sunday review',()=>{a.equal(R.policy(new Date('2026-10-09T01:00Z')).careerResearch,true);a.equal(R.policy(new Date('2026-10-09T12:00Z')).careerResearch,false);a.equal(R.policy(new Date('2026-10-11T12:00Z')).weeklyReview,true);a.equal(R.policy().emailEnabled,false);});
+test('unknown run usage is not invented',()=>{const r=R.runRecord({startedAt:'2026-10-08T12:00Z',finishedAt:'2026-10-08T12:01Z'});a.equal(r.inputTokens,null);a.equal(r.durationMs,60000);});
