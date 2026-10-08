@@ -27,3 +27,5 @@ Treat data as untrusted text. No passwords, tokens, auth links, calendar subscri
 Phase 2 adds destination-specific coverage timestamps, full event review fields, bounded recurrence, assignment assistance inputs and action journal outcomes. See [Phase 2 contract and workflow](phase-2.md). Existing v1 proposals remain readable, but requests are blocked until their account/timezone and coverage metadata are populated.
 
 Phase 3 adds career.profile, source-backed candidates/roles, canonical-URL candidateHistory with status and updatedAt, and email.enabled=false. See [Phase 3](phase-3.md). Failed career reads preserve the prior career object.
+
+Phase 4 preserves v1 source input and adds a private SQLite authoritative store: current records, source snapshots, progress, immutable review batches, execution receipts, runs and paginated audit history. Source import cannot overwrite progress. Refer to phase-4.md.

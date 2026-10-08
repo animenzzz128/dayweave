@@ -2,7 +2,7 @@
 
 **Turn coursework and calendar evidence into a clear, reviewable daily plan.**
 
-Dayweave is a local-first HTML dashboard for deadlines, assignment checklists, focused work blocks, and proposed calendar changes. It keeps the distinction between **what a source says**, **what the assistant recommends**, and **what you approve** visible.
+Dayweave is a local Node.js + SQLite web app for deadlines, assignment checklists, focused work blocks, and proposed calendar changes. It keeps the distinction between **what a source says**, **what the assistant recommends**, and **what you approve** visible.
 
 The repository contains reusable application code and fictional examples only. Personal records, account connections, rendered private dashboards, and automation state belong outside Git.
 
@@ -12,16 +12,26 @@ The repository contains reusable application code and fictional examples only. P
 - Separates submitted work, required work, and selectable response opportunities.
 - Provides expandable requirements, local checklists, and estimated/actual effort tracking.
 - Displays verified calendar events beside editable study proposals.
-- Prepares an approval request for the user to review and paste into their assistant chat. **The dashboard itself never writes to a calendar or learning platform.**
+- Prepares an immutable Q-number for explicit confirmation in assistant chat. **The dashboard itself never writes to a calendar or learning platform.**
 - Rejects proposals that overlap known commitments, fall outside verified coverage, occur in the past, or reuse an executed action ID.
 - Retains source records on collection failure, marks stale snapshots, and keeps 30 days of local snapshots.
 - Includes a reusable operating prompt for an assistant-driven refresh workflow.
 
 Career cards now support source-backed roles and networking candidates, eligibility gaps, local save/dismiss/status tracking, draft requests, progress import and a seven-day activity summary. Research is supplied by the assistant, not by a background scraper. Email remains disabled. See [Phase 3](docs/phase-3.md).
 
-## Try the synthetic demo
+## Start the web app
 
-Requires **Node.js 22 or newer**. There are no third-party runtime dependencies and no install step.
+```sh
+node scripts/init.cjs
+node scripts/db.cjs migrate .local/data.json
+node scripts/serve.cjs
+```
+
+Open http://127.0.0.1:8767/home. Import legacy browser progress under Settings → Backups before retiring the old page. See [migration and recovery](docs/phase-4.md) and the [Luna evaluation set](evals/luna-routine/README.md). Source collection and approved Outlook execution still require an authorized assistant; this app has no autonomous external-write channel.
+
+## Try the legacy synthetic demo
+
+Requires **Node.js 24 or newer**. There are no third-party runtime dependencies and no install step.
 
 ```sh
 git clone <your-repository-url>
@@ -111,3 +121,6 @@ Use a short branch per change and one focused pull request. Create an issue for 
 ## License and public release
 
 No open-source license has been selected yet; this package is marked `UNLICENSED` and private. Before changing repository visibility, choose a license and complete the [publication checklist](SECURITY.md#before-making-the-repository-public). The repository is structured for that transition without including a personal-data history.
+
+## Phase 4 workbench
+The primary interface is now a local multi-page Node 24 + SQLite application. Start with `node scripts/db.cjs migrate /private/data.json`, then `npm run serve`. See [Phase 4 migration, approvals and backups](docs/phase-4.md). Existing static render/preview commands remain legacy compatibility tools; `export:html` produces a read-only database export. Email is disabled.
