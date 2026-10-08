@@ -6,12 +6,12 @@ Dayweave is a local-first HTML dashboard for deadlines, assignment checklists, f
 
 The repository contains reusable application code and fictional examples only. Personal records, account connections, rendered private dashboards, and automation state belong outside Git.
 
-## What v1.0.0 does
+## Features
 
 - Shows three daily priorities, assignments due within 72 hours, a seven-day preview, and items needing verification.
 - Separates submitted work, required work, and selectable response opportunities.
 - Provides expandable requirements, local checklists, and estimated/actual effort tracking.
-- Displays verified calendar events beside editable, one-time study proposals.
+- Displays verified calendar events beside editable study proposals.
 - Prepares an approval request for the user to review and paste into their assistant chat. **The dashboard itself never writes to a calendar or learning platform.**
 - Rejects proposals that overlap known commitments, fall outside verified coverage, occur in the past, or reuse an executed action ID.
 - Retains source records on collection failure, marks stale snapshots, and keeps 30 days of local snapshots.
@@ -51,6 +51,10 @@ node scripts/render.cjs /path/to/private/incoming.json
 ```
 
 Rendering does not collect data. An authorized assistant or future adapter supplies the snapshot. See [the data contract](docs/data-contract.md) and [operating prompt](docs/operating-prompt.md).
+
+## Phase 2 additions
+
+Calendar requests now include exact account and event fields, bounded daily/weekly recurrence checks, individually reviewed personal-event updates, and a local pending/verified action journal. Assignment help offers outline, draft, review, and explanation requests with user-supplied notes. See [the Phase 2 workflow](docs/phase-2.md) for execution and account-dependent acceptance requirements.
 
 ## Daily workflow
 

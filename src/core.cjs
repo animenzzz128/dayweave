@@ -30,12 +30,12 @@ function validate(data){
     const ids=new Set();for(const x of data[key]){if(!x.id||ids.has(x.id))throw Error('Duplicate/missing '+key+' id');ids.add(x.id);if(x.source&&safeURL(x.source)==='#')throw Error('Unsafe source URL');}
   }
   for(const a of data.assignments)if(a.dueAt&&!Number.isFinite(stamp(a.dueAt)))throw Error('Invalid deadline');
-  for(const e of [...data.events,...data.proposals])if(!Number.isFinite(stamp(e.start))||stamp(e.end)<=stamp(e.start))throw Error('Invalid event interval');
+  for(const e of [...data.events,...data.proposals])if(!Number.isFinite(stamp(e.start))||!Number.isFinite(stamp(e.end))||stamp(e.end)<=stamp(e.start))throw Error('Invalid event interval');
   return data;
 }
 function proposalErrors(p,data,now=new Date()){
  const errors=[];if(!p.title?.trim())errors.push('Enter an event title.');
- if(!Number.isFinite(stamp(p.start))||stamp(p.end)<=stamp(p.start))errors.push('End must follow start.');
+ if(!Number.isFinite(stamp(p.start))||!Number.isFinite(stamp(p.end))||stamp(p.end)<=stamp(p.start))errors.push('End must follow start.');
  if(stamp(p.start)<stamp(now))errors.push('This proposed time has passed.');
  const parts=t=>Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:TZ,hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(t)).map(x=>[x.type,x.value]));
  if(Number.isFinite(stamp(p.start))&&Number.isFinite(stamp(p.end))){const s=parts(p.start),e=parts(p.end);if(+s.hour<9||dayKey(p.start)!==dayKey(p.end)||(+e.hour===0))errors.push('Keep the midnight–9 AM sleep window free.');}
@@ -49,6 +49,8 @@ function mergeSnapshot(old,incoming){
   if(!old)return validate(incoming);
   const result={...old,...incoming};
   for(const key of ['actionHistory','candidateHistory'])result[key]=[...new Map([...(old[key]||[]),...(incoming[key]||[])].map(x=>[x.id,x])).values()];
+  // Collection snapshots cannot rewind an existing local execution journal.
+  result.actionHistory=[...new Map([...(incoming.actionHistory||[]),...(old.actionHistory||[])].map(x=>[x.id,x])).values()];
   const failed=new Set(incoming.sources.filter(s=>s.status==='failed').map(s=>s.id));
   for(const key of ['assignments','events']){
     result[key]=[...incoming[key].filter(x=>!failed.has(x.sourceId)),...old[key].filter(x=>failed.has(x.sourceId))];
