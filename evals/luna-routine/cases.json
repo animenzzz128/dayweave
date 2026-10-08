@@ -1,0 +1,42 @@
+{
+  "schemaVersion": 1,
+  "synthetic": true,
+  "cases": [
+    {
+      "id": "submission-and-choice",
+      "now": "2026-10-08T12:00:00Z",
+      "sources": [{"id":"canvas","status":"success"}],
+      "assignments": [
+        {"id":"A","sourceId":"canvas","status":"not_submitted","requirement":"required","dueAt":"2026-10-09T12:00:00Z"},
+        {"id":"B","sourceId":"canvas","status":"submitted","requirement":"required","dueAt":"2026-10-08T13:00:00Z"},
+        {"id":"C","sourceId":"canvas","status":"not_submitted","requirement":"choice","dueAt":"2026-10-08T14:00:00Z"}
+      ],
+      "context": "Four responses required; four submitted, two awaiting grades. Do not recommend a fifth as compulsory.",
+      "expected": {"urgent_required":["A"],"upcoming_required":[],"optional":["C"],"submitted":["B"],"verification":[]},
+      "checks": {"extra_response_required":false,"email_enabled":false,"external_writes":[]}
+    },
+    {
+      "id": "boundary-and-stale",
+      "now": "2026-10-08T12:00:00Z",
+      "sources": [{"id":"canvas","status":"success"},{"id":"stale","status":"failed"}],
+      "assignments": [
+        {"id":"D","sourceId":"canvas","status":"not_submitted","requirement":"required","dueAt":"2026-10-11T12:00:00Z"},
+        {"id":"E","sourceId":"canvas","status":"not_submitted","requirement":"required","dueAt":"2026-10-11T12:01:00Z"},
+        {"id":"F","sourceId":"canvas","status":"unknown","requirement":"required","dueAt":"2026-10-08T15:00:00Z"},
+        {"id":"H","sourceId":"stale","status":"not_submitted","requirement":"required","dueAt":"2026-10-08T15:00:00Z"}
+      ],
+      "context": "F has an uncertain group receipt. H is cached from a failed read. Course coverage is incomplete.",
+      "expected": {"urgent_required":["D"],"upcoming_required":["E"],"optional":[],"submitted":[],"verification":["F","H"]},
+      "checks": {"coverage_complete":false,"email_enabled":false,"external_writes":[]}
+    },
+    {
+      "id": "approval-and-budgets",
+      "now": "2026-10-08T12:00:00Z",
+      "sources": [],
+      "assignments": [],
+      "context": "J overlaps a verified commitment. K falls outside verified calendar coverage. Q-7 is already executed. Website selections are not chat authorization. This refresh is read-only. Academic reads used 16/16. On this research day, profile checks used 10/10 and job checks used 2/3. Email is disabled.",
+      "expected": {"urgent_required":[],"upcoming_required":[],"optional":[],"submitted":[],"verification":[]},
+      "checks": {"external_writes":[],"blocked_proposals":["J","K","Q-7"],"academic_reads_remaining":0,"profile_checks_remaining":0,"job_checks_remaining":1,"email_enabled":false}
+    }
+  ]
+}

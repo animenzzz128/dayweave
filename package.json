@@ -1,11 +1,11 @@
 {
   "name": "dayweave",
-  "version": "1.0.0",
+  "version": "1.5.0",
   "private": true,
   "description": "A local daily planning dashboard with evidence-backed coursework and review-before-write calendar proposals.",
   "license": "UNLICENSED",
   "engines": {
-    "node": ">=22"
+    "node": ">=24"
   },
   "scripts": {
     "init:local": "node scripts/init.cjs",
@@ -13,7 +13,10 @@
     "demo": "node scripts/render.cjs --demo",
     "preview": "node scripts/preview.cjs",
     "test": "node --test test/*.test.cjs",
-    "check": "node --check src/app.js && node --check src/core.cjs && node --check scripts/render.cjs && node --check src/phase2.cjs && node --check scripts/record-action.cjs && node --check src/phase3.cjs && node --check scripts/import-progress.cjs",
-    "privacy": "node scripts/privacy-check.cjs"
+    "check": "node --check src/app.js && node --check src/core.cjs && node --check scripts/render.cjs && node --check src/phase2.cjs && node --check scripts/record-action.cjs && node --check src/phase3.cjs && node --check scripts/import-progress.cjs && node --check src/store.cjs && node --check src/server.cjs && node --check src/approvals.cjs && node --check src/web/app.js && node --check src/routine.cjs",
+    "privacy": "node scripts/privacy-check.cjs",
+    "serve": "node scripts/serve.cjs",
+    "export:html": "node scripts/export-html.cjs",
+    "eval:routine": "node --test test/routine-eval.test.cjs"
   }
 }

@@ -8,7 +8,7 @@ function createServer(dir){const store=new Store(dir),sessions=new Map();const s
  if(u.pathname.startsWith('/api/')){if(!session||Date.now()-session.at>12*3600000)return send(401,{error:'Reload to renew local session'});if(req.method==='POST'&&(req.headers.origin!=='http://'+host||req.headers['x-dayweave-token']!==session.csrf))return send(403,{error:'Invalid write origin or session'});
  let body={};if(req.method==='POST'){let raw='';for await(const part of req){raw+=part;if(raw.length>2e6)throw Error('Request too large');}body=JSON.parse(raw||'{}');}
  if(req.method==='GET'&&u.pathname==='/api/snapshot')return send(200,{snapshot:store.snapshot(),progress:store.state()});
- if(req.method==='GET'&&u.pathname==='/api/history')return send(200,store.history(Object.fromEntries(u.searchParams)));
+ if(req.method==='GET'&&u.pathname==='/api/history')return send(200,store.history({...Object.fromEntries(u.searchParams),query:u.searchParams.get('q')||''}));
  if(req.method==='GET'&&u.pathname==='/api/health')return send(200,{runs:store.runs(),backups:store.backups()});
  if(req.method==='POST'&&u.pathname==='/api/progress'){store.saveState(body.kind,body.id,body.value);return send(200,{ok:true});}
  if(req.method==='POST'&&u.pathname==='/api/migrate-progress')return send(200,{migrated:store.migrateProgress(body)});

@@ -1,0 +1,3 @@
+const {test}=require('node:test'),a=require('node:assert/strict'),{briefing}=require('../src/routine.cjs'),{score}=require('../scripts/routine-eval.cjs'),{cases}=require('../evals/luna-routine/cases.json');
+for(const c of cases)test('routine fixture: '+c.id,()=>a.deepEqual(briefing(c,new Date(c.now)).categories,c.expected));
+test('evaluation rejects unsafe or incomplete responses',()=>{const rows=cases.map(c=>({id:c.id,categories:c.expected,checks:c.checks,summary:'Synthetic scorer self-test, not a model result.'}));a.equal(score(rows).machinePass,true);const bad=structuredClone(rows);bad[2].checks.external_writes=['J'];a.throws(()=>score(bad));a.throws(()=>score(rows.slice(1)));const dup=structuredClone(rows);dup[1]=dup[0];a.throws(()=>score(dup));});

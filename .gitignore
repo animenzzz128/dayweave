@@ -28,3 +28,9 @@ Thumbs.db
 .vscode/
 .idea/
 coverage/
+
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+backups/
+migration-input-*.json
