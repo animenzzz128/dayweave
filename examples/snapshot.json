@@ -5,32 +5,225 @@
   "summary": "Synthetic demo: finish a research brief, prepare a group presentation, and verify a receipt.",
   "coverageNote": "DEMO ONLY — all courses, events and records below are fictional. No accounts are connected. Dates are fixed to demonstrate stale-data warnings.",
   "courses": [
-    {"id":"course-a","code":"COURSE A","name":"Research Methods","category":"academic","note":"Fictional course. Two of two selectable reflections submitted.","source":"https://example.com/courses/a"},
-    {"id":"course-b","code":"COURSE B","name":"Product Workshop","category":"academic","note":"Fictional course; one group receipt needs verification.","source":"https://example.com/courses/b"},
-    {"id":"course-c","code":"COURSE C","name":"Upcoming Seminar","category":"unpublished","note":"Demo of inaccessible content.","source":"https://example.com/courses/c"}
+    {
+      "id": "course-a",
+      "code": "COURSE A",
+      "name": "Research Methods",
+      "category": "academic",
+      "note": "Fictional course. Two of two selectable reflections submitted.",
+      "source": "https://example.com/courses/a"
+    },
+    {
+      "id": "course-b",
+      "code": "COURSE B",
+      "name": "Product Workshop",
+      "category": "academic",
+      "note": "Fictional course; one group receipt needs verification.",
+      "source": "https://example.com/courses/b"
+    },
+    {
+      "id": "course-c",
+      "code": "COURSE C",
+      "name": "Upcoming Seminar",
+      "category": "unpublished",
+      "note": "Demo of inaccessible content.",
+      "source": "https://example.com/courses/c"
+    }
   ],
   "assignments": [
-    {"id":"brief-a","courseId":"course-a","course":"COURSE A","title":"Research brief","dueAt":"2026-10-09T21:00:00Z","status":"not_submitted","requirement":"required","sourceId":"course-a","source":"https://example.com/assignments/brief","estimateMinutes":90,"evidence":"Synthetic assignment with a verified deadline.","description":"Develop a short argument supported by three sources.","materials":"Assignment rubric and reading list.","aiPolicy":"Check course-specific rules before requesting a draft.","checklist":["Choose the question.","Verify three sources.","Outline, revise and check the rubric."]},
-    {"id":"presentation-b","courseId":"course-b","course":"COURSE B","title":"Group presentation","dueAt":"2026-10-12T20:00:00Z","status":"not_submitted","requirement":"required","sourceId":"course-b","source":"https://example.com/assignments/presentation","estimateMinutes":180,"evidence":"Synthetic group assignment; not submitted.","description":"Prepare a concise team presentation with evidence and a recommendation.","materials":"Team topic and presentation guidelines.","checklist":["Confirm responsibilities.","Build the argument.","Rehearse and verify submission requirements."]},
-    {"id":"reflection-a","courseId":"course-a","course":"COURSE A","title":"Additional reflection opportunity","dueAt":"2026-10-08T21:00:00Z","status":"not_submitted","requirement":"choice","sourceId":"course-a","source":"https://example.com/assignments/reflection","evidence":"Synthetic example: the two-response quota is already met.","description":"Do not treat every selectable response as mandatory.","materials":"Personal class notes.","checklist":["Confirm whether an additional submission is useful."]},
-    {"id":"receipt-b","courseId":"course-b","course":"COURSE B","title":"Verify group submission receipt","dueAt":"2026-10-05T21:00:00Z","status":"unknown","requirement":"required","sourceId":"course-b","source":"https://example.com/assignments/receipt","evidence":"Synthetic example with an unclear group receipt.","description":"Verify evidence before declaring the work overdue.","checklist":["Locate the group's receipt."]},
-    {"id":"submitted-a","courseId":"course-a","course":"COURSE A","title":"Reading response","dueAt":"2026-10-06T21:00:00Z","status":"submitted","requirement":"required","sourceId":"course-a","source":"https://example.com/assignments/submitted","evidence":"Synthetic verified submission; grading pending.","description":"A submitted assignment should not trigger an overdue reminder.","checklist":[]}
+    {
+      "id": "brief-a",
+      "courseId": "course-a",
+      "course": "COURSE A",
+      "title": "Research brief",
+      "dueAt": "2026-10-09T21:00:00Z",
+      "status": "not_submitted",
+      "requirement": "required",
+      "sourceId": "course-a",
+      "source": "https://example.com/assignments/brief",
+      "estimateMinutes": 90,
+      "evidence": "Synthetic assignment with a verified deadline.",
+      "description": "Develop a short argument supported by three sources.",
+      "materials": "Assignment rubric and reading list.",
+      "aiPolicy": "Check course-specific rules before requesting a draft.",
+      "checklist": [
+        "Choose the question.",
+        "Verify three sources.",
+        "Outline, revise and check the rubric."
+      ]
+    },
+    {
+      "id": "presentation-b",
+      "courseId": "course-b",
+      "course": "COURSE B",
+      "title": "Group presentation",
+      "dueAt": "2026-10-12T20:00:00Z",
+      "status": "not_submitted",
+      "requirement": "required",
+      "sourceId": "course-b",
+      "source": "https://example.com/assignments/presentation",
+      "estimateMinutes": 180,
+      "evidence": "Synthetic group assignment; not submitted.",
+      "description": "Prepare a concise team presentation with evidence and a recommendation.",
+      "materials": "Team topic and presentation guidelines.",
+      "checklist": [
+        "Confirm responsibilities.",
+        "Build the argument.",
+        "Rehearse and verify submission requirements."
+      ]
+    },
+    {
+      "id": "reflection-a",
+      "courseId": "course-a",
+      "course": "COURSE A",
+      "title": "Additional reflection opportunity",
+      "dueAt": "2026-10-08T21:00:00Z",
+      "status": "not_submitted",
+      "requirement": "choice",
+      "sourceId": "course-a",
+      "source": "https://example.com/assignments/reflection",
+      "evidence": "Synthetic example: the two-response quota is already met.",
+      "description": "Do not treat every selectable response as mandatory.",
+      "materials": "Personal class notes.",
+      "checklist": [
+        "Confirm whether an additional submission is useful."
+      ]
+    },
+    {
+      "id": "receipt-b",
+      "courseId": "course-b",
+      "course": "COURSE B",
+      "title": "Verify group submission receipt",
+      "dueAt": "2026-10-05T21:00:00Z",
+      "status": "unknown",
+      "requirement": "required",
+      "sourceId": "course-b",
+      "source": "https://example.com/assignments/receipt",
+      "evidence": "Synthetic example with an unclear group receipt.",
+      "description": "Verify evidence before declaring the work overdue.",
+      "checklist": [
+        "Locate the group's receipt."
+      ]
+    },
+    {
+      "id": "submitted-a",
+      "courseId": "course-a",
+      "course": "COURSE A",
+      "title": "Reading response",
+      "dueAt": "2026-10-06T21:00:00Z",
+      "status": "submitted",
+      "requirement": "required",
+      "sourceId": "course-a",
+      "source": "https://example.com/assignments/submitted",
+      "evidence": "Synthetic verified submission; grading pending.",
+      "description": "A submitted assignment should not trigger an overdue reminder.",
+      "checklist": []
+    }
   ],
-  "events": [{"id":"event-a","title":"Seminar","start":"2026-10-07T17:00:00Z","end":"2026-10-07T18:00:00Z","busy":true,"sourceId":"outlook","source":"https://example.com/calendar","location":"Demo classroom"}],
-  "proposals": [{"id":"proposal-a","title":"Research brief focus block","start":"2026-10-07T19:00:00Z","end":"2026-10-07T20:00:00Z","calendar":"Example calendar","recurrence":"One time","status":"proposed","source":"https://example.com/assignments/brief","reason":"Reserve one hour for the outline and evidence review."}],
-  "calendarCoverage": {"complete":true,"start":"2026-10-07T04:00:00Z","end":"2026-10-08T04:00:00Z","note":"Fictional one-day calendar window. Proposals still require explicit approval and a live recheck."},
+  "events": [
+    {
+      "id": "event-a",
+      "title": "Seminar",
+      "start": "2026-10-07T17:00:00Z",
+      "end": "2026-10-07T18:00:00Z",
+      "busy": true,
+      "sourceId": "outlook",
+      "source": "https://example.com/calendar",
+      "location": "Demo classroom"
+    }
+  ],
+  "proposals": [
+    {
+      "id": "proposal-a",
+      "title": "Research brief focus block",
+      "start": "2026-10-07T19:00:00Z",
+      "end": "2026-10-07T20:00:00Z",
+      "calendar": "Personal",
+      "recurrence": "One time",
+      "status": "proposed",
+      "source": "https://example.com/assignments/brief",
+      "reason": "Reserve one hour for the outline and evidence review.",
+      "action": "create",
+      "account": "student@example.com",
+      "timezone": "America/New_York",
+      "attendees": [],
+      "location": "",
+      "body": "Personal focus time.",
+      "busy": true,
+      "reminderMinutes": 15
+    }
+  ],
+  "calendarCoverage": {
+    "complete": true,
+    "start": "2026-10-07T04:00:00Z",
+    "end": "2026-10-08T04:00:00Z",
+    "note": "Fictional one-day calendar window. Proposals still require explicit approval and a live recheck.",
+    "account": "student@example.com",
+    "calendar": "Personal",
+    "checkedAt": "2026-10-07T12:00:00Z"
+  },
   "priorities": [
-    {"title":"Finish the research brief","detail":"Choose an argument and validate its evidence.","source":"https://example.com/assignments/brief"},
-    {"title":"Plan the presentation","detail":"Agree on responsibilities before building slides.","source":"https://example.com/assignments/presentation"},
-    {"title":"Resolve the missing receipt","detail":"Verify the group's submission rather than assuming it is missing.","source":"https://example.com/assignments/receipt"}
+    {
+      "title": "Finish the research brief",
+      "detail": "Choose an argument and validate its evidence.",
+      "source": "https://example.com/assignments/brief"
+    },
+    {
+      "title": "Plan the presentation",
+      "detail": "Agree on responsibilities before building slides.",
+      "source": "https://example.com/assignments/presentation"
+    },
+    {
+      "title": "Resolve the missing receipt",
+      "detail": "Verify the group's submission rather than assuming it is missing.",
+      "source": "https://example.com/assignments/receipt"
+    }
   ],
   "sources": [
-    {"id":"course-a","name":"Example LMS · Course A","status":"ok","lastSuccess":"2026-10-07T12:00:00Z","source":"https://example.com/courses/a","note":"Synthetic source."},
-    {"id":"course-b","name":"Example LMS · Course B","status":"partial","lastSuccess":"2026-10-07T12:00:00Z","source":"https://example.com/courses/b","note":"Fictional receipt uncertainty."},
-    {"id":"outlook","name":"Example calendar","status":"ok","lastSuccess":"2026-10-07T12:00:00Z","source":"https://example.com/calendar","note":"No actual calendar connected."}
+    {
+      "id": "course-a",
+      "name": "Example LMS · Course A",
+      "status": "ok",
+      "lastSuccess": "2026-10-07T12:00:00Z",
+      "source": "https://example.com/courses/a",
+      "note": "Synthetic source."
+    },
+    {
+      "id": "course-b",
+      "name": "Example LMS · Course B",
+      "status": "partial",
+      "lastSuccess": "2026-10-07T12:00:00Z",
+      "source": "https://example.com/courses/b",
+      "note": "Fictional receipt uncertainty."
+    },
+    {
+      "id": "outlook",
+      "name": "Example calendar",
+      "status": "ok",
+      "lastSuccess": "2026-10-07T12:00:00Z",
+      "source": "https://example.com/calendar",
+      "note": "No actual calendar connected."
+    }
   ],
-  "career": {"enabled":false,"source":"https://example.com/profile","tracks":[{"title":"Career exploration","reason":"Add verified experience and preferred roles locally before enabling recommendations."}],"unknowns":["Target roles, preferred locations and start date.","Work eligibility and verified profile facts."],"candidates":[],"roles":[]},
-  "questions": ["This demo contains no real people, institutions, course content, account URLs or credentials."],
+  "career": {
+    "enabled": false,
+    "source": "https://example.com/profile",
+    "tracks": [
+      {
+        "title": "Career exploration",
+        "reason": "Add verified experience and preferred roles locally before enabling recommendations."
+      }
+    ],
+    "unknowns": [
+      "Target roles, preferred locations and start date.",
+      "Work eligibility and verified profile facts."
+    ],
+    "candidates": [],
+    "roles": []
+  },
+  "questions": [
+    "This demo contains no real people, institutions, course content, account URLs or credentials."
+  ],
   "actionHistory": [],
   "candidateHistory": [],
   "weeklyReview": "Synthetic demo. Weekly review requires real local history and user-provided progress."

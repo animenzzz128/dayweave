@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Exact calendar action requests, bounded recurrence with DST checks, single personal-event updates and a pending/verified action journal.
+- Assignment help dialog with saved user notes, requested help mode and safeguards for personal classroom responses.
+- Stronger invalid-date checks and durable execution-history preservation.
+- Account-dependent live save/read-back and unattended execution remain acceptance steps.
+
 ## 1.0.0 — 2026-10-07
 
 Initial reusable release of Dayweave.

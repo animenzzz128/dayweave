@@ -21,3 +21,7 @@ Write a full incoming snapshot matching docs/data-contract.md and run `node scri
 On the configured weekly-review day summarize workload, verified completed actions, unresolved items, and actual-versus-estimated effort when evidence exists. Keep expensive research bounded and generate lengthy drafts on demand. Do not invent token usage or costs.
 
 Return the top three priorities, important uncertainties, dashboard link and proposal count. Send one requested daily briefing; remain quiet between runs unless something materially changes. A local scheduled task needs the computer, app and authenticated tools available. Test the first unattended run and report its real access results; never claim reliability before verification.
+
+
+## Phase 2 execution
+Read docs/phase-2.md before processing approved calendar actions or assignment-help requests. Use src/phase2.cjs validation and the local action journal. Prefer a tested Outlook connector; use the authorized browser if unavailable. A scheduled refresh never authorizes writes. Preserve journal outcomes across refreshes. For classroom response assignments, set assistance.requiresNotes and require real notes plus the user's argument. Produce only outlines/review for those responses.

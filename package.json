@@ -4,14 +4,16 @@
   "private": true,
   "description": "A local daily planning dashboard with evidence-backed coursework and review-before-write calendar proposals.",
   "license": "UNLICENSED",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "init:local": "node scripts/init.cjs",
     "build": "node scripts/render.cjs",
     "demo": "node scripts/render.cjs --demo",
     "preview": "node scripts/preview.cjs",
     "test": "node --test test/*.test.cjs",
-    "check": "node --check src/app.js && node --check src/core.cjs && node --check scripts/render.cjs",
+    "check": "node --check src/app.js && node --check src/core.cjs && node --check scripts/render.cjs && node --check src/phase2.cjs && node --check scripts/record-action.cjs",
     "privacy": "node scripts/privacy-check.cjs"
   }
 }
