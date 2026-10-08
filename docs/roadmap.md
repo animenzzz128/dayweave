@@ -9,3 +9,5 @@ V1 ships the local dashboard and assistant-driven operating contract. These are 
 5. **Progress and review:** explicit local-progress import, effort calibration, weekly review trends and approved-action reconciliation.
 
 Open an issue when starting an increment. Split implementation into a focused PR with synthetic fixtures and acceptance tests. Avoid accumulating speculative issues or creating a separate project board until the backlog needs one.
+
+Phase 3 career cards, progress import and weekly status summary are implemented. Automated provider adapters, inbox triage and a full activity ledger remain future work.

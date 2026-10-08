@@ -206,7 +206,7 @@
     }
   ],
   "career": {
-    "enabled": false,
+    "enabled": true,
     "source": "https://example.com/profile",
     "tracks": [
       {
@@ -218,13 +218,52 @@
       "Target roles, preferred locations and start date.",
       "Work eligibility and verified profile facts."
     ],
-    "candidates": [],
-    "roles": []
+    "candidates": [
+      {
+        "id": "person-example",
+        "name": "Alex Example",
+        "market": "US",
+        "source": "https://example.com/people/alex",
+        "evidence": "Fictional university and operations background.",
+        "checkedAt": "2026-10-07T12:00:00Z",
+        "relationship": "unknown",
+        "reason": "Illustrates a shared operations interest.",
+        "scores": {
+          "role": 4,
+          "shared": 3,
+          "market": 4,
+          "reason": 3
+        }
+      }
+    ],
+    "roles": [
+      {
+        "id": "role-example",
+        "title": "Example strategy graduate",
+        "market": "US",
+        "source": "https://example.com/jobs/strategy",
+        "evidence": "Synthetic 2027 full-time posting.",
+        "checkedAt": "2026-10-07T12:00:00Z",
+        "startYear": 2027,
+        "sponsorship": "unknown",
+        "fit": "Illustrates fit with an eligibility gap."
+      }
+    ],
+    "note": "Synthetic research demonstration. Not real people or vacancies.",
+    "profile": {
+      "summary": "Fictional graduate seeking full-time strategy roles",
+      "startYear": 2027,
+      "usSponsorshipRequired": true,
+      "workEligibility": {}
+    }
   },
   "questions": [
     "This demo contains no real people, institutions, course content, account URLs or credentials."
   ],
   "actionHistory": [],
   "candidateHistory": [],
-  "weeklyReview": "Synthetic demo. Weekly review requires real local history and user-provided progress."
+  "weeklyReview": "Synthetic demo. Weekly review requires real local history and user-provided progress.",
+  "email": {
+    "enabled": false
+  }
 }

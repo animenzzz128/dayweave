@@ -7,6 +7,7 @@ function render(data){
  return fs.readFileSync(path.join(root,'src/template.html'),'utf8')
  .replace('/* CORE */',()=>fs.readFileSync(path.join(root,'src/core.cjs'),'utf8'))
  .replace('/* PHASE2 */',()=>fs.readFileSync(path.join(root,'src/phase2.cjs'),'utf8'))
+ .replace('/* PHASE3 */',()=>fs.readFileSync(path.join(root,'src/phase3.cjs'),'utf8'))
  .replace('/* APP */',()=>fs.readFileSync(path.join(root,'src/app.js'),'utf8'))
  .replace('/* DATA */',()=>C.safeJSON(data));
 }

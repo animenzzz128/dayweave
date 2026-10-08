@@ -49,9 +49,12 @@ function mergeSnapshot(old,incoming){
   if(!old)return validate(incoming);
   const result={...old,...incoming};
   for(const key of ['actionHistory','candidateHistory'])result[key]=[...new Map([...(old[key]||[]),...(incoming[key]||[])].map(x=>[x.id,x])).values()];
+  // Preserve the newer user-reported career state when merging an older snapshot.
+  const careerStates=new Map();for(const h of [...(old.candidateHistory||[]),...(incoming.candidateHistory||[])]){const previous=careerStates.get(h.id);if(!previous||Date.parse(h.updatedAt)>Date.parse(previous.updatedAt))careerStates.set(h.id,h);}result.candidateHistory=[...careerStates.values()];
   // Collection snapshots cannot rewind an existing local execution journal.
   result.actionHistory=[...new Map([...(incoming.actionHistory||[]),...(old.actionHistory||[])].map(x=>[x.id,x])).values()];
   const failed=new Set(incoming.sources.filter(s=>s.status==='failed').map(s=>s.id));
+  if(failed.has('career'))result.career={...old.career,note:'Research refresh failed; retained recommendations may be stale.'};
   for(const key of ['assignments','events']){
     result[key]=[...incoming[key].filter(x=>!failed.has(x.sourceId)),...old[key].filter(x=>failed.has(x.sourceId))];
   }
