@@ -17,7 +17,7 @@ The repository contains reusable application code and fictional examples only. P
 - Retains source records on collection failure, marks stale snapshots, and keeps 30 days of local snapshots.
 - Includes a reusable operating prompt for an assistant-driven refresh workflow.
 
-Career and email sections are intentionally inactive extension points in v1. They do not implement job discovery, networking recommendations, or inbox scanning yet.
+Career cards now support source-backed roles and networking candidates, eligibility gaps, local save/dismiss/status tracking, draft requests, progress import and a seven-day activity summary. Research is supplied by the assistant, not by a background scraper. Email remains disabled. See [Phase 3](docs/phase-3.md).
 
 ## Try the synthetic demo
 

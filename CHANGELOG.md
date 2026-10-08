@@ -24,3 +24,8 @@ Initial reusable release of Dayweave.
 - Refresh orchestration and authenticated reads are supplied by an external assistant.
 - Career discovery and email triage are not enabled implementations yet.
 - V1 sleep/refresh defaults are fixed; account authentication, configurable routines, and unattended reliability need further work.
+
+## Unreleased — Phase 3
+- Career profile, evidence cards, eligibility warnings, local status controls and draft requests.
+- Whitelisted career progress import, canonical profile deduplication and seven-day summary.
+- Retain career data on refresh failure. Email stays disabled.

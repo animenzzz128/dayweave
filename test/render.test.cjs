@@ -6,7 +6,7 @@ test('Build is self-contained and safe for script-closing source text',()=>{
  assert.ok(!html.includes('/* DATA */'));assert.ok(!html.includes('/* APP */'));assert.ok(!html.includes('/* CORE */'));
  const data=html.match(/<script id="snapshot" type="application\/json">([\s\S]*?)<\/script>/)[1];
  assert.equal(JSON.parse(data).summary,'</script><script>throw Error("injected")</script> $&');
- const scripts=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];assert.equal(scripts.length,3);assert.ok(!html.includes('/* PHASE2 */'));
+ const scripts=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)];assert.equal(scripts.length,4);assert.ok(!html.includes('/* PHASE2 */'));
  for(const [,js] of scripts)new vm.Script(js);
 });
 test('Configured timezone changes display calculations without changing instants',()=>{
