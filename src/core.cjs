@@ -1,3 +1,4 @@
+(function(){
 'use strict';
 let TZ='America/New_York';
 function configure(timezone='America/New_York'){new Intl.DateTimeFormat('en',{timeZone:timezone}).format();TZ=timezone;}
@@ -64,3 +65,5 @@ function mergeSnapshot(old,incoming){
 }
 const api={get TZ(){return TZ;},configure,stamp,dayKey,classify,overlap,zonedISO,fingerprint,safeURL,safeJSON,validate,proposalErrors,mergeSnapshot};
 if(typeof module!=='undefined')module.exports=api;else window.PlannerCore=api;
+
+})();
