@@ -30,7 +30,7 @@ The coordinator is the single driver for a user request.
 - The user has authorized CLI worker dispatch for scoped development. That does not authorize creating or messaging other app chats.
 - Never merge, release, tag, change visibility or deploy unless the user asks for that action. Lifecycle steps in docs do not grant that authority.
 - Existing external-action restrictions stand: no calendar writes, messages, email or assignment submission. Do not reboot the machine without authorization.
-- Workers return results through artifacts (worktree changes and a handoff). Only the coordinator pushes branches and publishes PRs or comments; workers never push.
+- Workers return results through artifacts (worktree changes and a handoff). Only the coordinator pushes branches and publishes PRs or comments; workers never push, except by explicit coordinator-role transfer under [Quota handoff](#quota-handoff).
 
 ## Task lifecycle
 1. One task = one owner, session, worktree, branch and PR, created from a verified baseline SHA. Synthetic data and the development port only.
@@ -46,6 +46,35 @@ Run tasks concurrently only when independent: separate worktrees, data directori
 - A failure report preserves resumable state: task, baseline/head SHA, branch and worktree status, last completed step and what is unknown.
 - If a dispatch outcome is ambiguous (a worker may have started or written), inspect the worktree, branch and artifacts before retrying. Never start a second writer on the same worktree.
 - Interruption, retry, stale review, reconnect and restart behavior are trial checks (#21), not assumptions.
+
+## Quota handoff
+The user has authorized handing in-progress authorized work to Claude Code `claude-opus-5-5` high when observed Codex quota runs low. This is policy only: no scheduler or always-on monitor implements it, and no live low-quota handoff has been tested.
+
+**Measure.** The quota reading is account-shared rate-limit usage, not per-session credits.
+- Per applicable Codex window (primary and secondary): `remaining = clamp(100 - usedPercent, 0, 100)`. Trigger when either is strictly below 10. Ignore unrelated reserve buckets and cash/credit balances.
+- A missing or null value, or a reading older than 5 minutes or past its reset time, is **unknown**, never zero. Unknown does not trigger; re-observe at the next check point.
+- Record value, window, source and observation time privately, never in Git.
+- Check at request start, before substantial new dispatch, between tasks and before expensive checks; not on every tool call. Background monitoring is not guaranteed.
+
+**At threshold.** Start no new GPT development.
+1. Checkpoint privately: exact user scope and approval boundaries, source-of-truth docs, task list, branch, full baseline/head SHA, dirty files, checks and reviewed SHA, blocking approvals, next command, worktree and runtime locations.
+2. Quiesce the writer and verify from the actual process and worktree that it stopped before transferring ownership. If a Claude task already owns the work, continue it; do not duplicate.
+3. Preflight a Herdr-managed pane; if Herdr is unavailable, use a native terminal. Dispatch with [prompts/credit-handoff.md](prompts/credit-handoff.md).
+
+**Fallback authority.** Claude becomes explicit fallback coordinator solely for approved pending scope. It may push and open scoped PRs as the user authorized; this coordinator-role transfer is the only exception to the worker no-push rule. No merge, release, deploy, calendar, email, message or assignment actions. Separate-context SHA-bound review and mandatory checks still apply.
+- Never share browser cookies or passwords; do not assume MCP or browser tools exist in Claude. Source work it cannot access is reported as a blocker.
+- If Claude auth, quota or tools are unavailable, stop with a recoverable blocker.
+- Never alter budget, billing, model authentication or machine policy.
+
+**Visibility.** Results appear in the coordinator chat or the Claude/Herdr window, plus a local private `RESULT.md` and checkpoint path. The root app chat receives no CLI messages automatically, and replies cannot be promised after Codex quota is exhausted.
+
+**Reset.** Do not start a second writer. Inspect the active Claude session and worktree first; ownership returns only by explicit handshake (Claude checkpoints and stops, the coordinator confirms).
+
+**Synthetic acceptance cases.**
+- Primary `usedPercent` 91 (remaining 9), secondary 40: trigger, checkpoint, hand off. `usedPercent` 105 clamps to remaining 0 and also triggers.
+- Both windows at remaining exactly 10: no trigger.
+- `usedPercent` null, a reading 6 minutes old, or one past its reset time: unknown; no trigger, not treated as zero; recorded as unknown.
+- Quota resets while Claude owns the task: no second writer; inspect Claude, then handshake.
 
 ## Handoff contract
 Minimal portable fields; #17 implements validation, so this is not the schema.
