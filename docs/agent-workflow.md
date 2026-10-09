@@ -46,6 +46,7 @@ Run tasks concurrently only when independent: separate worktrees, data directori
 - A failure report preserves resumable state: task, baseline/head SHA, branch and worktree status, last completed step and what is unknown.
 - If a dispatch outcome is ambiguous (a worker may have started or written), inspect the worktree, branch and artifacts before retrying. Never start a second writer on the same worktree.
 - Interruption, retry, stale review, reconnect and restart behavior are trial checks (#21), not assumptions.
+- During user-requested visible execution, show worker lifecycle and progress summaries in task panes. Raw logs stay private and outside Git. Pane badges are not completion proof; use artifacts, check results and the handoff. See [local access](local-access.md#herdr-sessions-and-worker-progress).
 
 ## Handoff contract
 Minimal portable fields; #17 implements validation, so this is not the schema.
