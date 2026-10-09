@@ -29,6 +29,8 @@ A Git worktree is a separate working directory sharing repository history and br
 
 Set DAYWEAVE_DATA_DIR to a separate synthetic directory, migrate examples/snapshot.json with scripts/db.cjs, set PORT=8768 and run scripts/serve.cjs. Never use the production database for tests. Stop dev service when finished.
 
+For refused or blocked local pages, stale data, private-link 404s, blocked launchers or invisible worker progress, see [local access troubleshooting](local-access.md).
+
 ## Stable promotion and rollback
 Keep an external manifest with active code revision/path, previous revision/path and private data path. Prepare a clean independent clone at the accepted SHA, run checks, back up database, stop the known service, atomically update manifest, restart and verify Home/affected routes. Do not kill arbitrary Node processes.
 Code rollback selects the previous accepted checkout and restarts. Do not automatically restore old data and erase newer progress. Database recovery needs a safety backup and receipt-preserving Store.restore. Schema changes require a migration/rollback plan.
