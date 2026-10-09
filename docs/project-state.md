@@ -13,6 +13,8 @@ One coordination chat handles priorities and acceptance. Each development outcom
 
 Stable deployment uses an independent checkout pinned to an accepted SHA, port8767, and an external private database. Revision and paths live in an external deployment manifest. Development uses synthetic data and another port. Daily refresh reads the manifest, never a mutable development branch.
 
-Next: complete governance and local Project registration; observe initial routine runs; Phase5 begins with supported executor/trigger feasibility before enabling remote writes.
+Phase5 feasibility (issue #14): [NO-GO for a remote executor](outlook-feasibility.md). Supported Graph authorization/notifications and desktop schedules are documented, but authorized account access and an approval-to-executor channel are unverified. Retain explicit chat approval; no writer, Email enablement or deployment. Independent routine observations remain separate acceptance work.
+
+Next: complete governance and local Project registration; observe initial routine runs; revisit the Phase5 gate only with permitted authorization, trigger and recovery evidence.
 
 Update this file when behavior, limitations or priorities change. Do not append transcripts or duplicate the complete GitHub history.
