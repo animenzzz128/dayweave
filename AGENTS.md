@@ -9,3 +9,6 @@
 - Preserve source-failure records, stable identifiers, submission uncertainty, and the difference between required and selectable coursework.
 - Keep zero external runtime dependencies unless a requested feature justifies adding one.
 - Do not assume the demo scheduler or integrations exist: the assistant workflow supplies data; adapters are future work.
+- New tasks read docs/project-state.md and verify Git/PR state; use docs/development-workflow.md for handoff. Update state/decisions for changed behavior/limits, not transcripts.
+- Development uses synthetic data and a separate port. Never point worktrees/tests at the stable private database. Stable code is pinned independently; branch switches are not deployments.
+- UI acceptance loads actual browser scripts in page order and verifies real affected routes/reload/console; HTML or HTTP success alone is insufficient.
