@@ -17,7 +17,7 @@ Governance documentation and task templates are in place. Verify machine-specifi
 
 Phase5 feasibility (issue #14): [NO-GO for a remote executor](outlook-feasibility.md). Supported Graph authorization/notifications and desktop schedules are documented, but authorized account access and an approval-to-executor channel are unverified. Retain explicit chat approval; no writer, Email enablement or deployment. Independent routine observations remain separate acceptance work.
 
-Agent workflow (issue #16): [trial coordinator/CLI-worker policy](agent-workflow.md) under milestone 1, "Phase 6 and verified Herdr dual-agent delivery". Not adopted; real efficiency is unproven until the pilots and single-agent baseline in #21.
+Agent workflow (issue #16): [trial coordinator/CLI-worker policy](agent-workflow.md) under milestone 1, "Phase 6 and verified Herdr dual-agent delivery". Not adopted; real efficiency is unproven until the pilots and single-agent baseline in #21. The local [handoff validator](handoff-contract.md) (#17) is trial tooling that checks structure only; it is not proof of adoption.
 
 Next: observe three independent scheduled refreshes (#18) and first-week coverage, failures and available usage. Configuration alone is not unattended acceptance. Revisit the Phase5 gate (#19) only with permitted authorization, trigger and recovery evidence. Validator pilot (#17) and independent Phase6 tasks (#20) may proceed.
 
