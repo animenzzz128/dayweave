@@ -13,6 +13,8 @@ One coordination chat handles priorities and acceptance. Each development outcom
 
 Stable deployment uses an independent checkout pinned to an accepted SHA, port8767, and an external private database. Revision and paths live in an external deployment manifest. Development uses synthetic data and another port. Daily refresh reads the manifest, never a mutable development branch.
 
-Next: complete governance and local Project registration; observe initial routine runs; Phase5 begins with supported executor/trigger feasibility before enabling remote writes.
+Governance documentation and task templates are in place. Verify machine-specific Project registration, automation status and deployment/rollback paths from private operator configuration; these are not tracked runtime state.
+
+Next: observe three independent scheduled refreshes and first-week coverage, failures and available usage. Configuration alone is not unattended acceptance. Phase5 begins with supported executor/trigger feasibility before enabling remote writes.
 
 Update this file when behavior, limitations or priorities change. Do not append transcripts or duplicate the complete GitHub history.
