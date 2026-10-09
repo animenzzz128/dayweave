@@ -10,5 +10,6 @@
 - Keep zero external runtime dependencies unless a requested feature justifies adding one.
 - Do not assume the demo scheduler or integrations exist: the assistant workflow supplies data; adapters are future work.
 - New tasks read docs/project-state.md and verify Git/PR state; use docs/development-workflow.md for handoff. Update state/decisions for changed behavior/limits, not transcripts.
+- Coordinator/worker sessions follow docs/agent-workflow.md (trial) and docs/prompts/; new coordination chats start from docs/prompts/new-request.md.
 - Development uses synthetic data and a separate port. Never point worktrees/tests at the stable private database. Stable code is pinned independently; branch switches are not deployments.
 - UI acceptance loads actual browser scripts in page order and verifies real affected routes/reload/console; HTML or HTTP success alone is insufficient.
