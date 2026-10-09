@@ -1,6 +1,6 @@
 # Current project state
 
-Updated2026-10-08. Verify Git/PR state before editing; this file is not live status.
+Updated2026-10-09. Verify Git/PR state before editing; this file is not live status.
 
 - v1.5.0 preserves the first static-to-web-app milestone. The original tag is unchanged and still contains the startup bug; use main containing merged fix#10 (53cfa65) or a later verified commit.
 - Implemented: routed summary Home/modules, SQLite, progress migration, current/history, backups, immutable Q-number batches, receipts, bounded routine policy, career pipeline and fictional Luna eval harness.
@@ -15,6 +15,8 @@ Stable deployment uses an independent checkout pinned to an accepted SHA, port87
 
 Governance documentation and task templates are in place. Verify machine-specific Project registration, automation status and deployment/rollback paths from private operator configuration; these are not tracked runtime state.
 
-Next: observe three independent scheduled refreshes and first-week coverage, failures and available usage. Configuration alone is not unattended acceptance. Phase5 begins with supported executor/trigger feasibility before enabling remote writes.
+Phase5 feasibility (issue #14): [NO-GO for a remote executor](outlook-feasibility.md). Supported Graph authorization/notifications and desktop schedules are documented, but authorized account access and an approval-to-executor channel are unverified. Retain explicit chat approval; no writer, Email enablement or deployment. Independent routine observations remain separate acceptance work.
+
+Next: observe three independent scheduled refreshes and first-week coverage, failures and available usage. Configuration alone is not unattended acceptance. Revisit the Phase5 gate only with permitted authorization, trigger and recovery evidence.
 
 Update this file when behavior, limitations or priorities change. Do not append transcripts or duplicate the complete GitHub history.
