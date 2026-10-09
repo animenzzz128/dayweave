@@ -10,5 +10,6 @@
 | 2026-10-08 | Deterministic deadline/status logic precedes Luna summaries | Raw-input trial made boundary/uncertainty errors; revisit using scored/live evidence. |
 | 2026-10-08 | Actual browser startup/routes are acceptance checks | Node imports concealed global scope collision. |
 | 2026-10-08 | Phase5 remote executor is NO-GO; retain exact Q-version chat approval | [Feasibility assessment](outlook-feasibility.md): provider support does not establish authorized account access, unattended reliability or trusted approval ingress. Revisit with permitted evidence and synthetic recovery/trigger acceptance; any live write needs separate exact-action approval. |
+| 2026-10-09 | Trial coordinator/CLI-worker workflow with fixed model routing and SHA-bound review | [Agent workflow](agent-workflow.md): separate planning, writing and review contexts may reduce rework, but efficiency is unproven. Adopt only by user decision after #21 pilots versus a single-agent baseline; revisit routing on observed usage. |
 
 Record meaningful tradeoffs, reasons and revisit conditions; do not duplicate the activity log.

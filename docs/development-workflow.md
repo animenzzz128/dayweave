@@ -1,14 +1,14 @@
 # Development and coordination workflow
 
-Read AGENTS.md and project-state.md; verify branch, dirty files, open PRs and accepted baseline. Read only relevant module documentation. Private operating configuration is supplied separately.
+Read AGENTS.md and project-state.md; verify branch, dirty files, open PRs and accepted baseline. Read only relevant module documentation. Private operating configuration is supplied separately. Coordinator-dispatched work also follows the trial [agent workflow](agent-workflow.md), model routing and [prompts](prompts/).
 
 ## Task lifecycle
 1. Define one observable outcome and acceptance in an issue or brief task. Phases group tasks; they are not giant implementation chats.
-2. Open a task chat/branch from verified main. Default one developer; independent concurrent tasks need separate worktrees/data/ports. VS Code opens the same task checkout. Avoid concurrent edits to the same files.
+2. Start a task CLI session/branch from verified main (or an explicitly recorded dependency). Create an app chat only when the user requests it. Default one developer; independent concurrent tasks need separate worktrees/data/ports. VS Code opens the same task checkout. Avoid concurrent edits to the same files.
 3. Implement within scope; preserve unknown facts and permissions.
 4. Run required checks. UI changes load actual scripts in browser order and verify affected routes, reload/back, console and visible result. Integration changes cover failures and ambiguous outcomes.
 5. Create a focused PR with evidence/limits. Merge only within human authorization. After squash merges reconcile dependent branches and verify the final tree.
-6. Update durable state/decisions when relevant, deploy an accepted commit, then archive completed task chats. Published milestone tags never move.
+6. Update durable state/decisions when relevant. Deploy an accepted commit only after explicit approval; archive task chats when requested. Published milestone tags never move.
 
 ## Task prompt
 ```text
