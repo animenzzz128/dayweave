@@ -1,0 +1,93 @@
+{
+  "version": 1,
+  "task": {
+    "issue": 42,
+    "outcome": "Fictional example: a sample settings toggle is added to an imaginary project."
+  },
+  "git": {
+    "baseline_sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "head_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "branch": "example/fictional-settings-toggle",
+    "pr": "https://example.com/fictional/project/pull/42"
+  },
+  "runs": [
+    {
+      "role": "planner",
+      "requested_model": "gpt-6-astra",
+      "requested_effort": "low",
+      "observed_model": null,
+      "observed_effort": null,
+      "observation_reason": "Fictional example: the tool did not report its active configuration.",
+      "justification": null
+    },
+    {
+      "role": "implementer",
+      "requested_model": "claude-opus-5-5",
+      "requested_effort": "high",
+      "observed_model": "claude-opus-5-5",
+      "observed_effort": "high",
+      "justification": null
+    },
+    {
+      "role": "reviewer",
+      "requested_model": "gpt-6.1-sol",
+      "requested_effort": "low",
+      "observed_model": "gpt-6.1-sol",
+      "observed_effort": "low",
+      "justification": "Fictional example: a second-model review of a small documentation-only diff."
+    }
+  ],
+  "checks": [
+    {
+      "command": "npm run check",
+      "result": "pass",
+      "subject_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "evidence": "Fictional example value; no command was run for this file."
+    },
+    {
+      "command": "npm test",
+      "result": "fail",
+      "subject_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "evidence": "Fictional example value: one imaginary test failed and is listed under limitations."
+    }
+  ],
+  "review": {
+    "reviewed_sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "round": 1,
+    "verdict": "changes_requested"
+  },
+  "usage": [
+    {
+      "metric": "tokens",
+      "value": null,
+      "unit": "tokens",
+      "source": null,
+      "unavailable_reason": "Fictional example: no per-task token count was available."
+    },
+    {
+      "metric": "elapsed_seconds",
+      "value": null,
+      "unit": "seconds",
+      "source": null,
+      "unavailable_reason": "Fictional example: start and end times were not recorded."
+    },
+    {
+      "metric": "list_price_estimate_usd",
+      "value": null,
+      "unit": "usd",
+      "source": null,
+      "unavailable_reason": "Fictional example: no estimate was calculated."
+    },
+    {
+      "metric": "billed_credits",
+      "value": null,
+      "unit": "credits",
+      "source": null,
+      "unavailable_reason": "Fictional example: no billing record exists for a single task."
+    }
+  ],
+  "limitations": [
+    "Fictional example: every value here is invented, and schema validity does not make it true.",
+    "Fictional example: the imaginary failing test still needs a fix before another review round."
+  ]
+}
