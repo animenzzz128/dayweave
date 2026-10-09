@@ -22,6 +22,6 @@ Agent workflow (issue #16): [trial coordinator/CLI-worker policy](agent-workflow
 - [Local access troubleshooting](local-access.md) covers refused/blocked pages, private-link 404s, launcher blocks and Herdr session/worker visibility. It is portable guidance; reconnect/restart behavior is still a #21 trial check.
 - [Quota handoff](agent-workflow.md#quota-handoff): Codex remaining strictly below 10% in any applicable window hands approved pending work to a Claude Code fallback coordinator, the only exception to the worker no-push rule; stale or missing readings are unknown, never zero. Policy only: no monitor implements it and no live handoff has been tested.
 
-Next: observe three independent scheduled refreshes (#18) and first-week coverage, failures and available usage. Configuration alone is not unattended acceptance. Revisit the Phase5 gate (#19) only with permitted authorization, trigger and recovery evidence. Use the validator in real task handoffs and proceed with independent Phase6 tasks (#20); #21 pilots decide adoption.
+Next: observe three independent scheduled refreshes (#18) and first-week coverage, failures and available usage. Configuration alone is not unattended acceptance. Revisit the Phase5 gate (#19) only with permitted authorization, trigger and recovery evidence. Use the validator in real task handoffs and proceed with independent Phase6 tasks (#20); the user decides adoption after #21 evidence.
 
 Update this file when behavior, limitations or priorities change. Do not append transcripts or duplicate the complete GitHub history.
