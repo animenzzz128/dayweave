@@ -1,6 +1,6 @@
 # Outlook authorization and trigger feasibility
 
-Decision date: 2026-10-08. Scope: issue #14, documentation and permitted read-only checks. Baseline: fetched `origin/main` at `3197961d096c487049948728723f812c673aa40e`, including startup fix #10 and governance #12. This assessment does not accept issue #1 or establish routine reliability.
+Decision date: 2026-10-08. Scope: issue #14, documentation and permitted read-only checks. Assessment baseline: fetched `origin/main` at `3197961d096c487049948728723f812c673aa40e`, including startup fix #10 and governance #12. Reconciled with main `debcce9` on 2026-10-09, preserving the merged #13 governance and operational-acceptance guidance. This assessment does not accept issue #1 or establish routine reliability.
 
 ## Decision
 
@@ -12,7 +12,7 @@ Decision date: 2026-10-08. Scope: issue #14, documentation and permitted read-on
 
 | Classification | Evidence | Implication |
 | --- | --- | --- |
-| Verified repository baseline | Clean checkout matched fetched main; open PR #13 concerns separate handoff work. Reviewed AGENTS, README, data contract, architecture, workflow, state, roadmap, Phase 2/4 and routine docs. | This PR changes documentation only and does not depend on #13. |
+| Verified repository baseline | Initial clean checkout matched fetched main. Reviewed AGENTS, README, data contract, architecture, workflow, state, roadmap, Phase 2/4 and routine docs; subsequently retained the merged #13 guidance from main. | This PR changes documentation only; governance completion does not imply operational or Outlook acceptance. |
 | Verified tool surface | Outlook Calendar exposes identity, calendar-list and bounded event-read tools, plus mutation tools. | Tool availability does not establish connection, granted scopes or permission to save. Mutation tools were not called. |
 | Blocked session prerequisite | One identity-only connector probe failed to establish a connection. Stopped before calendar/event reads; no inbox was read. | Interactive authorization is unverified. This is not evidence of administrator denial or of a broken Microsoft service. Account details, connector identifiers and raw payloads stay outside Git. |
 | Verified local boundary | `src/server.cjs`, `src/approvals.cjs`, `scripts/approval.cjs`: loopback/session/Origin/CSRF checks; preparation and local receipt CLI; no provider adapter or execution route. | A Review click or local request cannot trigger authorized remote execution. |
