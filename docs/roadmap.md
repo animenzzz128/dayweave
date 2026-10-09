@@ -6,7 +6,7 @@ Current behavior/limits: project-state.md. Each outcome has its own acceptance a
 | --- | --- | --- |
 | Phase1–3 | Implemented foundation | Coursework/calendar review, assignment help, career pipeline; collection remains assistant-driven. |
 | Phase4 | Implemented | v1.5.0 milestone, SQLite/routes/history/Q versions/routine/eval; startup fix#10 merged. |
-| Governance | Current iteration | Durable docs/templates, isolated stable runtime, separate workflows and local Project registration. |
+| Governance | Foundation implemented; operational acceptance pending | Durable docs/templates and isolated-runtime workflow are in place. Verify local setup privately and observe three independent scheduled refreshes. |
 | Phase5 | Planned | Supported Outlook trigger/executor, reliable outcomes and improved collection. |
 | Phase6 | Planned | Effort calibration, workload modes, career feedback ranking and weekly trends. |
 
