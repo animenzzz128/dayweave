@@ -14,3 +14,5 @@ What problem does this solve, and what behavior changes?
 ## Limitations
 
 Mention relevant compatibility changes, source-access assumptions, or follow-up work.
+- [ ] Actual browser script startup and affected routes/reload checked for UI changes
+- [ ] Current state/decisions updated if behavior or limitations changed

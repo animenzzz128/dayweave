@@ -124,3 +124,7 @@ No open-source license has been selected yet; this package is marked `UNLICENSED
 
 ## Phase 4 workbench
 The primary interface is now a local multi-page Node 24 + SQLite application. Start with `node scripts/db.cjs migrate /private/data.json`, then `npm run serve`. See [Phase 4 migration, approvals and backups](docs/phase-4.md). Existing static render/preview commands remain legacy compatibility tools; `export:html` produces a read-only database export. Email is disabled.
+
+## Sustainable development
+
+Start with [current state](docs/project-state.md), [architecture](docs/architecture.md), [workflow](docs/development-workflow.md), [decisions](docs/decisions.md) and [roadmap](docs/roadmap.md). Use one task/branch/PR per outcome. Stable runtime is an independent pinned checkout; development uses synthetic data and its own port. Deployment/account manifests stay outside Git.
