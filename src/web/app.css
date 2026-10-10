@@ -2,3 +2,4 @@
 
 pre{white-space:pre-wrap;overflow-wrap:anywhere;font-size:12px}
 .focus-list{padding-left:22px;margin:8px 0 14px}.focus-list li{margin:8px 0}.focus-list small{display:block}
+.trend-week td,.trend-week th{padding:7px 8px}.trend-week td:not(:first-child),.trend-sources th,.trend-sources .tag{white-space:nowrap}.trend-week h4{margin:18px 0 6px}.trend-sources td:first-child{min-width:9em}

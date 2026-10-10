@@ -12,7 +12,7 @@ The app has independent Home, Coursework, Timetable, Review, Career, Email and S
 
 ## Collection and receipts
 
-Export current source records with `node scripts/db.cjs export /private/current.json`; collect bounded changes, then `node scripts/db.cjs import /private/incoming.json`. Failed sources retain their prior data. Progress is never replaced by source imports. Import observed run metrics with `node scripts/db.cjs run /private/run.json`. See routine.md for cadence and collection budgets. Use deterministic categories before model summarization.
+Export current source records with `node scripts/db.cjs export /private/current.json`; collect bounded changes, then `node scripts/db.cjs import /private/incoming.json`. Failed sources retain their prior data. Progress is never replaced by source imports. Import observed run metrics with `node scripts/db.cjs run /private/run.json`. Settings → Weekly trends reads retained source snapshots through a read-only, bounded query (`GET /api/trends`); see the [trends contract](data-contract.md#weekly-evidence-trends-phase-6d-29). See routine.md for cadence and collection budgets. Use deterministic categories before model summarization.
 
 Prepared review batches have immutable Q-number references. After the human explicitly approves that reference in chat, use `node scripts/approval.cjs read Q-1`, re-read the live calendar and recheck each exact proposal. Editing invalidates old prepared references. Local selections and prepared IDs are not authorization.
 

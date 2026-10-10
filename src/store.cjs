@@ -1,7 +1,7 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),{DatabaseSync}=require('node:sqlite');
-const C=require('./core.cjs'),R=require('./routine.cjs'),E=require('./effort.cjs'),W=require('./workload.cjs');
-const collections=['courses','assignments','events','proposals','sources'];
+const C=require('./core.cjs'),R=require('./routine.cjs'),E=require('./effort.cjs'),W=require('./workload.cjs'),T=require('./trends.cjs');
+const collections=['courses','assignments','events','proposals','sources'],MAX_SNAPSHOT_READ=1000;
 const validId=id=>typeof id==='string'&&!!id&&id.length<=1000&&!['__proto__','constructor','prototype'].includes(id);
 class Store{
  constructor(dir){this.dir=dir;fs.mkdirSync(dir,{recursive:true});this.file=path.join(dir,'dayweave.sqlite');this.open();}
@@ -35,6 +35,17 @@ class Store{
  history({kind='',status='',query='',from='',to='',page=1}={}){page=Math.max(1,Number(page)||1);const where='(?=\'\' OR kind=?) AND (?=\'\' OR status=?) AND label LIKE ? AND (?=\'\' OR at>=?) AND (?=\'\' OR substr(at,1,10)<=?)',args=[kind,kind,status,status,'%'+query+'%',from,from,to,to];return {page,total:this.db.prepare('SELECT count(*) AS n FROM audit WHERE '+where).get(...args).n,items:this.db.prepare('SELECT * FROM audit WHERE '+where+' ORDER BY id DESC LIMIT 20 OFFSET ?').all(...args,(page-1)*20).map(r=>({...r,value:JSON.parse(r.value)}))};}
  recordRun(run){const r=R.runRecord(run);this.db.prepare('INSERT OR REPLACE INTO runs VALUES(?,?,?)').run(r.id,r.startedAt,JSON.stringify(r));return r;}
  runs(){return this.db.prepare('SELECT value FROM runs ORDER BY at DESC LIMIT 30').all().map(r=>JSON.parse(r.value));}
+ // Read-only, bounded time-range read of retained source snapshots by import time (source_snapshots.at), oldest first,
+ // projected to the fields weekly trends use. `truncated` reports rows beyond the limit. Pruning stays in importSnapshot.
+ snapshotObservations({from,to=null,limit=T.QUERY_LIMIT}={}){const instant=(x,name)=>{if(typeof x!=='string'||!/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d{1,3})?)?(Z|[+-]\d{2}:\d{2})$/.test(x)||!Number.isFinite(Date.parse(x)))throw Error('Invalid '+name+' instant');return new Date(Date.parse(x)).toISOString();};
+  const f=instant(from,'from'),t=to===null?null:instant(to,'to');if(t!==null&&t<=f)throw Error('Invalid snapshot range');if(!Number.isInteger(limit)||limit<1||limit>MAX_SNAPSHOT_READ)throw Error('Invalid snapshot limit');
+  const rows=this.db.prepare(`SELECT id,at,json_extract(value,'$.generatedAt') AS generatedAt,json_extract(value,'$.timezone') AS timezone,
+   (SELECT json_group_array(json_object('id',json_extract(s.value,'$.id'),'name',json_extract(s.value,'$.name'),'status',json_extract(s.value,'$.status'))) FROM json_each(source_snapshots.value,'$.sources') AS s) AS sources,
+   (SELECT json_group_array(json_object('id',json_extract(x.value,'$.id'),'requirement',json_extract(x.value,'$.requirement'),'status',json_extract(x.value,'$.status'),'sourceId',json_extract(x.value,'$.sourceId'),'archivedFromSource',json_type(x.value,'$.archivedFromSource')='true')) FROM json_each(source_snapshots.value,'$.assignments') AS x) AS assignments
+   FROM source_snapshots WHERE at>=? AND (? IS NULL OR at<?) ORDER BY at,id LIMIT ?`).all(f,t,t,limit+1);
+  return {from:f,to:t,limit,truncated:rows.length>limit,items:rows.slice(0,limit).map(r=>({id:r.id,importedAt:r.at,generatedAt:r.generatedAt,timezone:r.timezone,sources:JSON.parse(r.sources),assignments:JSON.parse(r.assignments).map(a=>({...a,archivedFromSource:a.archivedFromSource===1}))}))};}
+ snapshotRetention(){const r=this.db.prepare('SELECT count(*) AS n,min(at) AS earliest,max(at) AS latest FROM source_snapshots').get();return {count:r.n,earliestImportedAt:r.earliest,latestImportedAt:r.latest,generatedAt:this.db.prepare("SELECT json_extract(value,'$.generatedAt') AS g FROM source_snapshots ORDER BY at DESC,id DESC LIMIT ?").all(MAX_SNAPSHOT_READ).map(x=>x.g)};}
+ weeklyTrends(query,now=new Date()){const tz=this.db.prepare("SELECT json_extract(value,'$.timezone') AS tz FROM meta WHERE key='snapshot'").get()?.tz;return T.trends({query,timezone:tz,now,retention:this.snapshotRetention(),read:o=>this.snapshotObservations(o)});}
  backups(){const dir=path.join(this.dir,'backups');fs.mkdirSync(dir,{recursive:true});return fs.readdirSync(dir).filter(f=>/^backup-[\w-]+\.sqlite$/.test(f)).sort().reverse();}
  backup(){const dir=path.join(this.dir,'backups');fs.mkdirSync(dir,{recursive:true});const name='backup-'+new Date().toISOString().slice(0,10)+'-'+crypto.randomBytes(4).toString('hex')+'.sqlite',dest=path.join(dir,name);this.db.exec("VACUUM INTO '"+dest.replaceAll("'","''")+"'");return name;}
  dailyBackup(){const today=new Date().toISOString().slice(0,10);if(!this.backups().some(n=>n.startsWith('backup-'+today)))this.backup();const cutoff=new Date(Date.now()-30*86400000).toISOString().slice(0,10);for(const n of this.backups())if(n.slice(7,17)<cutoff)fs.unlinkSync(path.join(this.dir,'backups',n));}
