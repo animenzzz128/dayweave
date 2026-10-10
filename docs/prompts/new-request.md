@@ -16,12 +16,14 @@
    文档不是实时状态。
 2. 核验并报告实时状态：分支与 HEAD 完整 SHA、未提交文件、全部工作树、打开的 PR 及其 head SHA、
    milestone 1 issue 状态、稳定部署固定的 SHA（只读私有清单，不修改），以及已有负责人
-   （运行中的 CLI/Herdr 工作者、Claude 后备协调者、未完成的私有检查点）。已有负责人时先检查并接续，
+   （运行中的 CLI/Herdr 工作者、执行负责人、Claude 后备协调者、未完成的私有检查点，以及私有 RESULT.md
+   记录的当前负责人、限制和待用户决定事项）。已有负责人时先检查并接续，
    不开第二个写入者。未知项明确标为未知。
 3. Herdr：会话、面板和启动方式从运维私有配置或已安装 Herdr 的帮助命令获取，不从其他聊天推断，
    不写入 Git。在本会话中从 Herdr 管理的面板做预检；按名称/ID 指定会话与面板，不依赖或切换焦点；
    同一工作树只有一个写入者。预检失败则本任务不用 Herdr，并报告可恢复状态。
-4. 模型路由按 agent-workflow.md：规划用 gpt-6-astra low；实现、UI、测试、审查用 claude-opus-5-5 high；
+4. 模型路由按 agent-workflow.md：常规规划、设计、实现、UI、测试、审查都用 claude-opus-5-5 high；
+   gpt-6-astra low 仅在根协调者审定任务异常困难或复杂、并在派发前记录理由时使用，不做默认规划；
    gpt-6.1-sol low/medium 须记录复杂度或实测用量理由；不默认升级 Astra High；不改变本窗口模型。
    记录每次运行请求与实测的模型/努力级别，未知为 null 并注明原因。
 5. 额度：在请求开始、重大派发前、任务之间和昂贵检查前读取账户共享的 Codex 主/次窗口。
@@ -29,9 +31,10 @@
    缺失、null、超过 5 分钟或已过重置时间的读数为未知：不算零、不触发，下个检查点重读。
    触发后不再开始新的 GPT 开发；按 agent-workflow.md「Quota handoff」私有检查点、确认原写入者已停止，
    再用 docs/prompts/credit-handoff.md 交给 claude-opus-5-5 high 作为后备协调者。读数只记在本地私有位置。
-6. 推送：由本协调者推送分支并发布 PR。工作者只交付工作树产物和交接，不推送；唯一例外是按
-   「Quota handoff」显式转交协调者角色的 Claude 后备协调者：它仅在用户已批准的待办范围内推送分支并开 PR，
-   且不合并、发布、打标签、改可见性或部署。本协调者也不做这些动作，除非用户明确要求该动作。
+6. 推送：由本协调者推送分支并发布 PR。工作者只交付工作树产物和交接，不推送；例外只有两种：
+   本协调者在某个请求的派发提示中书面写明「发布委托」的执行负责人（仅推送该请求的分支并开/更新其 PR，
+   请求结束即失效，不转给子工作者或审查者），以及按「Quota handoff」显式转交协调者角色的 Claude 后备协调者
+   （仅限用户已批准的待办范围）。两者都不合并、发布、打标签、改可见性或部署。本协调者也不做这些动作，除非用户明确要求该动作。
 7. 每个任务一个负责人、CLI 会话、工作树、分支和 PR，基于已核验的基线 SHA，使用合成数据和开发端口。
    暂存后运行 npm run check、npm test、npm run demo、npm run privacy（UI 变更另做真实浏览器验收），
    记录实际结果及对应 SHA，未运行的检查不得报告为通过。审查在独立上下文中绑定确切 head SHA；
@@ -39,8 +42,9 @@
 8. 审批边界：不写日历、不发邮件或消息、不提交作业、不重启机器，不改预算、计费、模型认证或机器策略；
    审阅中的选择不等于批准。不自动创建或联系其他应用聊天。
 9. 持续推进已授权任务直到 PR 就绪或受阻；不静默扩大范围，新范围转为 issue 或问题。
-   结果显示在本窗口或 Claude/Herdr 窗口；额度交接时另写本地私有 RESULT.md。根应用聊天不会自动收到 CLI 消息。
-   交接按 agent-workflow.md「Handoff contract」。
+   结果显示在本窗口或 Claude/Herdr 窗口。每个请求结束都更新本地私有 RESULT.md（权威记录：请求、状态、负责人、
+   PR、确切 head SHA、检查及其对应 SHA、审查结论、阻塞项、用户下一步）；替换前先把旧版存为不可改的带时间戳归档，
+   原始证据不改写。根应用聊天不会自动收到 CLI 消息。交接按 agent-workflow.md「Handoff contract」与「Results and archive」。
 ```
 
 ## 详细检查清单
@@ -67,7 +71,9 @@
 - 用户要求可见执行时，在任务面板显示生命周期与进度摘要；面板徽标不是完成证明。见 [Herdr execution](../agent-workflow.md#herdr-execution) 与 [local-access.md](../local-access.md#herdr-sessions-and-worker-progress)。
 
 ### 5. 模型路由
-见 [Roles and model routing](../agent-workflow.md#roles-and-model-routing)。请求与实测配置都要记录；配置未知的运行不计入采用证据。
+见 [Roles and model routing](../agent-workflow.md#roles-and-model-routing)。默认全部由 claude-opus-5-5 high 承担；使用 gpt-6-astra 前，根协调者先写下该任务为何异常困难或复杂（"需要规划"本身不算理由）。请求与实测配置都要记录；配置未知的运行不计入采用证据。
+
+根协调者负责需求接收、结果审核与总结；可把一个已批准的请求交给单一执行负责人（claude-opus-5-5 high）完成规划、实现、检查与独立审查。发布委托只能在该请求的派发提示中书面给出，见 [Publisher delegation](../agent-workflow.md#publisher-delegation)。
 
 ### 6. 额度与后备协调者
 见 [Quota handoff](../agent-workflow.md#quota-handoff)，要点：
@@ -91,5 +97,6 @@
 - 交接 JSON 用 `node scripts/validate-handoff.cjs <文件>` 校验结构（`npm run handoff:check` 只校验示例文件，见 [handoff-contract.md](../handoff-contract.md)）；校验通过不代表内容真实或已审查。
 
 ### 8. 汇报口径
+- 结果记录见 [Results and archive](../agent-workflow.md#results-and-archive)：私有 RESULT.md 为准，可选的私有静态状态页只是派生摘要，须标注来源时间，不声称实时。
 - 分开报告「工具已安装 / 合成冒烟通过」与「真实效率尚未证明」；工作流仍为试行，采用由用户在 #21 证据后决定。
 - Phase5 远程执行器保持 NO-GO（#14、#19），除非有证据解决或用户明确调整范围。定时刷新的无人值守验收（#18）需要实际观测，配置本身不算验收。
