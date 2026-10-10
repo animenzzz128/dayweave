@@ -57,3 +57,14 @@ Home has an explicit, advisory focus mode: `standard` or `reduced`. It is stored
 - Work archived locally in Coursework stays in the focus lists, tagged "Archived locally". Its link opens Coursework History, where the record is listed. Following the link changes no archive state.
 - Both modes always show verification items, non-ok sources, a stale snapshot and calendar coverage limits. Blank calendar time is never treated as free capacity.
 - Switching changes only the preference row and an audit entry. It changes no source records, estimates, proposals, approvals, Q-numbers or effort samples, and it never authorizes calendar, message or submission actions. Nothing is scheduled automatically.
+
+## Career feedback ordering (Phase 6C, #28)
+
+The Career Roles and People tabs order each list by the user's explicit status on that item, keyed by the item's canonical URL (or stable ID without one). The status is the latest `career` progress or `candidateHistory` record, as before. No new progress kind, endpoint or schema change.
+
+- `saved` items come first and show "Saved by you". `dismissed` items come last, stay visible with Restore, and show "Dismissed by you". Every other status (including restored, `reset`) keeps the source order. Ties keep source order, so with no feedback both lists match the source order exactly.
+- Roles and People are ordered separately. Follow-ups and History keep their existing order.
+- Existing exclusions stay: applied roles; pending, connected and contacted people; source-removed people; and source-removed roles unless saved. A saved role removed from the source stays first and is labelled "Removed from latest source; retained". Dismissed items no longer leave Roles/People, and they also stay listed in History.
+- Only each item's own status counts. Nothing is learned or inferred for other roles or people, editorial scores are not used, and no model is trained.
+- Ordering changes presentation only. Source records, evidence, requirements, eligibility gaps and unknowns, relationships, proposals, approvals, effort samples and the workload mode are unchanged. Saving never makes unknown eligibility eligible. A missing or null profile still renders, with gaps shown as unknown.
+- Source refreshes and failed career sources keep each item's state: the baseline is the current (or retained) source order, and the user's status follows the canonical URL.
