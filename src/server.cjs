@@ -10,7 +10,9 @@ function createServer(dir){const store=new Store(dir),sessions=new Map();const s
  if(req.method==='GET'&&u.pathname==='/api/snapshot')return send(200,{snapshot:store.snapshot(),progress:store.state()});
  if(req.method==='GET'&&u.pathname==='/api/history')return send(200,store.history({...Object.fromEntries(u.searchParams),query:u.searchParams.get('q')||''}));
  if(req.method==='GET'&&u.pathname==='/api/health')return send(200,{runs:store.runs(),backups:store.backups()});
- if(req.method==='POST'&&u.pathname==='/api/progress'){store.saveState(body.kind,body.id,body.value);return send(200,{ok:true});}
+ if(req.method==='POST'&&u.pathname==='/api/progress')return send(200,{ok:true,...store.saveState(body.kind,body.id,body.value)});
+ if(req.method==='POST'&&u.pathname==='/api/effort/confirm')return send(200,{sample:store.confirmEffort(body.id)});
+ if(req.method==='POST'&&u.pathname==='/api/effort/clear')return send(200,store.clearEffort(body.id));
  if(req.method==='POST'&&u.pathname==='/api/migrate-progress')return send(200,{migrated:store.migrateProgress(body)});
  if(req.method==='POST'&&u.pathname==='/api/backup')return send(200,{name:store.backup()});
  if(req.method==='POST'&&u.pathname==='/api/restore'){store.restore(body.name);return send(200,{ok:true});}
@@ -18,7 +20,7 @@ function createServer(dir){const store=new Store(dir),sessions=new Map();const s
  if(server.actionRoute&&await server.actionRoute({req,res,u,body,store,send}))return;
  return send(404,{error:'Unknown API route'});}
  if(req.method!=='GET')return send(405,{error:'Method not allowed'});
- const routes=['/','/home','/coursework','/timetable','/review','/career','/email','/settings'];const assets={'/app.js':'web/app.js','/app.css':'web/app.css','/core.js':'core.cjs','/phase2.js':'phase2.cjs','/phase3.js':'phase3.cjs'};const asset=routes.includes(u.pathname)?'web/index.html':assets[u.pathname];if(!asset)return send(404,{error:'Page not found'});
+ const routes=['/','/home','/coursework','/timetable','/review','/career','/email','/settings'];const assets={'/app.js':'web/app.js','/app.css':'web/app.css','/core.js':'core.cjs','/phase2.js':'phase2.cjs','/phase3.js':'phase3.cjs','/effort.js':'effort.cjs'};const asset=routes.includes(u.pathname)?'web/index.html':assets[u.pathname];if(!asset)return send(404,{error:'Page not found'});
  const mime=asset.endsWith('.html')?'text/html':asset.endsWith('.css')?'text/css':'text/javascript';res.writeHead(200,{'Content-Type':mime+'; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"});res.end(fs.readFileSync(path.join(__dirname,asset)));
  }catch(e){send(400,{error:e.message});}
  });server.store=store;server.on('close',()=>store.close());return server;}

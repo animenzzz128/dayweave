@@ -22,6 +22,8 @@ Agent workflow (issue #16): [trial coordinator/CLI-worker policy](agent-workflow
 - [Local access troubleshooting](local-access.md) covers refused/blocked pages, private-link 404s, launcher blocks and Herdr session/worker visibility. It is portable guidance; reconnect/restart behavior is still a #21 trial check.
 - [Quota handoff](agent-workflow.md#quota-handoff): Codex remaining strictly below 10% in any applicable window hands approved pending work to a Claude Code fallback coordinator, the only exception to the worker no-push rule; stale or missing readings are unknown, never zero. Policy only: no monitor implements it and no live handoff has been tested.
 
+Phase6A effort calibration (#26): Settings shows a descriptive, user-reported median actual/estimate ratio from explicitly confirmed, frozen per-assignment samples, with "Insufficient data" below three samples and visible exclusions. Actual edits invalidate confirmations; nothing adjusts estimates or plans. See the [sample contract](data-contract.md#effort-calibration-samples-phase-6a-26). Workload modes, feedback ordering and weekly trends (#27–29) are not implemented.
+
 Next: observe three independent scheduled refreshes (#18) and first-week coverage, failures and available usage. Configuration alone is not unattended acceptance. Revisit the Phase5 gate (#19) only with permitted authorization, trigger and recovery evidence. Use the validator in real task handoffs and proceed with independent Phase6 tasks (#20); the user decides adoption after #21 evidence.
 
 Update this file when behavior, limitations or priorities change. Do not append transcripts or duplicate the complete GitHub history.
