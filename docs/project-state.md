@@ -25,6 +25,6 @@ Agent workflow (issue #16): [trial coordinator/CLI-worker policy](agent-workflow
 - Every request updates a private RESULT record and archives the previous one ([Results and archive](agent-workflow.md#results-and-archive)). Private records and status pages are not tracked.
 - Phase6: the task plan and acceptance proposals (#26–#29) are in open PR #31, which awaits user review. No Phase6 task is implemented until the user approves its concrete acceptance.
 
-Next: observe three independent scheduled refreshes (#18) and first-week coverage, failures and available usage. Configuration alone is not unattended acceptance. Revisit the Phase5 gate (#19) only with permitted authorization, trigger and recovery evidence. Use the validator in real task handoffs and proceed with independent Phase6 tasks (#20); the user decides adoption after #21 evidence.
+Next: observe three independent scheduled refreshes (#18) and first-week coverage, failures and available usage. Configuration alone is not unattended acceptance. Revisit the Phase5 gate (#19) only with permitted authorization, trigger and recovery evidence. Use the validator in real task handoffs. Phase6 tasks (#20) start only after the user approves their concrete acceptance (PR #31); the user decides adoption after #21 evidence.
 
 Update this file when behavior, limitations or priorities change. Do not append transcripts or duplicate the complete GitHub history.

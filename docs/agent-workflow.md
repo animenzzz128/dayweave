@@ -38,7 +38,7 @@ The coordinator is the single driver for a user request.
 The root coordinator owns intake, priorities, final review of results and the summary to the user. It may hand one approved request to a single execution lead (`claude-opus-5-5` high) that owns scoped planning, implementation, checks and the separate-context review cycle. The execution lead reports back; final acceptance stays with the root coordinator and the user.
 
 ### Publisher delegation
-The coordinator may delegate publishing for one named request by writing it into that request's dispatch prompt. The delegate may then push that request's branch and open or update its PR. Nothing else changes:
+Only the root coordinator may delegate publishing, only to the execution lead, and only for one named request, by writing it into that request's dispatch prompt. A quota fallback coordinator cannot pass its push authority on. The delegate may then push that request's branch and open or update its PR. Nothing else changes:
 - Never merge, release, tag, change visibility or deploy. No external writes.
 - Required checks after staging, a privacy review of the staged diff and separate-context SHA-bound review still precede publishing.
 - The delegation ends with the request. It does not pass to sub-workers or reviewers, and it does not cover other tasks.
@@ -70,7 +70,7 @@ Every request ends with a private result record, kept outside Git.
 - Launchers that capture CLI output set UTF-8 explicitly for stdin, console decoding and written files. Console defaults can silently turn non-ASCII output into mojibake. Keep this setting scoped to the launcher process, not machine policy.
 
 ## Quota handoff
-The user has authorized handing in-progress authorized work to Claude Code `claude-opus-5-5` high when observed Codex quota runs low. This is policy only: no scheduler or always-on monitor implements it. One real handoff ran on 2026-10-09; the reset handshake and recovery checks remain unobserved (#21). The handoff transfers the coordinator role; it is separate from ordinary model routing, in which Claude already executes most tasks.
+The user has authorized handing in-progress authorized work to Claude Code `claude-opus-5-5` high when observed Codex quota runs low. This is policy only: no scheduler or always-on monitor implements it. One real handoff ran on 2026-10-09; the reset handshake and recovery checks remain unobserved (#21). The handoff transfers the coordinator role; it is separate from ordinary model routing, in which Claude executes all ordinary tasks.
 
 **Measure.** The quota reading is account-shared rate-limit usage, not per-session credits.
 - Per applicable Codex window (primary and secondary): `remaining = clamp(100 - usedPercent, 0, 100)`. Trigger when either is strictly below 10. Ignore unrelated reserve buckets and cash/credit balances.
@@ -83,7 +83,7 @@ The user has authorized handing in-progress authorized work to Claude Code `clau
 2. Quiesce the writer and verify from the actual process and worktree that it stopped before transferring ownership. If a Claude task already owns the work, continue it; do not duplicate.
 3. Preflight a Herdr-managed pane; if Herdr is unavailable, use a native terminal. Dispatch with [prompts/credit-handoff.md](prompts/credit-handoff.md).
 
-**Fallback authority.** Claude becomes explicit fallback coordinator solely for approved pending scope. It may push and open scoped PRs as the user authorized; this coordinator-role transfer is the only exception to the worker no-push rule. No merge, release, deploy, calendar, email, message or assignment actions. Separate-context SHA-bound review and mandatory checks still apply.
+**Fallback authority.** Claude becomes explicit fallback coordinator solely for approved pending scope. It may push and open scoped PRs as the user authorized; this coordinator-role transfer is one of the two exceptions to the worker no-push rule (the other is [publisher delegation](#publisher-delegation)). No merge, release, deploy, calendar, email, message or assignment actions. Separate-context SHA-bound review and mandatory checks still apply.
 - Never share browser cookies or passwords; do not assume MCP or browser tools exist in Claude. Source work it cannot access is reported as a blocker.
 - If Claude auth, quota or tools are unavailable, stop with a recoverable blocker.
 - Never alter budget, billing, model authentication or machine policy.
@@ -134,7 +134,7 @@ GitHub milestone 1: "Phase 6 and verified Herdr dual-agent delivery".
 | #20 | Phase6 epic: effort calibration, workload modes, career feedback ranking, weekly trends |
 | #21 | Measured efficiency, recovery and adoption decision |
 
-Phase5 NO-GO stays blocking for #19 unless evidence resolves it or the user explicitly re-scopes. Independent Phase6 work can proceed.
+Phase5 NO-GO stays blocking for #19 unless evidence resolves it or the user explicitly re-scopes. Phase6 implementation waits until the user approves the concrete acceptance of each task (plan in PR #31, tasks #26–#29).
 
 ### Milestone acceptance
 - User-approved Phase6 acceptance criteria.

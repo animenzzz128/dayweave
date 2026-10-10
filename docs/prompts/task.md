@@ -4,8 +4,8 @@ Coordinator fills the braces. Policy: [agent-workflow.md](../agent-workflow.md).
 
 ```text
 Task: {issue #, observable outcome}
-Role/model: implementer or execution lead, claude-opus-5-5 high {or gpt-6-astra low / gpt-6.1-sol + recorded reason}
-Publisher: {none | delegated for this request only: push {branch} and open/update its PR; never merge, release, tag, change visibility or deploy}
+Role/model: implementer or execution lead, claude-opus-5-5 high {or gpt-6.1-sol + recorded reason; gpt-6-astra low only for an exceptional planning task with the root coordinator's recorded reason}
+Publisher: {none | execution lead only, delegated by the root coordinator for this request only: push {branch} and open/update its PR; never merge, release, tag, change visibility or deploy}
 Baseline: {branch} at {full SHA}; verify clean before editing
 Worktree/branch: {logical worktree key}, {branch}; you are the only writer
 Read: AGENTS.md, docs/project-state.md, docs/agent-workflow.md, {module docs}
