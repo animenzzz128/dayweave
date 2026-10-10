@@ -16,7 +16,7 @@ const weekOf=(instant,tz)=>monday(localDay(instant,tz));
 // Only `week` (the Monday that starts a week, YYYY-MM-DD) is accepted, at most once. Range bounds need the timezone and are checked in trends().
 function parseQuery(params){const entries=[...(params instanceof URLSearchParams?params:new URLSearchParams(params||{}))];if(entries.some(([k])=>k!=='week'))throw Error('Unknown trends parameter');if(entries.length>1)throw Error('Give at most one week');if(!entries.length)return {};const w=entries[0][1];if(!validDay(w))throw Error('week must be a calendar date (YYYY-MM-DD)');if(monday(w)!==w)throw Error('week must be the Monday that starts a week');return {week:w};}
 // One retained snapshot row -> one observation. Only records from a listed source that is not failed/unavailable count as fresh;
-// archived (removed by their source), retained-from-failed and unlisted-source records are counted separately.
+// archived (removed by their source), failed/unavailable-source (`retained`: kept from before for failed) and unlisted-source records are counted separately.
 function observe(row,tz){
  const t=Date.parse(row?.generatedAt);if(!Number.isFinite(t))return null;
  const sources=(Array.isArray(row.sources)?row.sources:[]).filter(s=>s&&typeof s.id==='string'),status=new Map(sources.map(s=>[s.id,s.status]));
@@ -43,21 +43,29 @@ function summarize(start,list,ctx){
  return {start,end:addDays(start,6),current:start===ctx.currentWeek,through:start===ctx.currentWeek?ctx.today:null,
   // The week may have lost evidence to pruning when it starts on or before the local date of the retention horizon.
   retentionLimited:ctx.horizonDay===null||start<=ctx.horizonDay,observations:obs.length,imports,duplicates:imports-obs.length,
+  // Retained imports collected this week that the bounded read did not return (imported before the read window, or cut by truncation).
+  unread:Math.max(0,(ctx.retainedByWeek.get(start)||0)-imports),
   unlisted:obs.some(o=>o.counts.unlisted>0),otherTimezone:obs.filter(o=>o.timezone!==null&&o.timezone!==ctx.timezone).length,
   items:obs.map(o=>({generatedAt:o.generatedAt,importedAt:o.importedAt,lastImportedAt:o.lastImportedAt,imports:o.imports,nonOk:o.nonOk,noFresh:o.noFresh})),
-  latest:latest&&{generatedAt:latest.generatedAt,importedAt:latest.importedAt,counts:latest.counts,noFresh:latest.noFresh},sources};
+  latest:latest&&{generatedAt:latest.generatedAt,importedAt:latest.importedAt,counts:latest.counts,noFresh:latest.noFresh,sourceIds:latest.sources.map(s=>s.id).sort()},sources};
 }
 function compare(weeks,ctx){
  const reasons=[];if(ctx.truncated)reasons.push(`The snapshot query stopped at ${ctx.limit} imports, so later evidence was not read`);
  for(const w of weeks){const label='the week of '+w.start+' to '+w.end;
-  if(!w.observations)reasons.push('No observations in '+label);
+  if(w.unread)reasons.push(`Some retained evidence for ${label} was not read (${w.unread} import${w.unread===1?'':'s'})`);
+  if(!w.observations)reasons.push((ctx.truncated||w.unread?'No observations read for ':'No observations in ')+label);
   if(w.retentionLimited)reasons.push(ctx.horizon?`${label[0].toUpperCase()+label.slice(1)} starts on or before the retained window (${ctx.horizonDay}); earlier evidence may have been pruned`:'No source snapshots are retained, so coverage of '+label+' is unknown');
   const failed=w.sources.filter(s=>s.failed),other=w.sources.filter(s=>s.other);
   if(failed.length)reasons.push('Failed or unavailable source in '+label+': '+failed.map(s=>s.name).join(', '));
+  const missing=w.sources.filter(s=>s.notReported);if(missing.length)reasons.push('Source not reported in every observation of '+label+': '+missing.map(s=>s.name).join(', '));
   if(other.length)reasons.push('Source not fully ok in '+label+': '+other.map(s=>s.name).join(', '));
   if(w.unlisted)reasons.push('Records without a listed source in '+label);
   if(w.latest?.noFresh)reasons.push('No fresh records in the latest observation of '+label);}
- const comparable=!reasons.length,[p,s]=weeks;
+ const [p,s]=weeks;
+ // A source missing from one latest observation archives its records there, so counts would differ for coverage reasons alone.
+ if(p.latest&&s.latest&&JSON.stringify(p.latest.sourceIds)!==JSON.stringify(s.latest.sourceIds)){const names=new Map([...p.sources,...s.sources].map(x=>[x.id,x.name])),only=(x,y)=>x.latest.sourceIds.filter(id=>!y.latest.sourceIds.includes(id)).map(id=>names.get(id)??id);
+  reasons.push('The latest observations of the two weeks list different sources'+[[p,only(p,s)],[s,only(s,p)]].filter(([,l])=>l.length).map(([w,l])=>`; only in the week of ${w.start}: ${l.join(', ')}`).join(''));}
+ const comparable=!reasons.length;
  return {comparable,reasons,changes:comparable?Object.fromEntries(METRICS.map(k=>[k,s.latest.counts[k]-p.latest.counts[k]])):null};
 }
 // read({from,limit}) returns {items,truncated,limit} from the bounded store query; inputs are never mutated.
@@ -74,7 +82,10 @@ function trends({query,timezone,now=new Date(),retention={},read}){
  const groups=new Map();let unusable=0;
  for(const row of items){const o=observe(row,tz);if(!o){unusable++;continue;}const g=groups.get(o.key);
   if(g){g.imports++;if(o.importedAt<g.importedAt)g.importedAt=o.importedAt;if(o.importedAt>g.lastImportedAt)g.lastImportedAt=o.importedAt;}else groups.set(o.key,{...o,imports:1,lastImportedAt:o.importedAt});}
- const ctx={timezone:tz,today,currentWeek,horizon,horizonDay:horizon?localDay(horizon,tz):null,truncated:!!result.truncated,limit:result.limit};
+ // Retained imports per week (from the generatedAt summary) for the two weeks, to detect evidence the read did not return.
+ const retainedByWeek=new Map(),lo=utc(previous)-2*DAY,hi=utc(selected)+9*DAY;
+ for(const g of generated)if(g>=lo&&g<hi){const k=weekOf(g,tz);retainedByWeek.set(k,(retainedByWeek.get(k)||0)+1);}
+ const ctx={timezone:tz,today,currentWeek,horizon,horizonDay:horizon?localDay(horizon,tz):null,truncated:!!result.truncated,limit:result.limit,retainedByWeek};
  const list=[...groups.values()],weeks=[summarize(previous,list,ctx),summarize(selected,list,ctx)];
  return {available:true,timezone:tz,basis:'generatedAt',now:new Date(now).toISOString(),today,selected,previous,defaultWeek:!q.week,latestObservedWeek:latestObserved,
   nav:{earlier:previous>=earliest?previous:null,later:selected<currentWeek?addDays(selected,7):null,latest:latestWeek,earliest,current:currentWeek},

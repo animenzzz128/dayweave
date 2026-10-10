@@ -106,6 +106,51 @@ test('week selection is strict and bounded; truncated reads are never comparable
  a.equal(run([row('2026-09-23T16:00:00Z','2026-09-23T17:00:00Z',[])]).out.selected,'2026-09-21');
  a.equal(run([row('2026-12-23T16:00:00Z','2026-10-01T17:00:00Z',[])]).out.selected,'2026-10-05');
  a.equal(run(rows,{timezone:'Mars/Olympus'}).out.available,false);a.equal(run(rows,{timezone:null}).out.available,false);
+ // Without a valid timezone the range is undefined: an out-of-range week is reported unavailable, while malformed parameters are still rejected.
+ a.equal(run(rows,{timezone:null,week:'2099-01-05'}).out.available,false);a.throws(()=>run(rows,{timezone:null,query:{foo:'1'}}),/Unknown trends parameter/);
+});
+
+test('retained evidence the bounded read did not return is labelled, never "No observations" (forward-skewed generatedAt)',()=>{
+ const ok=row('2026-09-30T16:00:00Z','2026-09-30T17:00:00Z',[rec('a1')]);
+ // Collected (by its own clock) on Wednesday of the current week but imported weeks earlier, before the read window.
+ const skewed=row('2026-10-07T16:00:00Z','2026-09-20T17:00:00Z',[rec('a1',{status:'submitted'})]);
+ let {out,calls}=run([ok,skewed]);const why=()=>out.comparison.reasons.join('\n');
+ a.equal(out.selected,'2026-10-05','default week follows the latest generatedAt');a.equal(calls[0].from,'2026-09-26T00:00:00.000Z');
+ a.equal(out.weeks[1].observations,0);a.equal(out.weeks[1].unread,1);a.equal(out.weeks[0].observations,1);a.equal(out.weeks[0].unread,0);
+ a.equal(out.comparison.comparable,false);a.equal(out.comparison.changes,null);
+ a.match(why(),/Some retained evidence for the week of 2026-10-05 to 2026-10-11 was not read \(1 import\)/);a.match(why(),/No observations read for the week of 2026-10-05/);a.doesNotMatch(why(),/No observations in the week of 2026-10-05/);
+ // A partly read week is labelled too and the pair is not comparable, although both weeks have observations.
+ ({out}=run([ok,skewed,row('2026-10-06T16:00:00Z','2026-10-06T17:00:00Z',[rec('a1')])]));a.equal(out.weeks[1].observations,1);a.equal(out.weeks[1].unread,1);a.equal(out.comparison.comparable,false);a.deepEqual(out.comparison.reasons,['Some retained evidence for the week of 2026-10-05 to 2026-10-11 was not read (1 import)']);
+ // Without the skewed row the same pair is comparable, and a truly empty week has nothing unread.
+ ({out}=run([ok,row('2026-10-06T16:00:00Z','2026-10-06T17:00:00Z',[rec('a1')])]));a.equal(out.comparison.comparable,true);a.ok(out.weeks.every(w=>w.unread===0));
+ ({out}=run([ok],{week:'2026-10-05'}));a.equal(out.weeks[1].unread,0);a.match(out.comparison.reasons.join('\n'),/No observations in the week of 2026-10-05/);
+});
+
+test('a truncated read never presents a week as having no evidence',()=>{
+ const rows=[row('2026-09-30T16:00:00Z','2026-09-30T17:00:00Z',[rec('a1')]),row('2026-10-07T16:00:00Z','2026-10-07T17:00:00Z',[rec('a1')])];
+ const out=T.trends({query:{},timezone:NY,now:new Date(NOW),retention:{count:2,latestImportedAt:rows[1].importedAt,generatedAt:rows.map(r=>r.generatedAt)},read:o=>({from:o.from,limit:1,truncated:true,items:rows.slice(0,1)})});
+ a.equal(out.query.truncated,true);a.equal(out.weeks[1].observations,0);a.equal(out.weeks[1].unread,1);a.equal(out.comparison.comparable,false);a.equal(out.comparison.changes,null);
+ a.match(out.comparison.reasons[0],/stopped at 1 imports/);a.match(out.comparison.reasons.join('\n'),/No observations read for the week of 2026-10-05/);
+});
+
+test('a source missing from an observation limits coverage: its archived records and the lower count are not comparable',()=>{
+ const both=[src('course-a'),src('course-b')],b=(id,extra)=>rec(id,{sourceId:'course-b',...extra});
+ const w1=row('2026-09-30T16:00:00Z','2026-09-30T17:00:00Z',[rec('a1'),b('b1'),b('b2')],both);
+ // course-b is absent from the next collection entirely; the import archives its records, so required counts drop.
+ const w2=row('2026-10-07T16:00:00Z','2026-10-07T17:00:00Z',[rec('a1'),b('b1',{archivedFromSource:true}),b('b2',{archivedFromSource:true})],[src('course-a')]);
+ let {out}=run([w1,w2]);a.equal(out.weeks[0].latest.counts.not_submitted,3);a.equal(out.weeks[1].latest.counts.not_submitted,1);a.equal(out.weeks[1].latest.counts.archived,2);
+ a.equal(out.comparison.comparable,false);a.equal(out.comparison.changes,null);
+ a.deepEqual(out.comparison.reasons,['The latest observations of the two weeks list different sources; only in the week of 2026-09-28: Source course-b']);
+ // Reported earlier in the week but missing from a later observation of the same week.
+ ({out}=run([w1,row('2026-10-06T16:00:00Z','2026-10-06T17:00:00Z',[rec('a1')],[src('course-a')]),row('2026-10-08T16:00:00Z','2026-10-08T17:00:00Z',[rec('a1'),b('b1'),b('b2')],both)]));
+ a.equal(out.weeks[1].sources.find(s=>s.id==='course-b').notReported,1);a.deepEqual(out.comparison.reasons,['Source not reported in every observation of the week of 2026-10-05 to 2026-10-11: Source course-b']);
+ // Through the real store: omitting course-b archives its records on import, and the pair is not comparable.
+ const dir=tmp(),s=new Store(dir);try{
+  const d=structuredClone(require('../examples/snapshot.json'));d.sources=d.sources.map(x=>({...x,status:'ok'}));d.generatedAt='2026-09-30T12:00:00Z';s.importSnapshot(structuredClone(d));
+  d.generatedAt='2026-10-07T12:00:00Z';d.sources=d.sources.filter(x=>x.id!=='course-b');d.assignments=d.assignments.filter(x=>x.sourceId!=='course-b');s.importSnapshot(d);
+  const t=s.weeklyTrends(new URLSearchParams(),new Date(NOW)),[p,w]=t.weeks;a.equal(w.latest.counts.archived,2);a.ok(w.latest.counts.not_submitted+w.latest.counts.unknown<p.latest.counts.not_submitted+p.latest.counts.unknown,'count drops');
+  a.equal(t.comparison.comparable,false);a.equal(t.comparison.changes,null);a.match(t.comparison.reasons.join('\n'),/list different sources; only in the week of 2026-09-28: Example LMS · Course B$/);
+ }finally{s.close();fs.rmSync(dir,{recursive:true,force:true});}
 });
 
 test('store: bounded read-only range query, prune boundary and retention summary',()=>{
@@ -191,5 +236,16 @@ test('routed /settings?tab=trends renders dated weeks from the real API with ind
   html=await page('?tab=trends&week=2026-02-30');a.match(html,/Week not available: week must be a calendar date/);a.match(html,/Show the latest observed week/);
   html=await page('?tab=trends&week=%3Cscript%3E');a.doesNotMatch(html,/<script>/);
   html=await page('');a.match(html,/Dated weekly evidence trends →/);
+  html=await page('?tab=trends&week='+wk(1));a.match(week(html,wk(1)),/<th>Not fresh · source failed \(earlier records retained\) or unavailable<\/th><td>3<\/td>/);
+  // A forward-skewed row (collected this week by its clock, imported before the read window) becomes the default week: labelled as not read, never "No observations".
+  const put=(when,generatedAt)=>s.store.db.prepare('INSERT INTO source_snapshots(at,value) VALUES(?,?)').run(when,JSON.stringify({generatedAt,timezone:NY,sources:[src('course-a','ok','Example course A')],assignments:[]}));
+  put(new Date(Date.parse(wk(3)+'T12:00:00Z')).toISOString(),at(0,0));
+  html=await page('?tab=trends');let cur=week(html,W0);a.ok(cur&&week(html,wk(1)),'default pair is W-1 and the skewed week');
+  a.match(cur,/<strong>No observations read<\/strong>\. 1 retained import collected this week was not read \(imported before the read window\), so this does not mean nothing happened\./);a.match(cur,/Coverage incomplete · 1 retained import collected this week was not read/);
+  a.equal(cell(cur,'not_submitted'),'No observations read');a.doesNotMatch(cur,/<strong>No observations<\/strong>/);a.match(html,/Some retained evidence for the week of [\d-]+ to [\d-]+ was not read \(1 import\)/);
+  // A truncated read: 500 earlier imports fill the limit, so neither week may claim it has no retained evidence.
+  s.store.db.exec('BEGIN');for(let i=0;i<500;i++)put(new Date(Date.parse(wk(1)+'T00:00:00Z')-86400000+i*1000).toISOString(),at(3));s.store.db.exec('COMMIT');
+  html=await page('?tab=trends');a.match(html,/Only the first 500 imports were read; later evidence is missing from this view\./);a.match(html,/The snapshot query stopped at 500 imports/);
+  for(const k of [wk(1),W0]){cur=week(html,k);a.match(cur,/<strong>No observations read<\/strong> \(query truncated\)\. Later evidence was not read, so this does not mean nothing happened\./,k);a.doesNotMatch(cur,/in retained evidence|<strong>No observations<\/strong>/,k);a.equal(cell(cur,'done'),'No observations read',k);}
  }finally{await new Promise(r=>s.close(r));fs.rmSync(dir,{recursive:true,force:true});}
 });
