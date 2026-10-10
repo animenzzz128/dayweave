@@ -48,6 +48,12 @@ Home has an explicit, advisory focus mode: `standard` or `reduced`. It is stored
 
 - Standard keeps the original Home overview.
 - Reduced lists required work that is overdue or due within 72 hours first, ordered by deadline and then stable ID. Other required work (later or undated) and selectable (`choice`) work stay listed and labelled, and Coursework is unchanged.
-- Submitted, graded or excused work never returns to the urgent list. Uncertain requirements, unknown submission status, missing requirement and work from a failed or unavailable source go to verification, not to a definite category.
+- Focus lists apply this precedence; the first match wins:
+  1. Submitted, graded or excused work is left out of every focus list and never returns to urgent, even when its source failed or is unavailable. That source's failure still shows in the data-health warnings in both modes, and Coursework History still tags the record `verify`.
+  2. Other work from a failed or unavailable source goes to verification.
+  3. Selectable (`choice`) work is listed as selectable and is never urgent or required. If its submission status is unknown, it keeps that listing with a "Submission status unknown" tag and is also listed in verification.
+  4. Uncertain requirements, unknown submission status and a missing requirement go to verification, not to a definite category.
+  5. Remaining required work is urgent (overdue or due within 72 hours) or other required work.
+- Work archived locally in Coursework stays in the focus lists, tagged "Archived locally". Its link opens Coursework History, where the record is listed. Following the link changes no archive state.
 - Both modes always show verification items, non-ok sources, a stale snapshot and calendar coverage limits. Blank calendar time is never treated as free capacity.
 - Switching changes only the preference row and an audit entry. It changes no source records, estimates, proposals, approvals, Q-numbers or effort samples, and it never authorizes calendar, message or submission actions. Nothing is scheduled automatically.

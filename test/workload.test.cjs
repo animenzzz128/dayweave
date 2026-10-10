@@ -8,7 +8,8 @@ const sample=()=>[
  item('choice',at(5),{requirement:'choice'}),item('uncertain',at(5),{requirement:'uncertain'}),item('unknown-status',at(5),{status:'unknown'}),
  item('submitted',at(-5),{status:'submitted'}),item('graded',at(2),{status:'graded'}),item('excused',at(2),{status:'excused'}),
  item('failed-source',at(3),{sourceId:'course-b'}),item('failed-submitted',at(3),{sourceId:'course-b',status:'submitted'}),
- item('archived',at(1),{archivedFromSource:true}),item('no-requirement',at(4),{requirement:undefined})];
+ item('archived',at(1),{archivedFromSource:true}),item('no-requirement',at(4),{requirement:undefined}),
+ item('choice-unknown',at(-2),{requirement:'choice',status:'unknown'}),item('failed-graded',at(1),{sourceId:'course-b',status:'graded'})];
 const ids=list=>list.map(x=>x.id);
 
 test('modes are explicit: Standard by default, unknown values read as Standard',()=>{
@@ -20,14 +21,17 @@ test('reduced focus foregrounds overdue and 72-hour required work in determinist
  const list=sample(),before=JSON.stringify(list),f=W.focus(list,sources,now,'reduced');a.equal(JSON.stringify(list),before,'input is not mutated');
  a.deepEqual(ids(f.urgent),['overdue','soon-a','soon-b','boundary']);a.deepEqual(f.urgent.map(x=>x.urgency),['overdue','soon','soon','soon']);
  a.deepEqual(ids(f.upcoming),['after-boundary','later','undated'],'later and undated required work stays visible');
- a.deepEqual(ids(f.selectable),['choice'],'selectable work stays reachable and separate');
- a.deepEqual(ids(f.verification),['failed-source','no-requirement','uncertain','unknown-status'],'due order, then ID');
- a.deepEqual(Object.fromEntries(f.verification.map(x=>[x.id,x.verifyReason])),{'failed-source':'Source failed: retained record may be stale','unknown-status':'Submission status unknown',uncertain:'Requirement uncertain','no-requirement':'Requirement unknown'});
+ a.deepEqual(ids(f.selectable),['choice-unknown','choice'],'selectable work stays reachable and separate, even when overdue');
+ a.deepEqual(f.selectable.map(x=>!!x.submissionUnknown),[true,false],'unknown submission status stays visible on selectable work');
+ a.deepEqual(ids(f.verification),['choice-unknown','failed-source','no-requirement','uncertain','unknown-status'],'due order, then ID');
+ a.deepEqual(Object.fromEntries(f.verification.map(x=>[x.id,x.verifyReason])),{'choice-unknown':'Selectable (choice): submission status unknown','failed-source':'Source failed: retained record may be stale','unknown-status':'Submission status unknown',uncertain:'Requirement uncertain','no-requirement':'Requirement unknown'});
+ a.ok(![...f.urgent,...f.upcoming].some(x=>x.id==='choice-unknown'),'unknown status never makes choice work required or urgent');
  const all=[...f.urgent,...f.upcoming,...f.selectable,...f.verification].map(x=>x.id);
- for(const id of ['submitted','graded','excused','failed-submitted','archived'])a.ok(!all.includes(id),id+' never returns to focus');
+ for(const id of ['submitted','graded','excused','failed-submitted','failed-graded','archived'])a.ok(!all.includes(id),id+' never returns to focus');
+ a.deepEqual(W.health({sources},now).sources.map(x=>x.id),['course-b'],'done work leaves focus but its failed source stays in health warnings');
  a.deepEqual(W.focus([...list].reverse(),sources,now,'reduced'),f,'input order does not change the result');
  const std=W.focus(list,sources,now,'standard');a.deepEqual({...std,mode:'reduced'},f,'mode changes presentation only, not classification');
- a.equal(W.focus(sample(),[{id:'course-b',status:'unavailable'}],now).verification[0].verifyReason,'Source unavailable: retained record may be stale');
+ a.equal(W.focus(sample(),[{id:'course-b',status:'unavailable'}],now).verification.find(x=>x.id==='failed-source').verifyReason,'Source unavailable: retained record may be stale');
 });
 test('health keeps non-ok sources, staleness and coverage gaps for every mode',()=>{
  const d={generatedAt:at(-27),sources:[{id:'x',status:'ok'},{id:'y',status:'partial'},{id:'z',status:'failed'}],calendarCoverage:{complete:false}};
@@ -81,17 +85,19 @@ test('page-order scripts render Standard by default and Reduced with every warni
  a.deepEqual(order,['core.js','phase2.js','phase3.js','effort.js','workload.js','app.js']);
  const real=new Date(),h=x=>new Date(real.getTime()+x*3600000).toISOString(),evil='<img src=x onerror=alert(1)>';
  const D=structuredClone(require('../examples/snapshot.json'));D.generatedAt=h(-1);D.sources=[...sources.map(x=>({...x,lastSuccess:h(-30)})),{id:'outlook',name:'Calendar',status:'ok'}];D.calendarCoverage={...D.calendarCoverage,complete:false,note:'Synthetic partial window.'};
- D.assignments=[item('u2',h(20),{title:'Urgent two'}),item('u1',h(-2),{title:evil}),item('later',h(200),{title:'Later required'}),item('pick',h(5),{requirement:'choice',title:'Pick one'}),item('unsure',h(5),{requirement:'uncertain',title:'Unsure task'}),item('fail',h(5),{sourceId:'course-b',title:'Failed source task'}),item('done',h(-3),{status:'graded',title:'Done task'})];
- const S={};const nodes=new Map(),node=k=>{if(!nodes.has(k))nodes.set(k,{textContent:'',innerHTML:''});return nodes.get(k);};
+ D.assignments=[item('u2',h(20),{title:'Urgent two'}),item('u1',h(-2),{title:evil}),item('later',h(200),{title:'Later required'}),item('pick',h(5),{requirement:'choice',title:'Pick one'}),item('unsure',h(5),{requirement:'uncertain',title:'Unsure task'}),item('fail',h(5),{sourceId:'course-b',title:'Failed source task'}),item('done',h(-3),{status:'graded',title:'Done task'}),item('done-fail',h(2),{sourceId:'course-b',status:'excused',title:'Done failed task'}),item('pick-unk',h(-1),{requirement:'choice',status:'unknown',title:'Pick unknown'})];
+ const S={archive:{later:true}};const nodes=new Map(),node=k=>{if(!nodes.has(k))nodes.set(k,{textContent:'',innerHTML:''});return nodes.get(k);};
  const ctx=vm.createContext({URLSearchParams,Date,Intl,console,encodeURIComponent,window:{addEventListener(){}},document:{querySelector:node,querySelectorAll:()=>[],addEventListener(){}},location:{pathname:'/home',search:''},history:{pushState(){}},fetch:async url=>({ok:true,json:async()=>url.endsWith('session')?{csrf:'test'}:{snapshot:D,progress:S}})});
  for(const f of order)vm.runInContext(fs.readFileSync(files[f],'utf8'),ctx,{filename:files[f]});await new Promise(r=>setImmediate(r));
- const kept=html=>{a.match(html,/id="verification"/);a.match(html,/Unsure task<\/a> <span class="tag warn">Requirement uncertain/);a.match(html,/Failed source task<\/a> <span class="tag warn">Source failed/);a.match(html,/data-source="course-b"><span class="tag warn">failed/);a.match(html,/Calendar coverage is incomplete/);a.match(html,/never treated as available capacity/);a.match(html,/Synthetic partial window/);a.doesNotMatch(html,/<img/);a.doesNotMatch(html,/Done task/);};
+ const kept=html=>{a.match(html,/id="verification"/);a.match(html,/Unsure task<\/a> <span class="tag warn">Requirement uncertain/);a.match(html,/Failed source task<\/a> <span class="tag warn">Source failed/);a.match(html,/data-source="course-b"><span class="tag warn">failed/);a.match(html,/Calendar coverage is incomplete/);a.match(html,/never treated as available capacity/);a.match(html,/Synthetic partial window/);a.doesNotMatch(html,/<img/);a.doesNotMatch(html,/Done task|Done failed task/);a.match(html,/Pick unknown<\/a> <span class="tag warn">Selectable \(choice\): submission status unknown/);};
  let html=node('#page').innerHTML;a.match(html,/Focus mode: Standard/);a.match(html,/aria-pressed="true" class="primary">Standard/);
  for(const x of ['Urgent & overdue required items','Next seven days','Today’s time','Priority 1'])a.ok(html.includes(x),'Standard keeps '+x);a.doesNotMatch(html,/id="focus-urgent"/);kept(html);
  S.preferences={workloadMode:'reduced'};await vm.runInContext('render()',ctx);html=node('#page').innerHTML;
  a.match(html,/Focus mode: Reduced/);a.doesNotMatch(html,/Next seven days/);kept(html);
  const section=id=>html.split('id="'+id+'"')[1].split('</section>')[0];
  a.deepEqual([...section('focus-urgent').matchAll(/data-focus="([^"]+)"/g)].map(m=>m[1]),['u1','u2']);a.match(section('focus-urgent'),/Overdue/);
- a.match(section('focus-upcoming'),/Later required/);a.match(section('focus-selectable'),/Pick one<\/a> <span class="tag ">Selectable \(choice\)/);a.match(html,/href="\/coursework\?q=Pick%20one"/);
+ a.ok(!/Pick unknown/.test(section('focus-urgent')+section('focus-upcoming')),'unknown-status choice work is never urgent or required');a.match(section('focus-selectable'),/Pick unknown<\/a> <span class="tag ">Selectable \(choice\)<\/span> <span class="tag warn">Submission status unknown/);
+ a.match(section('focus-upcoming'),/href="\/coursework\?tab=history&amp;q=Later%20required">Later required<\/a> <span class="tag ">Required<\/span> <span class="tag">Archived locally/,'a locally archived item links to Coursework History');
+ const target=vm.runInContext("[coursework(new URLSearchParams('tab=history&q=Later required')),coursework(new URLSearchParams('q=Later required'))]",ctx);a.match(target[0],/<h3>Later required<\/h3>[\s\S]*Unarchive locally/);a.doesNotMatch(target[1],/Later required<\/h3>/,'the Current tab hides it, so the link must not point there');a.deepEqual(S.archive,{later:true});a.match(section('focus-selectable'),/Pick one<\/a> <span class="tag ">Selectable \(choice\)/);a.match(html,/href="\/coursework\?q=Pick%20one"/);
  S.preferences={workloadMode:'turbo'};await vm.runInContext('render()',ctx);a.match(node('#page').innerHTML,/Focus mode: Standard/,'an unknown stored mode renders Standard');
 });

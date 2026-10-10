@@ -11,16 +11,18 @@ const id=a=>String(a.id);
 // Deterministic: earliest deadline first, undated last, then stable ID (code-unit order, not locale).
 const byDue=(a,b)=>{const x=due(a),y=due(b);return x<y?-1:x>y?1:id(a)<id(b)?-1:id(a)>id(b)?1:0;};
 function failedSource(a,sources){return (sources||[]).find(s=>s&&s.id===a.sourceId&&FAILED.includes(s.status));}
-// Submitted/graded/excused wins over urgency and source failure; a failed source sends remaining work to verification.
+// Precedence: submitted/graded/excused is left out of focus even when its source failed (the failure stays in health);
+// a failed source sends remaining work to verification; choice stays selectable, never urgent.
 function bucket(a,sources,now){if(DONE.includes(a.status))return 'submitted';if(failedSource(a,sources))return 'verify';return C.classify(a,now);}
-function reason(a,sources){const s=failedSource(a,sources);if(s)return 'Source '+s.status+': retained record may be stale';if(a.requirement==='uncertain')return 'Requirement uncertain';if(a.status==='unknown')return 'Submission status unknown';return 'Requirement unknown';}
+function reason(a,sources){const s=failedSource(a,sources);if(s)return 'Source '+s.status+': retained record may be stale';if(a.requirement==='uncertain')return 'Requirement uncertain';if(a.status==='unknown')return a.requirement==='choice'?'Selectable (choice): submission status unknown':'Submission status unknown';return 'Requirement unknown';}
 function focus(assignments,sources,now,m){
  const out={mode:mode(m),urgent:[],upcoming:[],selectable:[],verification:[]};
  for(const a of Array.isArray(assignments)?assignments:[]){
   if(!a||a.archivedFromSource)continue;const k=bucket(a,sources,now);
   if(k==='submitted')continue;
   if(k==='verify')out.verification.push({...a,verifyReason:reason(a,sources)});
-  else if(k==='optional')out.selectable.push(a);
+  // Selectable work with unknown submission status stays selectable and is also listed for verification.
+  else if(k==='optional'){if(a.status==='unknown'){out.selectable.push({...a,submissionUnknown:true});out.verification.push({...a,verifyReason:reason(a,sources)});}else out.selectable.push(a);}
   else if(a.requirement!=='required')out.verification.push({...a,verifyReason:reason(a,sources)});
   else (k==='overdue'||k==='soon'?out.urgent:out.upcoming).push({...a,urgency:k});
  }
