@@ -60,7 +60,30 @@ test('routed Career page orders Roles and People separately from explicit feedba
  html=await view('?tab=followups');a.doesNotMatch(html,/id="career-order"|feedback-reason/,'follow-ups and history are not reordered');
  set('r3','saved');a.deepEqual(keys(await view('?tab=roles&q=r5')),[url('r5')],'search still filters after ordering');
  a.equal(JSON.stringify(D),frozen,'rendering never mutates source roles, people, profile or eligibility facts');
- delete D.career.profile;html=await view('?tab=roles');a.match(facts(html)[url('r2')],/Local work eligibility unknown/,'missing profile keeps gaps visible');D.career.profile=null;html=await view('?tab=roles');a.equal(keys(html)[0],url('r3'),'a null profile renders and keeps saved first');a.match(facts(html)[url('r2')],/Local work eligibility unknown/);
+ // Complete profile: eligibility lines are exactly the pre-#28 output and nothing is labelled not assessed.
+ a.deepEqual(baseRoles,{[url('r1')]:'US sponsorship unverified',[url('r2')]:'Local work eligibility unknown',[url('r3')]:'US sponsorship unverified; Intended start year needs verification',[url('r4')]:'',[url('r5')]:'Local work eligibility unknown; Intended start year needs verification'});
+ a.doesNotMatch(await view('?tab=roles'),/career-not-assessed|not assessed|Not assessed/);
+ // Missing profile facts: R.eligibility() stays silent, so the page must say "not assessed" instead of showing an empty line.
+ // r6 is a US role with unknown sponsorship and no start year; with a complete profile its gaps are visible as before.
+ delete S.career;D.career.roles.push(role('r6',{startYear:undefined}));
+ html=await view('?tab=roles');a.equal(facts(html)[url('r6')],'US sponsorship unverified; Intended start year needs verification');a.doesNotMatch(html,/career-not-assessed|not assessed/);
+ const sp='US sponsorship not assessed: the profile does not say whether sponsorship is required',sy='Start year not assessed: neither the role nor the profile states one',sv='Intended start year needs verification';
+ const none='no profile supplied (usSponsorshipRequired, startYear, workEligibility)';
+ const variants=[['undefined',()=>{delete D.career.profile;},none],['null',()=>{D.career.profile=null;},none],['missing fields',()=>{D.career.profile={summary:'Fictional',workEligibility:{}};},'usSponsorshipRequired, startYear']];
+ const notice=h=>(h.match(/<p class="banner" id="career-not-assessed">([\s\S]*?)<\/p>/)||[])[1];
+ for(const [name,apply,missing] of variants){
+  apply();delete S.career;html=await view('?tab=roles');const base=facts(html),baseNotice=notice(html);
+  a.equal(baseNotice,'<span class="tag warn">Not assessed</span> Profile facts missing: '+missing+' — eligibility for these is not assessed and is not shown as eligible.',name+': page-level notice');
+  a.deepEqual(base,{[url('r1')]:sv+'; '+sp,[url('r2')]:'Local work eligibility unknown; '+sv,[url('r3')]:sv+'; '+sp,[url('r4')]:sv,[url('r5')]:'Local work eligibility unknown; '+sy,[url('r6')]:sp+'; '+sy},name+': missing profile keeps gaps visible and labels unassessed facts; r6 is never an empty line');
+  const tagged=[...html.matchAll(/data-career="([^"]*)"><span class="tag">[^<]*<\/span><span class="tag">[^<]*<\/span><span class="tag warn">Eligibility not fully assessed<\/span>/g)].map(m=>m[1]);
+  a.deepEqual(tagged,['r1','r3','r5','r6'].map(url),name+': affected cards are tagged outside the collapsed details');
+  for(const [status,order] of [['saved',['r6','r1','r2','r3','r4','r5']],['dismissed',['r1','r2','r3','r4','r5','r6']],['reset',['r1','r2','r3','r4','r5','r6']]]){
+   set('r6',status);html=await view('?tab=roles');a.deepEqual(keys(html),order.map(url),name+' '+status+': order');
+   a.deepEqual(facts(html),base,name+' '+status+': not-assessed text never changes with feedback');a.equal(notice(html),baseNotice,name+' '+status+': notice unchanged');
+  }
+  a.doesNotMatch(await view('?tab=people'),/career-not-assessed/,name+': People has no eligibility notice');
+ }
+ D.career.profile={summary:'Fictional',startYear:2027,usSponsorshipRequired:false,workEligibility:{}};html=await view('?tab=roles');a.doesNotMatch(html,/career-not-assessed|not assessed/,'a stated "no sponsorship required" is an assessed fact');a.equal(facts(html)[url('r6')],sv);
 });
 
 test('routed Career page through the real server: save/dismiss/reset, source refresh and failed career source keep per-item state',async()=>{
