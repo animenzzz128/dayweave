@@ -21,6 +21,9 @@ test('zero, missing, edited and malformed effort is excluded and inputs are not 
 test('samples deduplicate by stable ID keeping the latest confirmation',()=>{
  const s=E.summary([{id:'x',...pair(10,10,'2026-10-01T00:00:00Z')},{id:'x',...pair(10,30,'2026-10-02T00:00:00Z')},{id:'x',...pair(10,20,'2026-09-30T00:00:00Z')},{id:'y',...pair(10,20)},null,{id:7}],{x:30,y:20});
  a.equal(s.samples.length,2);a.equal(s.samples.find(x=>x.id==='x').actualMinutes,30);a.equal(s.count,2);
+ const good={id:'x',...pair(10,30)},undated={id:'x',...pair(10,99,'not a date')},malformed={id:'x',...pair(-1,99,'2030-01-01T00:00:00Z')};
+ for(const list of [[good,undated,malformed],[undated,malformed,good],[malformed,good,undated]]){const r=E.summary(list,{x:30});a.equal(r.samples.length,1);a.equal(r.samples[0].actualMinutes,30,'an undated or malformed duplicate never displaces a valid sample');a.equal(r.count,1);}
+ a.equal(E.summary([undated,malformed],{x:99}).samples[0].confirmedAt,'not a date','among invalid duplicates the first one is kept');a.equal(E.summary([malformed,undated],{x:99}).samples[0].estimateMinutes,-1);
 });
 
 test('store confirms only server-held positive pairs and rejects unknown or invalid input',()=>temp(s=>{
@@ -65,6 +68,8 @@ test('confirmations left stale by older code are excluded on read',()=>temp(s=>{
  a.equal(E.summary(s.state().effortCalibration,s.state().actual).sufficient,true);
  s.db.prepare("UPDATE progress SET value='75' WHERE kind='actual' AND id='task-2'").run();
  const r=E.summary(s.state().effortCalibration,s.state().actual);a.equal(r.sufficient,false);a.equal(r.count,2);a.equal(r.excluded.invalidated,1);
+ a.deepEqual(s.saveState('actual','task-2',60),{invalidated:true},'restoring the frozen value is still an actual change');a.equal(s.state().effortCalibration['task-2'],undefined);a.equal(s.state().actual['task-2'],60);
+ a.equal(E.summary(s.state().effortCalibration,s.state().actual).count,2);a.deepEqual(s.saveState('actual','task-1',60),{invalidated:false},'an unchanged actual keeps its confirmation');
 }));
 
 test('effort endpoints require session, Origin and CSRF and never accept client pairs',async()=>{
