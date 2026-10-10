@@ -18,7 +18,7 @@
       "observed_model": null,
       "observed_effort": null,
       "observation_reason": "Fictional example: the tool did not report its active configuration.",
-      "justification": null
+      "justification": "Fictional example: the root coordinator recorded exceptional cross-module complexity before dispatch."
     },
     {
       "role": "implementer",

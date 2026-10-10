@@ -26,5 +26,6 @@ assume MCP or browser tools; report inaccessible sources as blockers. Never chan
 billing, model authentication or machine policy. If your auth, quota or tools are
 unavailable, stop and record a recoverable blocker in RESULT.md.
 On Codex quota reset, keep ownership until an explicit handshake: checkpoint, stop, confirm.
-Return: handoff per agent-workflow.md in this window and in RESULT.md.
+Return: handoff per agent-workflow.md in this window and in RESULT.md; archive the previous
+RESULT.md first and preserve original evidence (see "Results and archive").
 ```
