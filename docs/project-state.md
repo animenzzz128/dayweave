@@ -9,7 +9,7 @@ Updated2026-10-09. Verify Git/PR state before editing; this file is not live sta
 - Initial Luna evidence is only three fictional scenarios. Observe live accuracy/usage; shared quota is not a per-run bill.
 - Startup-fix baseline:33 regression tests, syntax/demo/privacy checks, Home and six module browser checks. Counts may change; record actual PR results.
 
-One coordination chat handles priorities and acceptance. Each development outcome gets its own task chat/branch/PR. GitHub holds active work; checked-in docs preserve decisions. Do not assume another chat's transcript is available.
+One coordination chat handles priorities and acceptance; a fresh coordination window starts from [prompts/new-request.md](prompts/new-request.md). Each development outcome gets its own task CLI session/worktree/branch/PR; create an app chat for a task only when the user requests it. GitHub holds active work; checked-in docs preserve decisions. Do not assume another chat's transcript is available.
 
 Stable deployment uses an independent checkout pinned to an accepted SHA, port8767, and an external private database. Revision and paths live in an external deployment manifest. Development uses synthetic data and another port. Daily refresh reads the manifest, never a mutable development branch.
 
@@ -17,8 +17,11 @@ Governance documentation and task templates are in place. Verify machine-specifi
 
 Phase5 feasibility (issue #14): [NO-GO for a remote executor](outlook-feasibility.md). Supported Graph authorization/notifications and desktop schedules are documented, but authorized account access and an approval-to-executor channel are unverified. Retain explicit chat approval; no writer, Email enablement or deployment. Independent routine observations remain separate acceptance work.
 
-Agent workflow (issue #16): [trial coordinator/CLI-worker policy](agent-workflow.md) under milestone 1, "Phase 6 and verified Herdr dual-agent delivery". Not adopted; real efficiency is unproven until the pilots and single-agent baseline in #21. The local [handoff validator](handoff-contract.md) (#17) is trial tooling that checks structure only; it is not proof of adoption.
+Agent workflow (issue #16): [trial coordinator/CLI-worker policy](agent-workflow.md) under milestone 1, "Phase 6 and verified Herdr dual-agent delivery". Not adopted; tools installed and synthetic smoke runs are not proof, and real efficiency is unproven until the pilots and single-agent baseline in #21.
+- The local [handoff validator](handoff-contract.md) (#17) is merged trial tooling. It checks handoff structure only (routing, SHA binding, usage labels); it does not verify claims, run checks or prove adoption.
+- [Local access troubleshooting](local-access.md) covers refused/blocked pages, private-link 404s, launcher blocks and Herdr session/worker visibility. It is portable guidance; reconnect/restart behavior is still a #21 trial check.
+- [Quota handoff](agent-workflow.md#quota-handoff): Codex remaining strictly below 10% in any applicable window hands approved pending work to a Claude Code fallback coordinator, the only exception to the worker no-push rule; stale or missing readings are unknown, never zero. Policy only: no monitor implements it and no live handoff has been tested.
 
-Next: observe three independent scheduled refreshes (#18) and first-week coverage, failures and available usage. Configuration alone is not unattended acceptance. Revisit the Phase5 gate (#19) only with permitted authorization, trigger and recovery evidence. Validator pilot (#17) and independent Phase6 tasks (#20) may proceed.
+Next: observe three independent scheduled refreshes (#18) and first-week coverage, failures and available usage. Configuration alone is not unattended acceptance. Revisit the Phase5 gate (#19) only with permitted authorization, trigger and recovery evidence. Use the validator in real task handoffs and proceed with independent Phase6 tasks (#20); the user decides adoption after #21 evidence.
 
 Update this file when behavior, limitations or priorities change. Do not append transcripts or duplicate the complete GitHub history.

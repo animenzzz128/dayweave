@@ -1,6 +1,6 @@
 # Development and coordination workflow
 
-Read AGENTS.md and project-state.md; verify branch, dirty files, open PRs and accepted baseline. Read only relevant module documentation. Private operating configuration is supplied separately. Coordinator-dispatched work also follows the trial [agent workflow](agent-workflow.md), model routing and [prompts](prompts/).
+Read AGENTS.md and project-state.md; verify branch, dirty files, open PRs and accepted baseline. Read only relevant module documentation. Private operating configuration is supplied separately. Coordinator-dispatched work also follows the trial [agent workflow](agent-workflow.md), model routing and [prompts](prompts/). Start a fresh coordination window from [prompts/new-request.md](prompts/new-request.md).
 
 ## Task lifecycle
 1. Define one observable outcome and acceptance in an issue or brief task. Phases group tasks; they are not giant implementation chats.
