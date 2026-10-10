@@ -41,3 +41,13 @@ A calibration sample is progress kind `effortCalibration`, keyed by the stable a
 - On read, a sample counts only while the current actual equals its frozen actual. This excludes confirmations left stale by code that predates this rule.
 - Settings shows a descriptive, user-reported median of actual ÷ estimate. Fewer than three counted samples shows "Insufficient data" with the count. Exclusion counts cover unconfirmed actuals, zero actuals, actuals without a positive estimate, stale confirmations and malformed samples. Nothing adjusts estimates or plans.
 - Samples are ordinary progress rows. JSON export includes them one way; there is no JSON import for samples. SQLite backup/restore round-trips them. No schema `user_version` change and no backfill of earlier actuals.
+
+## Workload modes (Phase 6B, #27)
+
+Home has an explicit, advisory focus mode: `standard` or `reduced`. It is stored as progress kind `preferences`, ID `workloadMode`, and written only by `POST /api/workload-mode` with `{mode}` under the usual session, Origin and CSRF checks. Any other value is rejected before a write. The generic progress endpoint and legacy progress import reject or ignore the kind. A missing or malformed stored value reads as `standard`, so older databases open in Standard. Source refreshes and restarts keep the preference. JSON export includes it, and restoring an older SQLite backup restores that backup's mode.
+
+- Standard keeps the original Home overview.
+- Reduced lists required work that is overdue or due within 72 hours first, ordered by deadline and then stable ID. Other required work (later or undated) and selectable (`choice`) work stay listed and labelled, and Coursework is unchanged.
+- Submitted, graded or excused work never returns to the urgent list. Uncertain requirements, unknown submission status, missing requirement and work from a failed or unavailable source go to verification, not to a definite category.
+- Both modes always show verification items, non-ok sources, a stale snapshot and calendar coverage limits. Blank calendar time is never treated as free capacity.
+- Switching changes only the preference row and an audit entry. It changes no source records, estimates, proposals, approvals, Q-numbers or effort samples, and it never authorizes calendar, message or submission actions. Nothing is scheduled automatically.
