@@ -1,6 +1,6 @@
 # Current project state
 
-Updated2026-10-09. Verify Git/PR state before editing; this file is not live status.
+Updated2026-10-10. Verify Git/PR state before editing; this file is not live status.
 
 - v1.5.0 preserves the first static-to-web-app milestone. The original tag is unchanged and still contains the startup bug; use main containing merged fix#10 (53cfa65) or a later verified commit.
 - Implemented: routed summary Home/modules, SQLite, progress migration, current/history, backups, immutable Q-number batches, receipts, bounded routine policy, career pipeline and fictional Luna eval harness.
@@ -20,7 +20,11 @@ Phase5 feasibility (issue #14): [NO-GO for a remote executor](outlook-feasibilit
 Agent workflow (issue #16): [trial coordinator/CLI-worker policy](agent-workflow.md) under milestone 1, "Phase 6 and verified Herdr dual-agent delivery". Not adopted; tools installed and synthetic smoke runs are not proof, and real efficiency is unproven until the pilots and single-agent baseline in #21.
 - The local [handoff validator](handoff-contract.md) (#17) is merged trial tooling. It checks handoff structure only (routing, SHA binding, usage labels); it does not verify claims, run checks or prove adoption.
 - [Local access troubleshooting](local-access.md) covers refused/blocked pages, private-link 404s, launcher blocks and Herdr session/worker visibility. It is portable guidance; reconnect/restart behavior is still a #21 trial check.
-- [Quota handoff](agent-workflow.md#quota-handoff): Codex remaining strictly below 10% in any applicable window hands approved pending work to a Claude Code fallback coordinator, the only exception to the worker no-push rule; stale or missing readings are unknown, never zero. Policy only: no monitor implements it and no live handoff has been tested.
+- [Quota handoff](agent-workflow.md#quota-handoff): Codex remaining strictly below 10% in any applicable window hands approved pending work to a Claude Code fallback coordinator; stale or missing readings are unknown, never zero. Policy only: no monitor implements it. One real handoff ran on 2026-10-09, but its reset handshake has not been observed.
+- Routing (user decision 2026-10-09): `claude-opus-5-5` high handles all ordinary planning, design, implementation, tests and review. `gpt-6-astra` is used only for tasks the root coordinator audits as exceptionally difficult, with a recorded reason. The root coordinator owns intake, review and summary; a scoped execution lead may receive written [publisher delegation](agent-workflow.md#publisher-delegation) for one request (push and PR only).
+- Every request updates a private RESULT record and archives the previous one ([Results and archive](agent-workflow.md#results-and-archive)). Private records and status pages are not tracked.
+
+Phase6 (#20): the user approved the concrete acceptance of #26–#29 with the defaults in the [plan](phase-6-plan.md#approved-acceptance). Implementation is delivered as stacked dependent PRs (#26→#27→#28→#29), each merged only on user request; none is deployed, and completing them does not prove workflow adoption (#21). The paragraphs below describe only behavior present in this revision.
 
 Phase6A effort calibration (#26): Settings shows a descriptive, user-reported median actual/estimate ratio from explicitly confirmed, frozen per-assignment samples, with "Insufficient data" below three samples and visible exclusions. Actual edits invalidate confirmations; nothing adjusts estimates or plans. See the [sample contract](data-contract.md#effort-calibration-samples-phase-6a-26).
 
@@ -30,6 +34,6 @@ Phase6C career feedback ordering (#28): Career Roles and People each list items 
 
 Phase6D weekly evidence trends (#29): Settings → Weekly trends compares two explicitly dated weeks (Monday–Sunday in the snapshot timezone, by source `generatedAt`; import time shown separately) through a read-only, bounded `GET /api/trends`. It shows observed required-work counts by status and per-source health only. Weeks without observations say "No observations", never 0. Records from failed/unavailable sources, archived records and duplicate imports are not counted as fresh. Any non-ok or unreported source, different source sets in the two latest observations, retained evidence the bounded read did not return, a week reaching the 30-day retention horizon, or a truncated read makes the pair "Not comparable", with no change shown. Weeks whose evidence was not read say "No observations read", not "No observations". Snapshot pruning and the schema are unchanged. No effort, completion times or work sessions are inferred. See the [trends contract](data-contract.md#weekly-evidence-trends-phase-6d-29).
 
-Next: observe three independent scheduled refreshes (#18) and first-week coverage, failures and available usage. Configuration alone is not unattended acceptance. Revisit the Phase5 gate (#19) only with permitted authorization, trigger and recovery evidence. Use the validator in real task handoffs and proceed with independent Phase6 tasks (#20); the user decides adoption after #21 evidence.
+Next: observe three independent scheduled refreshes (#18) and first-week coverage, failures and available usage. Configuration alone is not unattended acceptance. Revisit the Phase5 gate (#19) only with permitted authorization, trigger and recovery evidence. Use the validator in real task handoffs. Phase6 PRs (#20) are reviewed and merged in stack order only on user request; the user decides adoption after #21 evidence.
 
 Update this file when behavior, limitations or priorities change. Do not append transcripts or duplicate the complete GitHub history.
