@@ -28,7 +28,7 @@ Every object has an exact key set: missing keys, unknown keys (at any depth), em
 | `limitations[]` | May be empty. Non-empty text entries |
 
 ## Rules
-- **Routing.** `gpt-6-astra` uses `low`; `claude-opus-5-5` uses `high`; `gpt-6.1-sol` uses `low` or `medium` and requires a non-empty `justification`. Roles are free text; the validator does not tie a role to a model.
+- **Routing.** `gpt-6-astra` uses `low`; `claude-opus-5-5` uses `high`; `gpt-6.1-sol` uses `low` or `medium` and requires a non-empty `justification`. Roles are free text; the validator does not tie a role to a model. The [routing policy](agent-workflow.md#roles-and-model-routing) also requires a recorded reason for `gpt-6-astra`; the validator does not enforce that yet.
 - **Observed configuration.** Known observed values must equal the requested pair. If the configuration is unknown, both observed fields are `null` and `observation_reason` explains why. A half-known pair fails, and `observation_reason` is rejected when values are known. Unknown runs remain valid input but do not count as adoption evidence.
 - **SHA binding.** Every `checks[].subject_sha` and `review.reviewed_sha` must equal `git.head_sha`. Evidence for another commit is stale; a new commit needs new checks and a new review.
 - **Usage.** Metrics and units are fixed: `tokens`/`tokens`, `elapsed_seconds`/`seconds`, `list_price_estimate_usd`/`usd`, `billed_credits`/`credits`. An unmeasured value is `null` with `unavailable_reason` text and `source: null`. A measured value is a finite number ≥ 0 with `source` text and `unavailable_reason: null`. Only `billed_credits` may use, and must use, `source: "billing_record"`. A list-price estimate or shared quota delta is never a bill.
