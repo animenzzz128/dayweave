@@ -8,6 +8,7 @@ Role/model: implementer or execution lead, claude-opus-5-5 high {or gpt-6.1-sol 
 Publisher: {none | execution lead only, delegated by the root coordinator for this request only: push {branch} and open/update its PR; never merge, release, tag, change visibility or deploy}
 Baseline: {branch} at {full SHA}; verify clean before editing
 Worktree/branch: {logical worktree key}, {branch}; you are the only writer
+Session: claude -p --no-session-persistence --name {request-id}-writer{attempt}; no resume; recover from the private checkpoint and Git
 Read: AGENTS.md, docs/project-state.md, docs/agent-workflow.md, {module docs}
 Scope: {in scope}. Out of scope: {exclusions}
 Acceptance: {evidence}. UI: real scripts in page order, affected routes, reload, console

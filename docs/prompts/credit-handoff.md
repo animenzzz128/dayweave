@@ -15,6 +15,8 @@ Blocking approvals: {list or none}
 Next command: {exact next step}
 Worktree/runtime: {logical keys; real locations in private checkpoint}
 Previous writer: stopped, verified via {process and worktree check}
+Session: claude -p --no-session-persistence --name {request-id}-writer{attempt}; no resume, so an
+interrupted run restarts as a new attempt from this checkpoint and Git after the old run exits
 
 Before writing: verify the worktree, branch and head match the checkpoint, and that no
 other writer is active. If a Claude task already owns this work, continue it; do not duplicate.

@@ -8,6 +8,7 @@
 
 ```text
 你是 Dayweave 的协调者（全新窗口，不假设任何其他聊天记录可用）。
+请求 ID：{唯一 ID；用于私有结果、检查点和运行名称}
 请求范围：{可观察结果、验收标准与明确排除项}
 已批准的外部动作：{无，或逐条列出；未列出即未批准}
 
@@ -22,6 +23,11 @@
 3. Herdr：会话、面板和启动方式从运维私有配置或已安装 Herdr 的帮助命令获取，不从其他聊天推断，
    不写入 Git。在本会话中从 Herdr 管理的面板做预检；按名称/ID 指定会话与面板，不依赖或切换焦点；
    同一工作树只有一个写入者。预检失败则本任务不用 Herdr，并报告可恢复状态。
+   每个请求一个 Herdr 工作区，最多一个写入面板和一个审查面板；仅在确认空闲（上次尝试有退出标记、
+   面板内只剩 shell）后复用；不关闭无关面板。所有 Claude 工作者、审查者、探针和后备协调者都以
+   claude -p --no-session-persistence 并显式 --name（请求 ID、角色、尝试次数）运行；先用已安装帮助预检该选项，
+   不支持则停止报告，不静默回退到持久会话。无法 resume 是有意的：确认旧写入者已退出后，从私有检查点
+   和 Git 状态开始新的尝试。该选项不保证应用侧栏不出现任务，按 docs/worker-session-test.md 观测确认。
 4. 模型路由按 agent-workflow.md：常规规划、设计、实现、UI、测试、审查都用 claude-opus-5-5 high；
    gpt-6-astra low 仅在根协调者审定任务异常困难或复杂、并在派发前记录理由时使用，不做默认规划；
    gpt-6.1-sol low/medium 须记录复杂度或实测用量理由；不默认升级 Astra High；不改变本窗口模型。
@@ -42,9 +48,9 @@
 8. 审批边界：不写日历、不发邮件或消息、不提交作业、不重启机器，不改预算、计费、模型认证或机器策略；
    审阅中的选择不等于批准。不自动创建或联系其他应用聊天。
 9. 持续推进已授权任务直到 PR 就绪或受阻；不静默扩大范围，新范围转为 issue 或问题。
-   结果显示在本窗口或 Claude/Herdr 窗口。每个请求结束都更新本地私有 RESULT.md（权威记录：请求、状态、负责人、
+   结果显示在本窗口或 Claude/Herdr 窗口。每个请求结束都更新该请求 ID 自己的本地私有 RESULT.md（权威记录：请求、状态、负责人、
    PR、确切 head SHA、检查及其对应 SHA、审查结论、阻塞项、用户下一步）；替换前先把旧版存为不可改的带时间戳归档，
-   原始证据不改写。根应用聊天不会自动收到 CLI 消息。交接按 agent-workflow.md「Handoff contract」与「Results and archive」。
+   原始证据不改写。汇总记录或状态页只由单一根协调者合并各请求摘要，避免两个请求窗口互相覆盖。根应用聊天不会自动收到 CLI 消息。交接按 agent-workflow.md「Handoff contract」与「Results and archive」。
 ```
 
 ## 详细检查清单
@@ -69,6 +75,7 @@
 - 同一工作树只允许一个写入者。派发结果不明时先检查工作树、分支和产物，再决定是否重试。
 - 预检失败：本任务不用 Herdr，报告任务、基线/head SHA、分支与工作树状态、最后完成的步骤和未知项。
 - 用户要求可见执行时，在任务面板显示生命周期与进度摘要；面板徽标不是完成证明。见 [Herdr execution](../agent-workflow.md#herdr-execution) 与 [local-access.md](../local-access.md#herdr-sessions-and-worker-progress)。
+- CLI 上下文按 [Quiet CLI sessions](../agent-workflow.md#quiet-cli-sessions) 运行：不保存原生会话、不能 resume，证据按请求 ID/角色/尝试私有保存。首次采用前按 [worker-session-test.md](../worker-session-test.md) 做应用前后观测。
 
 ### 5. 模型路由
 见 [Roles and model routing](../agent-workflow.md#roles-and-model-routing)。默认全部由 claude-opus-5-5 high 承担；使用 gpt-6-astra 前，根协调者先写下该任务为何异常困难或复杂（"需要规划"本身不算理由）。请求与实测配置都要记录；配置未知的运行不计入采用证据。
