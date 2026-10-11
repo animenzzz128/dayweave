@@ -26,11 +26,16 @@ function load(fetchImpl,pathname='/career'){
  const order=[...fs.readFileSync('src/web/index.html','utf8').matchAll(/<script src="\/([\w.]+)"><\/script>/g)].map(m=>m[1]),files={'core.js':'src/core.cjs','phase2.js':'src/phase2.cjs','phase3.js':'src/phase3.cjs','effort.js':'src/effort.cjs','workload.js':'src/workload.cjs','app.js':'src/web/app.js'};
  a.deepEqual(order,['core.js','phase2.js','phase3.js','effort.js','workload.js','app.js']);
  const nodes=new Map(),node=k=>{if(!nodes.has(k))nodes.set(k,{textContent:'',innerHTML:''});return nodes.get(k);},listeners={};
+ // Boot readiness: app.js runs session -> render() once. Resolve on that render's #page write; reject on its error notice.
+ let ready,fail;const boot=new Promise((y,n)=>{ready=y;fail=n;});boot.catch(()=>{});
+ const watch=(k,prop,on)=>{let v='';Object.defineProperty(node(k),prop,{get:()=>v,set:x=>{v=x;on(x);},enumerable:true});};
+ watch('#page','innerHTML',()=>ready());watch('#notice','textContent',x=>{if(x)fail(Error('app bootstrap failed before first render: '+x));});
+ const booted=(ms=5000)=>{let t;return Promise.race([boot,new Promise((_,n)=>{t=setTimeout(()=>n(Error('app bootstrap (session + first render) did not finish within '+ms+'ms')),ms);})]).finally(()=>clearTimeout(t));};
  const ctx=vm.createContext({URL,URLSearchParams,Date,Intl,console,window:{addEventListener(){}},document:{querySelector:node,querySelectorAll:()=>[],addEventListener:(t,f)=>{listeners[t]=f;}},location:{pathname,search:'',origin:'http://127.0.0.1'},history:{pushState(){}},fetch:fetchImpl,confirm:()=>false});
  for(const f of order)vm.runInContext(fs.readFileSync(files[f],'utf8'),ctx,{filename:files[f]});
  const view=async search=>{ctx.location.search=search;await vm.runInContext('render()',ctx);return node('#page').innerHTML;};
  const click=(action,id,value)=>listeners.click({target:{closest:s=>s==='a'?null:{dataset:{action,id,value}}},preventDefault(){}});
- return {ctx,node,view,click};
+ return {ctx,node,view,click,booted};
 }
 const keys=html=>[...html.matchAll(/<article class="panel" data-career="([^"]*)"/g)].map(m=>m[1]);
 // Eligibility/relationship line per card: the first <p> after the evidence paragraph inside the details.
@@ -92,7 +97,8 @@ test('routed Career page through the real server: save/dismiss/reset, source ref
   const store=server.store,d=snapshot();d.career.roles[2].title='Synthetic role r3';d.career.candidates[1].name='Synthetic person p2';store.importSnapshot(d);
   store.saveState('actual','brief-a',30);const other=()=>{const st=store.state();delete st.career;return JSON.stringify({st,snapshot:{...store.snapshot(),career:undefined,candidateHistory:undefined}});},otherBefore=other();
   const bridge=async(u,o={})=>{const r=await fetch(origin+u,{...o,headers:{...(o.headers||{}),Origin:origin,...(cookie?{Cookie:cookie}:{})}});const c=r.headers.get('set-cookie');if(c)cookie=c.split(';')[0];return r;};
-  const {view,click,node}=load(bridge);await new Promise(r=>setTimeout(r,50));
+  // Wait for the app's own session + first render instead of a fixed delay, so no test render races the bootstrap.
+  const {view,click,node,booted}=load(bridge);await booted();
   const roles=async()=>keys(await view('?tab=roles')),people=async()=>keys(await view('?tab=people'));
   a.deepEqual(await roles(),['r1','r2','r3','r4','r5'].map(url));a.deepEqual(await people(),['p1','p2','p3','p4'].map(url));
   await click('career',url('r4'),'saved');a.equal(node('#notice').textContent,'');a.deepEqual(await roles(),['r4','r1','r2','r3','r5'].map(url));
@@ -113,5 +119,5 @@ test('routed Career page through the real server: save/dismiss/reset, source ref
   html=await view('?tab=roles');a.deepEqual(keys(html),['r4','r5','r3','r2','r6'].map(url),'failed career refresh keeps research and order');a.match(html,/Research refresh failed; retained recommendations may be stale/);
   await click('career',url('r4'),'reset');await click('career',url('p4'),'reset');a.deepEqual(await roles(),['r5','r3','r2','r6'].map(url),'reset of a removed role returns it to History only');
   a.equal(store.state().career[url('r4')].status,'reset');a.equal(store.snapshot().career.roles.length,6,'source records are never removed by feedback');
- }finally{await new Promise(r=>server.close(r));fs.rmSync(dir,{recursive:true,force:true});}
+ }finally{server.closeAllConnections();await new Promise(r=>server.close(r));fs.rmSync(dir,{recursive:true,force:true});}
 });
