@@ -1,6 +1,6 @@
 # Current project state
 
-Updated2026-10-09. Verify Git/PR state before editing; this file is not live status.
+Updated2026-10-10. Verify Git/PR state before editing; this file is not live status.
 
 - v1.5.0 preserves the first static-to-web-app milestone. The original tag is unchanged and still contains the startup bug; use main containing merged fix#10 (53cfa65) or a later verified commit.
 - Implemented: routed summary Home/modules, SQLite, progress migration, current/history, backups, immutable Q-number batches, receipts, bounded routine policy, career pipeline and fictional Luna eval harness.
@@ -23,8 +23,11 @@ Agent workflow (issue #16): [trial coordinator/CLI-worker policy](agent-workflow
 - [Quota handoff](agent-workflow.md#quota-handoff): Codex remaining strictly below 10% in any applicable window hands approved pending work to a Claude Code fallback coordinator; stale or missing readings are unknown, never zero. Policy only: no monitor implements it. One real handoff ran on 2026-10-09, but its reset handshake has not been observed.
 - Routing (user decision 2026-10-09): `claude-opus-5-5` high handles all ordinary planning, design, implementation, tests and review. `gpt-6-astra` is used only for tasks the root coordinator audits as exceptionally difficult, with a recorded reason. The root coordinator owns intake, review and summary; a scoped execution lead may receive written [publisher delegation](agent-workflow.md#publisher-delegation) for one request (push and PR only).
 - Every request updates a private RESULT record and archives the previous one ([Results and archive](agent-workflow.md#results-and-archive)). Private records and status pages are not tracked.
-- Phase6: the task plan and acceptance proposals (#26–#29) are in open PR #31, which awaits user review. No Phase6 task is implemented until the user approves its concrete acceptance.
 
-Next: observe three independent scheduled refreshes (#18) and first-week coverage, failures and available usage. Configuration alone is not unattended acceptance. Revisit the Phase5 gate (#19) only with permitted authorization, trigger and recovery evidence. Use the validator in real task handoffs. Phase6 tasks (#20) start only after the user approves their concrete acceptance (PR #31); the user decides adoption after #21 evidence.
+Phase6 (#20): the user approved the concrete acceptance of #26–#29 with the defaults in the [plan](phase-6-plan.md#approved-acceptance). Implementation is delivered as stacked dependent PRs (#26→#27→#28→#29), each merged only on user request; none is deployed, and completing them does not prove workflow adoption (#21). The paragraphs below describe only behavior present in this revision.
+
+Phase6A effort calibration (#26): Settings shows a descriptive, user-reported median actual/estimate ratio from explicitly confirmed, frozen per-assignment samples, with "Insufficient data" below three samples and visible exclusions. Actual edits invalidate confirmations; nothing adjusts estimates or plans. See the [sample contract](data-contract.md#effort-calibration-samples-phase-6a-26). Workload modes, feedback ordering and weekly trends (#27–29) are not implemented.
+
+Next: observe three independent scheduled refreshes (#18) and first-week coverage, failures and available usage. Configuration alone is not unattended acceptance. Revisit the Phase5 gate (#19) only with permitted authorization, trigger and recovery evidence. Use the validator in real task handoffs. Phase6 PRs (#20) are reviewed and merged in stack order only on user request; the user decides adoption after #21 evidence.
 
 Update this file when behavior, limitations or priorities change. Do not append transcripts or duplicate the complete GitHub history.

@@ -134,10 +134,10 @@ GitHub milestone 1: "Phase 6 and verified Herdr dual-agent delivery".
 | #20 | Phase6 epic: effort calibration, workload modes, career feedback ranking, weekly trends |
 | #21 | Measured efficiency, recovery and adoption decision |
 
-Phase5 NO-GO stays blocking for #19 unless evidence resolves it or the user explicitly re-scopes. Phase6 implementation waits until the user approves the concrete acceptance of each task (plan in PR #31, tasks #26–#29).
+Phase5 NO-GO stays blocking for #19 unless evidence resolves it or the user explicitly re-scopes. The user approved the concrete Phase6 acceptance of #26–#29 ([plan](phase-6-plan.md)); implementation is in stacked dependent PRs, merged and deployed only on user request.
 
 ### Milestone acceptance
-- User-approved Phase6 acceptance criteria.
+- User-approved Phase6 acceptance criteria (approved for #26–#29).
 - Three real dual-agent pilots plus a comparable single-agent baseline.
 - Recovery checks: interruption, retry, stale review, reconnect, restart.
 - Honest usage reporting and an explicit user adoption decision.

@@ -1,8 +1,17 @@
-# Phase 6 plan (proposal)
+# Phase 6 plan
 
-Status: **proposed, not accepted.** Epic #20 under milestone 1. The outcomes, names and acceptance below are proposals. Milestone 1 requires user-approved Phase 6 acceptance, so no task is implemented until the user approves concrete acceptance for that task. Broad permission to continue is not approval.
+Status: **acceptance approved.** Epic #20 under milestone 1. The user approved the concrete acceptance of #26–#29 with the defaults under [Approved acceptance](#approved-acceptance). Implementation is delivered as stacked dependent PRs (#26→#27→#28→#29), each merged only on user request; none is deployed or adopted. Implemented behavior and limits are in [project-state.md](project-state.md) and [data-contract.md](data-contract.md); the task table and 6A steps below are the original proposal. Broad permission to continue is not approval.
 
-## Current capabilities (baseline `1bd6aa9`)
+## Approved acceptance
+The open product choices in the task table were decided as follows:
+- #26: at least three samples; median actual/estimate ratio; zero actual excluded; actual edits invalidate a confirmation; required, `choice` and uncertain work are each eligible; only explicit confirmation creates a sample.
+- #27: two modes, Standard (default) and Reduced; Reduced lists urgent (overdue or 72-hour) required work first.
+- #28: saved items first, dismissed items last and still visible with Restore; all other statuses keep the original source order.
+- #29: weeks run Monday–Sunday in the snapshot timezone; counts from the latest read observation in each week, required work by status, plus per-source health.
+
+## Capabilities at planning baseline `1bd6aa9` (historical)
+This describes the code before Phase 6 work and is kept as planning context, not current behavior.
+
 - Effort: `src/store.cjs` stores source estimates and cumulative local actual minutes (finite, nonnegative) separately. There is no confirmed final effort, frozen estimate or calibration. In `src/web/app.js` the Coursework actual-minutes input shows a missing value as `0`, and clearing it saves `0`. Settings lists estimate/actual pairs and notes that effort is cumulative.
 - Workload: `src/core.cjs` classifies work as `required`, `choice` (selectable) or `uncertain`; routed views and `src/routine.cjs` flag failed/unavailable sources. Workload modes do not exist.
 - Career: `src/phase3.cjs` can rank with supplied editorial scores and exclusions, but the routed Career page does not call it. User statuses exist; learned preferences do not. Eligibility reports some gaps; missing profile facts are not handled comprehensively.

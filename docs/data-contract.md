@@ -29,3 +29,15 @@ Phase 2 adds destination-specific coverage timestamps, full event review fields,
 Phase 3 adds career.profile, source-backed candidates/roles, canonical-URL candidateHistory with status and updatedAt, and email.enabled=false. See [Phase 3](phase-3.md). Failed career reads preserve the prior career object.
 
 Phase 4 preserves v1 source input and adds a private SQLite authoritative store: current records, source snapshots, progress, immutable review batches, execution receipts, runs and paginated audit history. Source import cannot overwrite progress. Refer to phase-4.md.
+
+## Effort calibration samples (Phase 6A, #26)
+
+Actual minutes are local progress (`actual`, finite and ≥ 0). A missing actual stays missing: clearing the Coursework field deletes the value instead of writing 0. Recorded zero is valid progress but never a calibration sample.
+
+A calibration sample is progress kind `effortCalibration`, keyed by the stable assignment ID: `{estimateMinutes, actualMinutes, requirement, confirmedAt}`. Only the dedicated confirm/clear operations (`POST /api/effort/confirm` and `/api/effort/clear` with `{id}`, under the usual session, Origin and CSRF checks) write it; the generic progress endpoint and legacy progress import reject or ignore the kind. Confirming reads the current stored assignment estimate and actual, requires both to be finite and positive, and sets `confirmedAt` on the server. Client-supplied pairs are ignored. Unknown assignments and malformed IDs are rejected. Required, selectable (`choice`) and uncertain work can each be confirmed. A confirmation records effort only; it never implies submission and changes no source estimate, status, proposal or approval.
+
+- Any change to an assignment's actual minutes, including clearing it or restoring an earlier value, deletes that confirmation in the same transaction. The user reconfirms or clears explicitly.
+- Source refreshes never rewrite a frozen pair; a source record that disappears (archived from source) keeps its sample, and Settings labels it as retained. Clear removes a sample.
+- On read, a sample counts only while the current actual equals its frozen actual. This excludes confirmations left stale by code that predates this rule.
+- Settings shows a descriptive, user-reported median of actual ÷ estimate. Fewer than three counted samples shows "Insufficient data" with the count. Exclusion counts cover unconfirmed actuals, zero actuals, actuals without a positive estimate, stale confirmations and malformed samples. Nothing adjusts estimates or plans.
+- Samples are ordinary progress rows. JSON export includes them one way; there is no JSON import for samples. SQLite backup/restore round-trips them. No schema `user_version` change and no backfill of earlier actuals.
