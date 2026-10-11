@@ -10,7 +10,7 @@ The collector targets up to five candidates, typically four primary APAC and one
 
 ## Local controls and synchronization
 
-Save, dismiss, applied, contacted, connected and pending record user-reported statuses only. Restore resets local exclusion. Draft buttons prepare requests for chat; no communication is sent. Export local progress, then ask the assistant to import the exported JSON:
+Save, dismiss, applied, contacted, connected and pending record user-reported statuses only. Restore resets local exclusion. The routed Roles and People lists put saved items first and dismissed items last, otherwise in source order, each with a visible reason; this uses only each item's own status, never scores or inferred preferences. See [feedback ordering](data-contract.md#career-feedback-ordering-phase-6c-28). Draft buttons prepare requests for chat; no communication is sent. Export local progress, then ask the assistant to import the exported JSON:
 
 `node scripts/import-progress.cjs /path/to/export.json`
 
