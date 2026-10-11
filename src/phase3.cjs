@@ -10,7 +10,12 @@ function candidates(items=[],records=[],limit=5){const blocked=new Set(history(r
 function eligibility(role,profile={}){const issues=[];if(role.market==='US'&&profile.usSponsorshipRequired){if(role.sponsorship==='no')issues.push('Explicit sponsorship mismatch');else if(role.sponsorship!=='yes')issues.push('US sponsorship unverified');}if(role.market!=='US'&&profile.workEligibility?.[role.market]!=='confirmed')issues.push('Local work eligibility unknown');if(role.startYear!==profile.startYear)issues.push('Intended start year needs verification');if(role.degreeGap)issues.push(role.degreeGap);return issues;}
 function importProgress(snapshot,exported){const allowed=new Set([...(snapshot.career?.candidates||[]),...(snapshot.career?.roles||[])].map(key).concat((snapshot.candidateHistory||[]).map(h=>h.id)));const incoming=exported.localProgress?.career||{};const records=Object.entries(incoming).filter(([id])=>allowed.has(id)).map(([id,r])=>({id,status:r?.status,updatedAt:r?.updatedAt}));return {...snapshot,candidateHistory:history([...(snapshot.candidateHistory||[]),...records])};}
 function weekly(records,now){const cutoff=Date.parse(now)-7*86400000;const recent=history(records).filter(r=>Date.parse(r.updatedAt)>=cutoff&&Date.parse(r.updatedAt)<=Date.parse(now));return {applied:recent.filter(r=>r.status==='applied').length,contacted:recent.filter(r=>r.status==='contacted').length,saved:recent.filter(r=>r.status==='saved').length,pending:recent.filter(r=>r.status==='pending').length};}
-const api={canonical,key,history,score,candidates,eligibility,importProgress,weekly,states};
+// Explicit feedback ordering: only an item's own saved/dismissed status counts. Saved first, dismissed last,
+// every other status keeps the supplied order (stable ties). Nothing is inferred across items; eligibility is untouched.
+const feedbackRank=s=>s==='saved'?0:s==='dismissed'?2:1;
+function feedbackOrder(items=[],statusOf=()=>undefined){return items.map((x,i)=>({x,i,r:feedbackRank(statusOf(x))})).sort((a,b)=>a.r-b.r||a.i-b.i).map(e=>e.x);}
+function feedbackReason(s){return s==='saved'?'Saved by you':s==='dismissed'?'Dismissed by you':'';}
+const api={canonical,key,history,score,candidates,eligibility,importProgress,weekly,states,feedbackOrder,feedbackReason};
 if(typeof module!=='undefined')module.exports=api;else window.PlannerPhase3=api;
 
 })();

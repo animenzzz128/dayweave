@@ -41,3 +41,31 @@ A calibration sample is progress kind `effortCalibration`, keyed by the stable a
 - On read, a sample counts only while the current actual equals its frozen actual. This excludes confirmations left stale by code that predates this rule.
 - Settings shows a descriptive, user-reported median of actual ÷ estimate. Fewer than three counted samples shows "Insufficient data" with the count. Exclusion counts cover unconfirmed actuals, zero actuals, actuals without a positive estimate, stale confirmations and malformed samples. Nothing adjusts estimates or plans.
 - Samples are ordinary progress rows. JSON export includes them one way; there is no JSON import for samples. SQLite backup/restore round-trips them. No schema `user_version` change and no backfill of earlier actuals.
+
+## Workload modes (Phase 6B, #27)
+
+Home has an explicit, advisory focus mode: `standard` or `reduced`. It is stored as progress kind `preferences`, ID `workloadMode`, and written only by `POST /api/workload-mode` with `{mode}` under the usual session, Origin and CSRF checks. Any other value is rejected before a write. The generic progress endpoint and legacy progress import reject or ignore the kind. A missing or malformed stored value reads as `standard`, so older databases open in Standard. Source refreshes and restarts keep the preference. JSON export includes it, and restoring an older SQLite backup restores that backup's mode.
+
+- Standard keeps the original Home overview.
+- Reduced lists required work that is overdue or due within 72 hours first, ordered by deadline and then stable ID. Other required work (later or undated) and selectable (`choice`) work stay listed and labelled, and Coursework is unchanged.
+- Focus lists apply this precedence; the first match wins:
+  1. Submitted, graded or excused work is left out of every focus list and never returns to urgent, even when its source failed or is unavailable. That source's failure still shows in the data-health warnings in both modes, and Coursework History still tags the record `verify`.
+  2. Other work from a failed or unavailable source goes to verification.
+  3. Selectable (`choice`) work is listed as selectable and is never urgent or required. If its submission status is unknown, it keeps that listing with a "Submission status unknown" tag and is also listed in verification.
+  4. Uncertain requirements, unknown submission status and a missing requirement go to verification, not to a definite category.
+  5. Remaining required work is urgent (overdue or due within 72 hours) or other required work.
+- Work archived locally in Coursework stays in the focus lists, tagged "Archived locally". Its link opens Coursework History, where the record is listed. Following the link changes no archive state.
+- Both modes always show verification items, non-ok sources, a stale snapshot and calendar coverage limits. Blank calendar time is never treated as free capacity.
+- Switching changes only the preference row and an audit entry. It changes no source records, estimates, proposals, approvals, Q-numbers or effort samples, and it never authorizes calendar, message or submission actions. Nothing is scheduled automatically.
+
+## Career feedback ordering (Phase 6C, #28)
+
+The Career Roles and People tabs order each list by the user's explicit status on that item, keyed by the item's canonical URL (or stable ID without one). The status is the latest `career` progress or `candidateHistory` record, as before. No new progress kind, endpoint or schema change.
+
+- `saved` items come first and show "Saved by you". `dismissed` items come last, stay visible with Restore, and show "Dismissed by you". Every other status (including restored, `reset`) keeps the source order. Ties keep source order, so with no feedback both lists match the source order exactly.
+- Roles and People are ordered separately. Follow-ups and History keep their existing order.
+- Existing exclusions stay: applied roles; pending, connected and contacted people; source-removed people; and source-removed roles unless saved. A saved role removed from the source stays first and is labelled "Removed from latest source; retained". Dismissed items no longer leave Roles/People, and they also stay listed in History.
+- Only each item's own status counts. Nothing is learned or inferred for other roles or people, editorial scores are not used, and no model is trained.
+- Ordering changes presentation only. Source records, evidence, requirements, eligibility gaps and unknowns, relationships, proposals, approvals, effort samples and the workload mode are unchanged. Saving never makes unknown eligibility eligible.
+- Eligibility checks are unchanged and skip what the profile cannot support: with no `usSponsorshipRequired` (or no profile) there is no US sponsorship gap, and when neither role nor profile has a `startYear` there is no start-year gap. The Career page labels these instead. Roles shows a "Profile facts missing: … — eligibility for these is not assessed and is not shown as eligible" banner when the profile is missing, null or lacks `usSponsorshipRequired`, `startYear` or `workEligibility`. Affected role cards show "Eligibility not fully assessed" and name each unassessed check on the eligibility line. This applies to US roles without confirmed sponsorship, and to roles where neither role nor profile states a start year. These labels never mean eligible. Saved/dismissed/reset does not change them, and they do not appear with a complete profile. The legacy static page does not show them.
+- Source refreshes and failed career sources keep each item's state: the baseline is the current (or retained) source order, and the user's status follows the canonical URL.
