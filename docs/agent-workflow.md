@@ -8,6 +8,7 @@ This file, the [prompts](prompts/) and any skills are guidance. They are not a s
 1. Read AGENTS.md, [project-state.md](project-state.md), this file, [development-workflow.md](development-workflow.md), [roadmap.md](roadmap.md) and [decisions.md](decisions.md).
 2. Verify live state: branch/HEAD, dirty files, active worktrees, open PRs and their head SHAs, milestone 1 issues. Docs are not live status.
 3. Do not assume private tool paths, local configuration or earlier chat transcripts. Obtain machine-specific details from the operator or supported commands; never record them in Git.
+4. Give the request a unique ID for its private result, checkpoint and run names. Open the chat in the existing Dayweave project; do not register a new project per task.
 
 Starting prompt: [prompts/new-request.md](prompts/new-request.md).
 
@@ -60,10 +61,21 @@ Run tasks concurrently only when independent: separate worktrees, data directori
 - If a dispatch outcome is ambiguous (a worker may have started or written), inspect the worktree, branch and artifacts before retrying. Never start a second writer on the same worktree.
 - Interruption, retry, stale review, reconnect and restart behavior are trial checks (#21), not assumptions.
 - During user-requested visible execution, show worker lifecycle and progress summaries in task panes. Raw logs stay private and outside Git. Pane badges are not completion proof; use artifacts, check results and the handoff. See [local access](local-access.md#herdr-sessions-and-worker-progress).
+- One Herdr workspace per request, with at most one writer pane and one reviewer pane; probes use the reviewer pane. Reuse a pane only after confirming it is idle: nothing but the pane's shell is running, and the last attempt has either its exit marker or, after its process was confirmed gone, an "interrupted, no marker" note (see Recovery below). Use explicit IDs without focus; never close unrelated panes.
+
+## Quiet CLI sessions
+The user works in one coordination chat per request. Every Claude worker, reviewer, probe and quota-fallback context runs non-interactively as `claude -p --no-session-persistence` with an explicit `--name` naming the request, role and attempt. Per the installed CLI help, such a session is not saved to disk and cannot be resumed; the flag only works with `-p`. CLI contexts never create, register or message app chats or projects. Model, approval and quota rules are unchanged.
+- **Preflight.** The launcher checks the installed CLI help for the flag before starting. If it is missing, stop and report a blocker; never fall back silently to a persisted session.
+- **Evidence.** With no native transcript, the launcher keeps its own private record per request ID, role and attempt: prompt, events, stderr, result, exit marker, requested and observed model, and session ID. Attempt names are never reused and evidence is never overwritten.
+- **Recovery.** Not resuming is intentional. After a failure or interruption, confirm the old writer exited (exit marker and no CLI process in its pane), then start a new attempt from the private checkpoint and verified Git state. If a hard kill left no exit marker, confirm the process is gone and record a separate "interrupted, no marker" note; never write the marker afterwards.
+- **Handback.** A `-p` run takes no further input, so a fallback coordinator cannot be asked to checkpoint mid-run. The [Reset](#quota-handoff) handshake waits for it to exit (or stops it, then records the interruption) before ownership returns.
+- **Review.** Each review is a separate read-only `-p` context bound to the exact head SHA, launched the same way; never an app thread.
+- **Not a visibility guarantee.** The flag removes the native transcript. It does not by itself prove the app shows no extra sidebar tasks, and a missing transcript does not prove the app stores no other metadata. Adoption needs the before/after app observation in [worker-session-test.md](worker-session-test.md); if the app still lists or imports such runs, that is a failure.
 
 ## Results and archive
 Every request ends with a private result record, kept outside Git.
-- Always update the private `RESULT.md`. It is the authoritative record: request, status, owner, PR, exact head SHA, checks with their subject SHA, review verdict, blockers and the next user action.
+- Always update the request's own private `RESULT.md`, kept under its unique request ID. It is the authoritative record for that request: request, status, owner, PR, exact head SHA, checks with their subject SHA, review verdict, blockers and the next user action.
+- Any aggregate record or status page is updated only by the single root coordinator, merging per-request summaries. Request owners never edit it, so two active request chats cannot clobber each other.
 - Before replacing `RESULT.md` or the private start prompt, archive the previous version as an immutable timestamped copy. Archive each completed request.
 - Preserve original evidence. A repaired or reformatted copy is a separate derived file that names its source; never rewrite logs in place.
 - An optional private static status page may summarize the record. It is derived from `RESULT.md`, shows the source timestamp and claims no live status.
@@ -81,7 +93,7 @@ The user has authorized handing in-progress authorized work to Claude Code `clau
 **At threshold.** Start no new GPT development.
 1. Checkpoint privately: exact user scope and approval boundaries, source-of-truth docs, task list, branch, full baseline/head SHA, dirty files, checks and reviewed SHA, blocking approvals, next command, worktree and runtime locations.
 2. Quiesce the writer and verify from the actual process and worktree that it stopped before transferring ownership. If a Claude task already owns the work, continue it; do not duplicate.
-3. Preflight a Herdr-managed pane; if Herdr is unavailable, use a native terminal. Dispatch with [prompts/credit-handoff.md](prompts/credit-handoff.md).
+3. Preflight a Herdr-managed pane; if Herdr is unavailable, use a native terminal. Dispatch with [prompts/credit-handoff.md](prompts/credit-handoff.md) as a [quiet CLI session](#quiet-cli-sessions).
 
 **Fallback authority.** Claude becomes explicit fallback coordinator solely for approved pending scope. It may push and open scoped PRs as the user authorized; this coordinator-role transfer is one of the two exceptions to the worker no-push rule (the other is [publisher delegation](#publisher-delegation)). No merge, release, deploy, calendar, email, message or assignment actions. Separate-context SHA-bound review and mandatory checks still apply.
 - Never share browser cookies or passwords; do not assume MCP or browser tools exist in Claude. Source work it cannot access is reported as a blocker.
@@ -90,7 +102,7 @@ The user has authorized handing in-progress authorized work to Claude Code `clau
 
 **Visibility.** Results appear in the coordinator chat or the Claude/Herdr window, plus a local private `RESULT.md` and checkpoint path. The root app chat receives no CLI messages automatically, and replies cannot be promised after Codex quota is exhausted.
 
-**Reset.** Do not start a second writer. Inspect the active Claude session and worktree first; ownership returns only by explicit handshake (Claude checkpoints and stops, the coordinator confirms).
+**Reset.** Do not start a second writer. Inspect the active Claude run, its exit marker and the worktree first; ownership returns only by explicit handshake. A `-p` run cannot receive a mid-run request, so Claude writes its checkpoint, prints its handback and exits; the coordinator waits for that exit and confirms it. If the run must be stopped instead, confirm the process is gone and record the interruption first.
 
 **Synthetic acceptance cases.**
 - Primary `usedPercent` 91 (remaining 9), secondary 40: trigger, checkpoint, hand off. `usedPercent` 105 clamps to remaining 0 and also triggers.
