@@ -27,7 +27,8 @@ npm run privacy after staging. Do not use or request browser cookies or password
 assume MCP or browser tools; report inaccessible sources as blockers. Never change budget,
 billing, model authentication or machine policy. If your auth, quota or tools are
 unavailable, stop and record a recoverable blocker in RESULT.md.
-On Codex quota reset, keep ownership until an explicit handshake: checkpoint, stop, confirm.
+You keep ownership until you exit; a Codex quota reset cannot reach this run. Before exiting,
+write the checkpoint and print your handback. Ownership returns once the coordinator confirms the exit.
 Return: handoff per agent-workflow.md in this window and in RESULT.md; archive the previous
 RESULT.md first and preserve original evidence (see "Results and archive").
 ```

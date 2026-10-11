@@ -61,7 +61,7 @@ Run tasks concurrently only when independent: separate worktrees, data directori
 - If a dispatch outcome is ambiguous (a worker may have started or written), inspect the worktree, branch and artifacts before retrying. Never start a second writer on the same worktree.
 - Interruption, retry, stale review, reconnect and restart behavior are trial checks (#21), not assumptions.
 - During user-requested visible execution, show worker lifecycle and progress summaries in task panes. Raw logs stay private and outside Git. Pane badges are not completion proof; use artifacts, check results and the handoff. See [local access](local-access.md#herdr-sessions-and-worker-progress).
-- One Herdr workspace per request, with at most one writer pane and one reviewer pane; probes use the reviewer pane. Reuse a pane only after confirming it is idle: the last attempt's exit marker exists and nothing but the pane's shell is running. Use explicit IDs without focus; never close unrelated panes.
+- One Herdr workspace per request, with at most one writer pane and one reviewer pane; probes use the reviewer pane. Reuse a pane only after confirming it is idle: nothing but the pane's shell is running, and the last attempt has either its exit marker or, after its process was confirmed gone, an "interrupted, no marker" note (see Recovery below). Use explicit IDs without focus; never close unrelated panes.
 
 ## Quiet CLI sessions
 The user works in one coordination chat per request. Every Claude worker, reviewer, probe and quota-fallback context runs non-interactively as `claude -p --no-session-persistence` with an explicit `--name` naming the request, role and attempt. Per the installed CLI help, such a session is not saved to disk and cannot be resumed; the flag only works with `-p`. CLI contexts never create, register or message app chats or projects. Model, approval and quota rules are unchanged.
@@ -102,7 +102,7 @@ The user has authorized handing in-progress authorized work to Claude Code `clau
 
 **Visibility.** Results appear in the coordinator chat or the Claude/Herdr window, plus a local private `RESULT.md` and checkpoint path. The root app chat receives no CLI messages automatically, and replies cannot be promised after Codex quota is exhausted.
 
-**Reset.** Do not start a second writer. Inspect the active Claude run, its exit marker and the worktree first; ownership returns only by explicit handshake (Claude checkpoints and stops, the coordinator confirms).
+**Reset.** Do not start a second writer. Inspect the active Claude run, its exit marker and the worktree first; ownership returns only by explicit handshake. A `-p` run cannot receive a mid-run request, so Claude writes its checkpoint, prints its handback and exits; the coordinator waits for that exit and confirms it. If the run must be stopped instead, confirm the process is gone and record the interruption first.
 
 **Synthetic acceptance cases.**
 - Primary `usedPercent` 91 (remaining 9), secondary 40: trigger, checkpoint, hand off. `usedPercent` 105 clamps to remaining 0 and also triggers.
