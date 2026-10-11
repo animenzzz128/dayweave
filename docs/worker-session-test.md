@@ -36,4 +36,5 @@ Keep screenshots, session IDs, logs and paths private and outside Git. Use synth
 
 ## Limits
 - No native transcript for a session ID shows only that this file is absent. It does not prove the app holds no other metadata about the run; the visible sidebar is the acceptance signal.
+- The test observes writer and reviewer runs. Probe and quota-fallback runs use the same launcher and flag, but their sidebar effect is inferred until observed.
 - One passing run supports adopting the setting for a trial. It does not show reduced quota use or faster delivery.
