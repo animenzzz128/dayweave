@@ -125,6 +125,17 @@ No open-source license has been selected yet; this package is marked `UNLICENSED
 ## Phase 4 workbench
 The primary interface is now a local multi-page Node 24 + SQLite application. Start with `node scripts/db.cjs migrate /private/data.json`, then `npm run serve`. See [Phase 4 migration, approvals and backups](docs/phase-4.md). Existing static render/preview commands remain legacy compatibility tools; `export:html` produces a read-only database export. Email is disabled.
 
+## Phase 6 additions (1.5.5)
+
+Four local, advisory features, none of which changes estimates, schedules anything or acts outside the app:
+
+- **Effort calibration** (Coursework, Settings): confirm actual minutes per assignment; Settings shows a descriptive median actual/estimate ratio once three samples exist.
+- **Workload modes** (Home): Standard or Reduced focus; Reduced lists urgent required work first and keeps everything else, including verification and coverage warnings, visible.
+- **Career feedback ordering** (Career): saved items first, dismissed items last with Restore; unassessed eligibility stays labelled.
+- **Weekly evidence trends** (Settings → Weekly trends): two dated weeks compared from retained snapshots, with "No observations" instead of zero and no change shown when coverage is limited.
+
+Try each with synthetic data using the [Phase 6 acceptance guide](docs/phase-6-acceptance.md). Behavior and limits: [project state](docs/project-state.md) and [data contract](docs/data-contract.md).
+
 ## Sustainable development
 
 Start with [current state](docs/project-state.md), [architecture](docs/architecture.md), [workflow](docs/development-workflow.md), [decisions](docs/decisions.md) and [roadmap](docs/roadmap.md). Use one task/branch/PR per outcome. Stable runtime is an independent pinned checkout; development uses synthetic data and its own port. Deployment/account manifests stay outside Git.
