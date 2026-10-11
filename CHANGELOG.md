@@ -4,6 +4,8 @@
 
 Phase 6 initial completion (#20): the four approved Phase 6 features (#26–#29). Every change is local, advisory and reversible. No schema `user_version` change and no new runtime dependency. See the [Phase 6 acceptance guide](docs/phase-6-acceptance.md).
 
+This release is a reviewed candidate revision that contains all four features; the version and tag do not mean every feature is merged to main. As of 2026-10-11, #26 is merged into main (PR33) and #28 into the #27 branch (PR35), while PR34 (#27 with #28) and PR36 (#29) remain open.
+
 - Effort calibration (#26): Coursework records actual minutes (blank means not recorded, not 0) and explicitly confirms per-assignment effort samples. Settings shows a descriptive median actual/estimate ratio from at least three confirmed samples, otherwise "Insufficient data". Zero actuals are excluded and editing actual minutes removes the confirmation. Nothing adjusts estimates or plans.
 - Workload modes (#27): Home has a Standard (default) / Reduced focus mode. Reduced lists overdue and 72-hour required work first and keeps other required work, selectable work, verification items, source health and calendar coverage limits visible.
 - Career feedback ordering (#28): Career Roles and People list saved items first and dismissed items last with Restore, otherwise in source order. Profile facts that eligibility cannot assess are labelled "not assessed", never eligible.

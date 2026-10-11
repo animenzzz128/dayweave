@@ -23,16 +23,21 @@ Private data: synthetic fixtures; no external writes during build/test
 Handoff: PR/commit, visible change, verification, unresolved issue and next action. Do not paste full logs into coordination chat. Fresh context alone does not prove accuracy or savings; track omissions/rework/reads/actual usage.
 
 ## After a parent PR merges
-Stacked PRs need a reconciliation step after every parent merge, before the next merge. A squash merge creates a new commit whose tree can equal the parent branch while sharing none of its commits. Git then picks an older merge base and replays the parent's changes against the child's own copy of them, so a child that edited the same lines conflicts even though nothing new arrived. GitHub retargets the child PR to the merged parent's base. A child squash-merged into a non-default base also does not close its issue.
+Stacked PRs need a reconciliation step after every parent merge, before the next merge. A squash merge creates a new commit whose tree can equal the parent branch while sharing none of its commits. Git then picks an older merge base and replays the parent's changes against the child's own copy of them, so a child that edited the same lines conflicts even when the base brought nothing new. When the merged head branch is deleted, GitHub retargets the child PR to the merged parent's base; this repository deletes branches on merge, so expect the retarget. A child squash-merged into a non-default base also does not close its issue.
 
-Handle one parent merge at a time, then pause before the next merge:
+Handle one parent merge at a time with one writer, then pause before the next merge:
 1. Fetch, then record the new base SHA/tree, the child head, the PR base ref and mergeability. Confirm no other writer holds the child worktree.
 2. Bring the child branch up to its remote head with a fast-forward, keeping any commit the user merged into it. Never reset, rebase or force-push.
-3. Preview with `git merge-tree --write-tree` and keep the conflicting paths and hunks before resolving. For each conflict, check whether the incoming blob already exists in the child's own history. If it does, the child's content is the resolution.
-4. Merge the new base without fast-forward. Compare the result tree with the last approved child tree. Runtime paths (`src`, `scripts`, `test`, `evals`, `examples`, `package.json`) must keep identical object IDs; stop and report any unexplained difference.
+3. Preview with `git merge-tree --write-tree` and keep the conflicting paths and hunks before resolving. Audit before keeping the child's side of any conflicted path. Keep it only if all of these hold:
+   - The new base commit is a verified squash of a parent head that is already an ancestor of the child: the squash commit's full tree equals that parent head's tree.
+   - The incoming blob for the path equals the blob at that parent head.
+   - No other base commit since the previous merge base changes the path, so no base change to it would be dropped.
+
+   A matching blob somewhere in the child's history is not enough; for example, a revert on the base can restore an older blob. If any audit condition fails because the base also carries a legitimate change, revert or new fix, resolve the path by hand so both sides' intended changes survive.
+4. Merge the new base without fast-forward. Compare the full result tree, every path including docs, with the last approved child tree. If the audit held for every path and the base brought nothing else, the trees are identical. Otherwise list each difference with the base commit it came from. Stop and report any difference that no source commit explains. An intended base change is acceptable when its differences are mapped this way, the affected checks are rerun and the new SHA is reviewed.
 5. Compare the PR's own range against the new base (for example with `git patch-id`): it should hold only the child's not-yet-merged work. Name any extra commits that appear only through duplicated pre-squash history.
 6. Run the four required checks on the staged tree and again on the new head. Earlier reviews, CI and browser evidence stay bound to their original SHAs; the new SHA needs its own review.
-7. Repeat for the next child, merging the reconciled parent rather than the original one.
+7. Repeat for the next child after fetching its base and head again, merging the reconciled parent rather than the original one.
 
 ## Development
 Use the Codex app as the default coordination/task entry point and VS Code for inspection, manual editing and debugging. A task can also be owned by the IDE extension; choose one active owner per outcome rather than starting duplicate chats for the same work. Do not assume chat history transfers between clients.

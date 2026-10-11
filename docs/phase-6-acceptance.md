@@ -6,13 +6,33 @@ Contracts and limits: [data contract](data-contract.md) (sections Phase 6A–6D)
 
 ## Prepare synthetic data
 
-The bundled `examples/snapshot.json` has fixed past dates and only two estimated assignments. Save this script **outside the repository** as `make-fixture.cjs`. It writes a dated variant relative to now:
+The bundled `examples/snapshot.json` has fixed past dates and only two estimated assignments, so a small script writes dated variants relative to now. The commands below work in a POSIX shell and in Windows PowerShell 5.1 or PowerShell 7. The script writes each file itself as UTF-8; do not redirect its output with `>`, because Windows PowerShell 5.1 would save the file as UTF-16 and the import would fail.
+
+**1. Create a throwaway data directory.** Keep this shell open: every later command uses the variable it sets.
+
+POSIX shell:
+
+```sh
+export DAYWEAVE_DATA_DIR="$(mktemp -d)"
+```
+
+PowerShell:
+
+```powershell
+$env:DAYWEAVE_DATA_DIR = Join-Path ([IO.Path]::GetTempPath()) ("dayweave-" + [guid]::NewGuid())
+New-Item -ItemType Directory -Path $env:DAYWEAVE_DATA_DIR | Out-Null
+```
+
+**2. Save this script as `make-fixture.cjs` in that directory** (outside the repository):
 
 ```js
-// Usage, from the repository root: node <dir>/make-fixture.cjs <weeksAgo> [failedSourceId] > <file>.json
+// Usage, from the repository root: node make-fixture.cjs <weeksAgo> <outputPath> [failedSourceId]
 const fs=require('node:fs');
+const [weeksAgo,out,failed]=process.argv.slice(2);
+if(!/^\d+$/.test(weeksAgo||'')||!out)throw Error('Usage: node make-fixture.cjs <weeksAgo> <outputPath> [failedSourceId]');
 const d=JSON.parse(fs.readFileSync('examples/snapshot.json','utf8'));
-const [weeksAgo='0',failed]=process.argv.slice(2),now=Date.now(),at=h=>new Date(now+h*3600000).toISOString();
+if(failed&&!d.sources.some(s=>s.id===failed))throw Error('Unknown source id: '+failed);
+const now=Date.now(),at=h=>new Date(now+h*3600000).toISOString();
 d.generatedAt=at(-24*7*Number(weeksAgo));
 const a=Object.fromEntries(d.assignments.map(x=>[x.id,x]));
 Object.assign(a['brief-a'],{dueAt:at(20),estimateMinutes:90});
@@ -27,21 +47,51 @@ const role=d.career.roles[0],person=d.career.candidates[0];
 d.career.roles=['A','B','C'].map(k=>({...role,id:'role-'+k,title:'Example analyst '+k,source:'https://example.com/jobs/'+k}));
 d.career.candidates=['A','B'].map(k=>({...person,id:'person-'+k,name:'Example contact '+k,source:'https://example.com/people/'+k}));
 delete d.career.profile.usSponsorshipRequired;
-process.stdout.write(JSON.stringify(d,null,1));
+fs.writeFileSync(out,JSON.stringify(d,null,1),'utf8');
+console.log('Wrote '+out);
 ```
 
-Then, from the repository root (POSIX shell; in PowerShell set `$env:DAYWEAVE_DATA_DIR` and `$env:PORT` instead):
+**3. From the repository root, create last week's and this week's snapshots and the database.**
+
+POSIX shell:
 
 ```sh
-export DAYWEAVE_DATA_DIR="$(mktemp -d)"   # throwaway, synthetic only
-node /path/to/make-fixture.cjs 1 > "$DAYWEAVE_DATA_DIR/last-week.json"
-node /path/to/make-fixture.cjs 0 > "$DAYWEAVE_DATA_DIR/this-week.json"
+node "$DAYWEAVE_DATA_DIR/make-fixture.cjs" 1 "$DAYWEAVE_DATA_DIR/last-week.json"
+node "$DAYWEAVE_DATA_DIR/make-fixture.cjs" 0 "$DAYWEAVE_DATA_DIR/this-week.json"
 node scripts/db.cjs migrate "$DAYWEAVE_DATA_DIR/last-week.json"
 node scripts/db.cjs import "$DAYWEAVE_DATA_DIR/this-week.json"
-PORT=8768 node scripts/serve.cjs
 ```
 
-Open `http://127.0.0.1:8768/home`. Stop the server with Ctrl+C when finished and delete the throwaway directory. Times display in the snapshot timezone (`America/New_York`).
+PowerShell:
+
+```powershell
+node "$env:DAYWEAVE_DATA_DIR\make-fixture.cjs" 1 "$env:DAYWEAVE_DATA_DIR\last-week.json"
+node "$env:DAYWEAVE_DATA_DIR\make-fixture.cjs" 0 "$env:DAYWEAVE_DATA_DIR\this-week.json"
+node scripts/db.cjs migrate "$env:DAYWEAVE_DATA_DIR\last-week.json"
+node scripts/db.cjs import "$env:DAYWEAVE_DATA_DIR\this-week.json"
+```
+
+**4. Start the development server** on port 8768, never the stable port. POSIX shell: `PORT=8768 node scripts/serve.cjs`. PowerShell: `$env:PORT = "8768"; node scripts/serve.cjs`.
+
+Open `http://127.0.0.1:8768/home`. Times display in the snapshot timezone (`America/New_York`).
+
+**Optional failed source** (used in sections 2 and 4). Stop the server with Ctrl+C, import a snapshot in which Course B failed, then start the server again with the step 4 command.
+
+POSIX shell:
+
+```sh
+node "$DAYWEAVE_DATA_DIR/make-fixture.cjs" 0 "$DAYWEAVE_DATA_DIR/failed.json" course-b
+node scripts/db.cjs import "$DAYWEAVE_DATA_DIR/failed.json"
+```
+
+PowerShell:
+
+```powershell
+node "$env:DAYWEAVE_DATA_DIR\make-fixture.cjs" 0 "$env:DAYWEAVE_DATA_DIR\failed.json" course-b
+node scripts/db.cjs import "$env:DAYWEAVE_DATA_DIR\failed.json"
+```
+
+**When finished**, stop the server with Ctrl+C and delete the throwaway directory. POSIX shell: `rm -rf "$DAYWEAVE_DATA_DIR"; unset DAYWEAVE_DATA_DIR`. PowerShell: `Remove-Item -LiteralPath $env:DAYWEAVE_DATA_DIR -Recurse -Force; Remove-Item Env:DAYWEAVE_DATA_DIR, Env:PORT`.
 
 ## 1. Effort calibration (#26) — Coursework and Settings
 
@@ -71,7 +121,7 @@ On `/coursework`, expand a card's **Requirements, source and checklist** to see 
 | Reload | Mode is still Reduced; the calendar coverage line still says blank time is never treated as available capacity |
 | Click **Standard**, reload | Standard overview returns; Coursework was unchanged throughout |
 
-Optional failed source: stop the server, run `node /path/to/make-fixture.cjs 0 course-b > "$DAYWEAVE_DATA_DIR/failed.json"` and `node scripts/db.cjs import "$DAYWEAVE_DATA_DIR/failed.json"`, then restart. In both modes the source shows as `failed`, and the remaining Course B work moves to verification with "Source failed: retained record may be stale".
+Optional failed source: import the [failed-source snapshot](#prepare-synthetic-data) and restart. In both modes the source shows as `failed`, and the remaining Course B work moves to verification with "Source failed: retained record may be stale".
 
 ## 3. Career feedback ordering (#28) — Career
 
@@ -96,7 +146,7 @@ Open `/settings` and click the **Weekly trends** tab (`/settings?tab=trends`).
 | Counts | Required-work rows by status (submitted/graded/excused, not submitted, submission status unknown, other); selectable and uncertain rows are separate and labelled as not required |
 | **Source health** | Each source with its latest status and how many observations were OK, failed or unavailable, other status or not reported |
 | **Comparison** | Tagged "Comparable", with the change between the latest observation of each week: +1 for submitted/graded/excused and -1 for not submitted (Reading response was submitted this week). A change "is not judged as better or worse" |
-| Import the optional failed-source snapshot above, reload | Comparison shows "Not comparable · coverage limited. No change is shown, and a lower count is not an improvement." with reasons naming the failed source |
+| Import the optional [failed-source snapshot](#prepare-synthetic-data), restart, reload | Comparison shows "Not comparable · coverage limited. No change is shown, and a lower count is not an improvement." with reasons naming the failed source |
 | Click **← Earlier week** until a week has no imports | Every value reads "No observations", never 0 |
 | Go five or more weeks back | "Coverage incomplete · on or before the retained window"; the text says evidence may have been pruned |
 | **Retention limit** line | "snapshots are kept for 30 days and pruned only when a new import runs", with the retained import range |
