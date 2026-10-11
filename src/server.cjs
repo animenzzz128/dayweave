@@ -10,6 +10,7 @@ function createServer(dir){const store=new Store(dir),sessions=new Map();const s
  if(req.method==='GET'&&u.pathname==='/api/snapshot')return send(200,{snapshot:store.snapshot(),progress:store.state()});
  if(req.method==='GET'&&u.pathname==='/api/history')return send(200,store.history({...Object.fromEntries(u.searchParams),query:u.searchParams.get('q')||''}));
  if(req.method==='GET'&&u.pathname==='/api/health')return send(200,{runs:store.runs(),backups:store.backups()});
+ if(req.method==='GET'&&u.pathname==='/api/trends')return send(200,store.weeklyTrends(u.searchParams));
  if(req.method==='POST'&&u.pathname==='/api/progress')return send(200,{ok:true,...store.saveState(body.kind,body.id,body.value)});
  if(req.method==='POST'&&u.pathname==='/api/effort/confirm')return send(200,{sample:store.confirmEffort(body.id)});
  if(req.method==='POST'&&u.pathname==='/api/effort/clear')return send(200,store.clearEffort(body.id));
