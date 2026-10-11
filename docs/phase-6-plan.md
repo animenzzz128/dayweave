@@ -1,6 +1,6 @@
 # Phase 6 plan
 
-Status: **acceptance approved.** Epic #20 under milestone 1. The user approved the concrete acceptance of #26–#29 with the defaults under [Approved acceptance](#approved-acceptance). Implementation is delivered as stacked dependent PRs (#26→#27→#28→#29), each merged only on user request; none is deployed or adopted. Implemented behavior and limits are in [project-state.md](project-state.md) and [data-contract.md](data-contract.md); the task table and 6A steps below are the original proposal. Broad permission to continue is not approval.
+Status: **acceptance approved; initial completion released as v1.5.5 (2026-10-11).** Epic #20 under milestone 1. The user approved the concrete acceptance of #26–#29 with the defaults under [Approved acceptance](#approved-acceptance). Implementation is delivered as stacked dependent PRs (#26→#27→#28→#29), each merged only on user request. As of 2026-10-11, #26–#29 are merged into main (PR33, PR34 and PR36; #28 reached the #27 branch through PR35) and their issues are closed, while the version and documentation PR37 remains open; this revision and the v1.5.5 release contain all four. None is deployed or adopted. Manual checks are in the [acceptance guide](phase-6-acceptance.md). Implemented behavior and limits are in [project-state.md](project-state.md) and [data-contract.md](data-contract.md); the task table and 6A steps below are the original proposal. Broad permission to continue is not approval.
 
 ## Approved acceptance
 The open product choices in the task table were decided as follows:
