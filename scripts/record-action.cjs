@@ -1,5 +1,5 @@
 'use strict';
-// Local journal only. This command never contacts Outlook or grants approval.
+// Local journal only. This command never contacts a calendar or mail provider and never grants approval.
 const fs=require('node:fs'),path=require('node:path');
 const {dataDir}=require('./paths.cjs'),P=require('../src/phase2.cjs');
 const file=path.join(dataDir,'data.json'),lock=file+'.lock';

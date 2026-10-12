@@ -2,7 +2,7 @@ const {test}=require('node:test'),a=require('node:assert/strict'),fs=require('no
 test('routed views escape query text, handle invalid dates and keep home compact',async()=>{
  const D=structuredClone(require('../examples/snapshot.json')),nodes=new Map(),node=k=>{if(!nodes.has(k))nodes.set(k,{textContent:'',innerHTML:''});return nodes.get(k);};
  const ctx=vm.createContext({URLSearchParams,Date,Intl,console,window:{addEventListener(){}},document:{querySelector:node,querySelectorAll:()=>[],addEventListener(){}},location:{pathname:'/home',search:''},history:{pushState(){}},fetch:async url=>({ok:true,json:async()=>url.endsWith('session')?{csrf:'test'}:{snapshot:D,progress:{}}})});
- for(const file of ['src/core.cjs','src/phase2.cjs','src/phase3.cjs','src/effort.cjs','src/workload.cjs','src/web/app.js'])vm.runInContext(fs.readFileSync(file,'utf8'),ctx,{filename:file});await new Promise(r=>setImmediate(r));
+ for(const file of ['src/core.cjs','src/phase2.cjs','src/phase3.cjs','src/effort.cjs','src/workload.cjs','src/email.cjs','src/web/app.js'])vm.runInContext(fs.readFileSync(file,'utf8'),ctx,{filename:file});await new Promise(r=>setImmediate(r));
  a.match(node('#page').innerHTML,/Next seven days/);a.doesNotMatch(node('#page').innerHTML,/Requirements, source and checklist/);
  const query=new URLSearchParams({tab:'"><script>evil()</script>'}).toString();ctx.query=query;
  const html=vm.runInContext('coursework(new URLSearchParams(query))',ctx);a.doesNotMatch(html,/<script>/);a.match(html,/&lt;script&gt;/);
@@ -10,8 +10,8 @@ test('routed views escape query text, handle invalid dates and keep home compact
  ctx.location.pathname='/email';await vm.runInContext('render()',ctx);a.match(node('#page').innerHTML,/No inbox is scanned/);
 });
 test('page-order scripts render effort controls and the Settings calibration summary',async()=>{
- const order=[...fs.readFileSync('src/web/index.html','utf8').matchAll(/<script src="\/([\w.]+)"><\/script>/g)].map(m=>m[1]),files={'core.js':'src/core.cjs','phase2.js':'src/phase2.cjs','phase3.js':'src/phase3.cjs','effort.js':'src/effort.cjs','workload.js':'src/workload.cjs','app.js':'src/web/app.js'};
- a.deepEqual(order,['core.js','phase2.js','phase3.js','effort.js','workload.js','app.js']);
+ const order=[...fs.readFileSync('src/web/index.html','utf8').matchAll(/<script src="\/([\w.]+)"><\/script>/g)].map(m=>m[1]),files={'core.js':'src/core.cjs','phase2.js':'src/phase2.cjs','phase3.js':'src/phase3.cjs','effort.js':'src/effort.cjs','workload.js':'src/workload.cjs','email.js':'src/email.cjs','app.js':'src/web/app.js'};
+ a.deepEqual(order,['core.js','phase2.js','phase3.js','effort.js','workload.js','email.js','app.js']);
  const D=structuredClone(require('../examples/snapshot.json')),evil='<img src=x onerror=alert(1)>';D.assignments=[['t1',60,'required'],['t2',40,'choice'],['t3',30,'uncertain'],['t4',20,'required']].map(([id,estimateMinutes,requirement])=>({...D.assignments[0],id,title:id==='t4'?evil:'Task '+id,estimateMinutes,requirement}));
  const at='2026-10-08T12:00:00Z',S={actual:{t1:60,t2:60,t4:0},effortCalibration:{t1:{estimateMinutes:60,actualMinutes:60,requirement:'required',confirmedAt:at},t2:{estimateMinutes:40,actualMinutes:60,requirement:'choice',confirmedAt:at},[evil]:{estimateMinutes:10,actualMinutes:5,requirement:evil,confirmedAt:'bad'}}};
  const nodes=new Map(),node=k=>{if(!nodes.has(k))nodes.set(k,{textContent:'',innerHTML:''});return nodes.get(k);};

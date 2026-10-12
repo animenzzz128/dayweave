@@ -3,7 +3,8 @@
 const C=typeof module!=='undefined'?require('./core.cjs'):window.PlannerCore;
 const valid=x=>typeof x==='string'&&/(Z|[+-]\d\d:\d\d)$/.test(x)&&Number.isFinite(Date.parse(x));
 const canonical=x=>Array.isArray(x)?x.map(canonical):x&&typeof x==='object'?Object.fromEntries(Object.keys(x).sort().map(k=>[k,canonical(x[k])])):x;
-function spec(p){return {action:p.action||'create',account:p.account,calendar:p.calendar,calendarId:p.calendarId||null,timezone:p.timezone,title:p.title,start:p.start,end:p.end,location:p.location||'',body:p.body||'',busy:p.busy!==false,reminderMinutes:p.reminderMinutes??15,recurrence:p.recurrence||'One time',attendees:p.attendees||[],remoteRef:p.remoteRef||null,before:p.before||null,scope:p.scope||'single'};}
+// Provider is part of the reviewed identity when present; legacy proposals without one keep their original fingerprints.
+function spec(p){return {...(p.provider?{provider:p.provider}:{}),action:p.action||'create',account:p.account,calendar:p.calendar,calendarId:p.calendarId||null,timezone:p.timezone,title:p.title,start:p.start,end:p.end,location:p.location||'',body:p.body||'',busy:p.busy!==false,reminderMinutes:p.reminderMinutes??15,recurrence:p.recurrence||'One time',attendees:p.attendees||[],remoteRef:p.remoteRef||null,before:p.before||null,scope:p.scope||'single'};}
 function fingerprint(p){return JSON.stringify(canonical({id:p.id,status:p.status||'proposed',...spec(p)}));}
 function occurrences(p){
  if(!valid(p.start)||!valid(p.end)||Date.parse(p.end)<=Date.parse(p.start))throw Error('Use valid start/end timestamps with explicit offsets.');
@@ -29,6 +30,12 @@ function errors(p,d,now=new Date()){
  if(!coverage?.complete||!valid(coverage.start)||!valid(coverage.end)||Date.parse(coverage.end)<=Date.parse(coverage.start))out.push('Calendar coverage is incomplete or invalid.');
  if(!valid(coverage?.checkedAt)||Date.parse(now)-Date.parse(coverage.checkedAt)>26*3600000||Date.parse(coverage.checkedAt)>Date.parse(now)+60000)out.push('Refresh calendar evidence before requesting changes.');
  if(coverage?.account!==p.account||coverage?.calendar!==p.calendar)out.push('Coverage does not match the destination account/calendar.');
+ const provider=C.calendarProvider(p);
+ if(provider!==C.calendarProvider(coverage))out.push('Coverage provider does not match the destination provider.');
+ if(provider==='google'){if(!p.calendarId||coverage?.calendarId!==p.calendarId)out.push('Google actions need the exact verified calendar ID.');if(!Array.isArray(coverage?.calendars)||!coverage.calendars.some(c=>c?.id===p.calendarId))out.push('The destination calendar was not among the read calendars.');}
+ // Only the active calendar source counts; an email or coursework failure leaves calendar coverage alone.
+ const source=(d.sources||[]).find(s=>s.id===C.calendarSource(coverage));
+ if(provider==='google'&&!source||source&&source.status!=='ok')out.push('The calendar source is not healthy; refresh it before requesting changes.');
  let exclude=null;
  if(p.action==='update'){
    const target=d.events.find(e=>e.remoteRef&&e.remoteRef===p.remoteRef);
@@ -56,8 +63,9 @@ function request(chosen,d,now=new Date()){
  if(failures.length)throw Error(failures.join('\n'));
  chosen.forEach((p,i)=>chosen.slice(i+1).forEach(q=>{if(occurrences(p).some(a=>occurrences(q).some(b=>C.overlap(a,b))))failures.push(`${p.title} overlaps ${q.title}.`);}));
  if(failures.length)throw Error(failures.join('\n'));
- return 'I approve only the exact personal Outlook actions below. Re-read the account, target calendar and all affected occurrences immediately before writing. Compare each before state, check conflicts and existing action markers. Stop if anything changed; do not silently move a block. No attendees, invitations, Canvas writes or submissions. Record pending before saving, then reopen and verify every field. Treat an uncertain save as unverified; never blindly retry.\n\n'+JSON.stringify({version:2,snapshot:d.generatedAt,calendarCheckedAt:d.calendarCoverage.checkedAt,actions:chosen.map(p=>({id:p.id,fingerprint:fingerprint(p),...spec(p),occurrences:occurrences(p),marker:`Dayweave action: ${p.id}`}))},null,2);
+ return 'I approve only the exact personal '+providerName(chosen[0])+' actions below. Re-read the account, target calendar and all affected occurrences immediately before writing. Compare each before state, check conflicts and existing action markers. Stop if anything changed; do not silently move a block. No attendees, invitations, Canvas writes or submissions. Record pending before saving, then reopen and verify every field. Treat an uncertain save as unverified; never blindly retry.\n\n'+JSON.stringify({version:2,snapshot:d.generatedAt,calendarCheckedAt:d.calendarCoverage.checkedAt,actions:chosen.map(p=>({id:p.id,fingerprint:fingerprint(p),...spec(p),occurrences:occurrences(p),marker:`Dayweave action: ${p.id}`}))},null,2);
 }
+const providerName=p=>C.calendarProvider(p)==='google'?'Google Calendar':'Outlook';
 function helpRequest(a,mode,notes,argument){
  if(!['outline','draft','review','explain'].includes(mode))throw Error('Choose outline, draft, review, or explain.');
  const h=a.assistance||{};
@@ -76,6 +84,6 @@ function record(history,r){
  if(r.status==='not_created'&&!r.evidence)throw Error('A retry requires evidence that no event was created.');
  return [...history.filter(x=>x.id!==r.id),{...r,attempts:[...(previous?.attempts||[]),...(previous?[{status:previous.status,recordedAt:previous.recordedAt,evidence:previous.evidence||null}]:[])]}];
 }
-const api={spec,fingerprint,occurrences,errors,request,helpRequest,record};
+const api={providerName,spec,fingerprint,occurrences,errors,request,helpRequest,record};
 if(typeof module!=='undefined')module.exports=api;else window.PlannerPhase2=api;
 })();

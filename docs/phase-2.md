@@ -4,6 +4,8 @@ The dashboard prepares exact requests. The human sends a request in chat; an aut
 
 ## Calendar execution procedure
 
+Google Calendar uses the same steps with the [Google procedure](google.md); legacy Outlook wording below still applies to Outlook snapshots.
+
 1. Test the Outlook connector identity. An administrator-consent screen means the connection is unavailable; do not bypass organization restrictions. Use an authorized signed-in Outlook browser session instead. Record connector and browser health separately.
 2. Verify account, destination calendar, timezone, selected calendars, filters, all-day events and overflow. Read every affected occurrence, including other selected commitments. Mark coverage incomplete when any required view is unavailable. Never infer availability from an incomplete read.
 3. Prepare create/update proposals with exact account, calendar, timezone, title, start/end, location, body, reminder, busy state, recurrence and no attendees. For updates, preserve all before fields and the remote event reference. Do not silently change room conflicts or course meetings.

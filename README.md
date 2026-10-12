@@ -15,9 +15,10 @@ The repository contains reusable application code and fictional examples only. P
 - Prepares an immutable Q-number for explicit confirmation in assistant chat. **The dashboard itself never writes to a calendar or learning platform.**
 - Rejects proposals that overlap known commitments, fall outside verified coverage, occur in the past, or reuse an executed action ID.
 - Retains source records on collection failure, marks stale snapshots, and keeps 30 days of local snapshots.
+- Shows the last collected read-only Gmail snapshot (inbox, last seven days, at most 50 messages) with its collection time and coverage. Nothing is sent, deleted or labelled.
 - Includes a reusable operating prompt for an assistant-driven refresh workflow.
 
-Career cards now support source-backed roles and networking candidates, eligibility gaps, local save/dismiss/status tracking, draft requests, progress import and a seven-day activity summary. Research is supplied by the assistant, not by a background scraper. Email remains disabled. See [Phase 3](docs/phase-3.md).
+Career cards now support source-backed roles and networking candidates, eligibility gaps, local save/dismiss/status tracking, draft requests, progress import and a seven-day activity summary. Research is supplied by the assistant, not by a background scraper. Drafts are never sent. See [Phase 3](docs/phase-3.md).
 
 ## Start the web app
 
@@ -27,7 +28,7 @@ node scripts/db.cjs migrate .local/data.json
 node scripts/serve.cjs
 ```
 
-Open http://127.0.0.1:8767/home. Import legacy browser progress under Settings → Backups before retiring the old page. See [migration and recovery](docs/phase-4.md) and the [Luna evaluation set](evals/luna-routine/README.md). Source collection and approved Outlook execution still require an authorized assistant; this app has no autonomous external-write channel.
+Open http://127.0.0.1:8767/home. Import legacy browser progress under Settings → Backups before retiring the old page. See [migration and recovery](docs/phase-4.md) and the [Luna evaluation set](evals/luna-routine/README.md). Source collection and approved calendar execution still require an authorized assistant; this app has no autonomous external-write channel.
 
 ## Try the legacy synthetic demo
 
@@ -78,7 +79,7 @@ Checklist progress, edited proposals, and review selections stay in browser-loca
 
 ## Scheduling and integrations
 
-The application is provider-independent at the file boundary. The reference workflow supports reading Canvas, syllabus-linked course sites, and Outlook through an external assistant's authorized tools. **No OAuth client, token store, scraping service, or scheduler is included.**
+The application is provider-independent at the file boundary. The reference workflow reads Canvas, syllabus-linked course sites, Gmail (read-only) and Google Calendar through an external assistant's authorized connectors ([Google procedure](docs/google.md)). Legacy Outlook snapshots remain readable. **No OAuth client, token store, scraping service, or scheduler is included.**
 
 Configure a recurring task in your assistant using the operating prompt. A local task needs the machine and relevant app/browser session available. A successful interactive run does not establish unattended reliability; test the first scheduled run and report failures explicitly.
 
@@ -123,7 +124,7 @@ Use a short branch per change and one focused pull request. Create an issue for 
 No open-source license has been selected yet; this package is marked `UNLICENSED` and private. Before changing repository visibility, choose a license and complete the [publication checklist](SECURITY.md#before-making-the-repository-public). The repository is structured for that transition without including a personal-data history.
 
 ## Phase 4 workbench
-The primary interface is now a local multi-page Node 24 + SQLite application. Start with `node scripts/db.cjs migrate /private/data.json`, then `npm run serve`. See [Phase 4 migration, approvals and backups](docs/phase-4.md). Existing static render/preview commands remain legacy compatibility tools; `export:html` produces a read-only database export. Email is disabled.
+The primary interface is now a local multi-page Node 24 + SQLite application. Start with `node scripts/db.cjs migrate /private/data.json`, then `npm run serve`. See [Phase 4 migration, approvals and backups](docs/phase-4.md). Existing static render/preview commands remain legacy compatibility tools; `export:html` produces a read-only database export. Email shows a read-only Gmail snapshot.
 
 ## Phase 6 additions (1.5.5)
 

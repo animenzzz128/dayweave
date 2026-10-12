@@ -16,12 +16,12 @@ Export current source records with `node scripts/db.cjs export /private/current.
 
 Prepared review batches have immutable Q-number references. After the human explicitly approves that reference in chat, use `node scripts/approval.cjs read Q-1`, re-read the live calendar and recheck each exact proposal. Editing invalidates old prepared references. Local selections and prepared IDs are not authorization.
 
-Record pending before remote save using `node scripts/approval.cjs record /private/receipt.json`. Receipt includes reference, id, status, recordedAt, humanApproval evidence for pending, and the proposal fingerprint. Executed requires verifiedAt, remoteRef and read-back evidence. Uncertain saves use unverified; confirmed no-event failures use not_created with evidence. Never retry an ambiguous save. The CLI writes a local receipt, not Outlook. The website exposes no receipt-write or authorization endpoint.
+Record pending before remote save using `node scripts/approval.cjs record /private/receipt.json`. Receipt includes reference, id, status, recordedAt, humanApproval evidence for pending, and the proposal fingerprint. Executed requires verifiedAt, remoteRef and read-back evidence. Uncertain saves use unverified; confirmed no-event failures use not_created with evidence. Never retry an ambiguous save. The CLI writes a local receipt, not the calendar. The website exposes no receipt-write or authorization endpoint.
 
 Backups retain 30 days and restoration first backs up the current database. Current execution receipts and approval references survive restoration; prepared approvals invalidate. Compact audit history is retained. JSON export and `node scripts/export-html.cjs output.html` provide private portable data/read-only views. Restoring a database does not undo remote calendar events.
 
 ## Security and rollout
 
-The HTTP server binds only to loopback; Host, Origin, session cookie and CSRF token are checked. No CORS, outbound calendar calls or inbox reads. The old static preview is a legacy tool; use the database workbench for live progress.
+The HTTP server binds only to loopback; Host, Origin, session cookie and CSRF token are checked. No CORS, outbound calendar calls or inbox reads; the Email page shows the imported Gmail snapshot. The old static preview is a legacy tool; use the database workbench for live progress.
 
 Four stacked PRs separate routine policy, storage/API, pages, and approvals/acceptance. No automatic merge or release. Phases 5–6 remain future work. Test the standalone routine before replacing the previous schedule, then inspect the first week; shared quota percentages are not attributable per-run cost.

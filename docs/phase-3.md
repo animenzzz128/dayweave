@@ -1,6 +1,6 @@
 # Career research and local progress
 
-The assistant supplies bounded, source-backed research. The static page neither discovers jobs nor reads inboxes. Enable career.enabled only after recording user preferences. Email remains disabled until separately authorized.
+The assistant supplies bounded, source-backed research. The static page neither discovers jobs nor reads inboxes. Enable career.enabled only after recording user preferences. Email is a read-only Gmail snapshot ([Google](google.md)); nothing is sent.
 
 ## Records
 
@@ -20,4 +20,4 @@ Weekly review counts latest statuses updated within seven days; it is not a full
 
 ## Failure and privacy
 
-A failed career source retains previous research with a stale notice. Each card carries its evidence time. No credentials, personal profile, real candidate records or generated private HTML belong in Git. Demo records are fictional. Email triage is deferred by opt-out; enabling it will require account verification and a bounded reader workflow in a later increment.
+A failed career source retains previous research with a stale notice. Each card carries its evidence time. No credentials, personal profile, real candidate records or generated private HTML belong in Git. Demo records are fictional. Email is limited to the bounded read-only Gmail snapshot; triage and sending are not implemented.
