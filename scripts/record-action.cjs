@@ -9,6 +9,7 @@ const fd=fs.openSync(lock,'wx');
 try{
  const d=JSON.parse(fs.readFileSync(file,'utf8'));
  const proposal=d.proposals.find(p=>p.id===receipt.id);
+ if(receipt.provider==='google'||proposal?.provider==='google'||(d.actionHistory||[]).some(h=>h.id===receipt.id&&h.provider==='google'))throw Error('Google receipts are recorded only with scripts/google-calendar.cjs.');
  if(receipt.status==='pending'&&(!proposal||P.fingerprint(proposal)!==receipt.fingerprint))throw Error('Receipt must match the exact saved proposal. Save approved edits to private data first.');
  d.actionHistory=P.record(d.actionHistory||[],receipt);
  fs.writeFileSync(file+'.tmp',JSON.stringify(d,null,2));fs.renameSync(file+'.tmp',file);

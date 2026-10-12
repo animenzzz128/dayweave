@@ -1,0 +1,37 @@
+{
+ "note": "Fictional event in the connector read_event shape. Calendar and account provenance come from the query, not the event.",
+ "event": {
+  "id": "fictional-event-id",
+  "summary": "Focus: Fictional task",
+  "status": "confirmed",
+  "organizer": {
+   "is_self": true,
+   "email": "student@example.com",
+   "display_name": null
+  },
+  "description": "Dayweave action: fictional-action",
+  "location": "",
+  "color_id": null,
+  "start": "2026-10-13T14:00:00-04:00",
+  "end": "2026-10-13T15:00:00-04:00",
+  "attendees": [],
+  "url": "https://example.com/fictional-event",
+  "hangout_link": null,
+  "event_type": "default",
+  "transparency": "opaque",
+  "visibility": "private",
+  "attachments": null,
+  "reminders": {
+   "use_default": false,
+   "overrides": [
+    {
+     "method": "popup",
+     "minutes": 10
+    }
+   ]
+  },
+  "recurrence": null,
+  "recurring_event_id": null,
+  "original_start_time": null
+ }
+}

@@ -45,7 +45,7 @@ test('generating a plan is explicit and local; regeneration and todo edits inval
  s.saveTodo({...input({durationMinutes:90}),id:t.id});a.equal(A.read(s,q1.reference).status,'invalidated','editing the todo removes its blocks');a.equal(s.snapshot().proposals.some(p=>p.id===tb.id),false);
  a.equal(A.read(s,q2.reference).status,'prepared','other blocks are untouched');
  const r2=s.generatePlan(tomorrow),nb=r2.blocks.find(b=>b.sourceRefs[0].id===t.id);a.notEqual(nb.id,tb.id);a.equal(nb.sourceRefs[0].version,2);
- A.record(s,{reference:q2.reference,id:other.id,status:'pending',recordedAt:new Date().toISOString(),humanApproval:'Synthetic test approval'});
+ A.record(s,{reference:q2.reference,id:other.id,status:'pending',recordedAt:new Date().toISOString(),humanApproval:{channel:'chat',text:'Approve '+q2.reference,at:new Date().toISOString()}});
  const r3=s.generatePlan(tomorrow);a.ok(s.snapshot().proposals.some(p=>p.id===other.id),'a pending block survives regeneration');a.equal(r3.blocks.some(b=>b.id===other.id),false);
  a.equal(r3.blocks.filter(b=>b.sourceRefs[0].id===other.sourceRefs[0].id).reduce((n,b)=>n+(Date.parse(b.end)-Date.parse(b.start))/60000,0)+(Date.parse(other.end)-Date.parse(other.start))/60000<=d.assignments.find(x=>x.id===other.sourceRefs[0].id).estimateMinutes,true,'no double scheduling');
  const done=s.completeTodo(t.id,true);a.ok(done.removedBlocks.length>=1);a.equal(s.snapshot().proposals.some(p=>p.sourceRefs?.[0]?.id===t.id),false);

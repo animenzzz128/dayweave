@@ -67,7 +67,7 @@ Rendering does not collect data. An authorized assistant or future adapter suppl
 
 ## Phase 2 additions
 
-Calendar requests now include exact account and event fields, bounded daily/weekly recurrence checks, individually reviewed personal-event updates, and a local pending/verified action journal. Assignment help offers outline, draft, review, and explanation requests with user-supplied notes. See [the Phase 2 workflow](docs/phase-2.md) for execution and account-dependent acceptance requirements.
+Google Calendar writes follow a root-assistant procedure with a local verify/recheck/pending/read-back/reconcile tool after explicit chat approval of an exact Q version ([Google](docs/google.md#approved-google-calendar-writes-root-procedure)); the app itself never writes. Calendar requests include exact account and event fields, bounded daily/weekly recurrence checks, individually reviewed personal-event updates, and a local pending/verified action journal. Assignment help offers outline, draft, review, and explanation requests with user-supplied notes. See [the Phase 2 workflow](docs/phase-2.md) for execution and account-dependent acceptance requirements.
 
 ## Daily workflow
 
