@@ -97,6 +97,9 @@ test('R2-B1: executed blocks imported as calendar events stay allocations; the r
   a.ok(total(r)<=720,label+': started plus new stays within 80% of 900');a.equal(r.blocks.length,0,label+': z is not placed');a.match(reasons(r).z,/Keeping 20%.*720 minutes already allocated/,label);return r;};
  // Matched by the executed receipt's remoteRef (the event title was edited in the calendar), with and without the approval copy.
  check('remoteRef',{...d,events:first.blocks.map((b,i)=>ev(b,i,{title:'Renamed in calendar'})),proposals:first.blocks,actionHistory:executed});
+ // A collected event carries only its own ID and calendar; the receipt names calendarId/eventId.
+ const calRef=executed.map((h,i)=>({...h,remoteRef:cov.calendarId+'/g-'+i}));
+ check('calendarId/eventId receipt',{...d,events:first.blocks.map((b,i)=>ev(b,i,{remoteRef:undefined,title:'Renamed in calendar'})),proposals:first.blocks,actionHistory:calRef});
  check('remoteRef, no copy',{...d,events:first.blocks.map((b,i)=>ev(b,i,{title:'Renamed in calendar'})),proposals:[],actionHistory:executed},[]);
  // Matched conservatively by exact approved-copy identity while still pending (no remoteRef yet), through regenerate/refresh loops.
  const pending=first.blocks.map(b=>({id:b.id,status:'pending',fingerprint:P.fingerprint(b),recordedAt:now})),asEvents={...d,events:first.blocks.map((b,i)=>ev(b,i,{id:'other-'+i,remoteRef:undefined})),proposals:first.blocks,actionHistory:pending};
