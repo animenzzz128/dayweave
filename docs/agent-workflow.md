@@ -56,7 +56,9 @@ Only the root coordinator may delegate publishing, only to the execution lead, a
 Run tasks concurrently only when independent: separate worktrees, data directories and ports, and no shared files.
 
 ## Herdr execution
-- Herdr dispatch is available only when its preflight succeeds in the current session. If preflight fails, do not use Herdr for that task; report the failure.
+- Herdr dispatch is available only when its preflight succeeds inside a Herdr-managed pane. If attach or preflight fails, do not use Herdr for that task; report the actual error and fall back to a normal terminal.
+- **Entry from an app chat.** The chat's terminal tool runs outside Herdr, so a missing `HERDR_ENV=1` there is normal, not a blocker; never claim the chat has it, and never run Herdr control commands from that shell. Attach with the installed `herdr --session <name>` through the terminal tool with a TTY, in the request's worktree. Once the TUI is ready, type only into a pane confirmed as an idle shell (in a new session, its initial pane), preflight `HERDR_ENV=1` there, then work by explicit workspace and pane IDs. In an existing session the selected pane may be a worker: never type into it blindly. Steps are in [new-request.md](prompts/new-request.md#从应用聊天进入-herdr).
+- Keep identifiers apart: the named Herdr session (its own server; survives client detach), workspace/tab/pane IDs (valid only within that session), and the terminal tool's PTY session ID (a handle for this attached client, not a Herdr ID).
 - A failure report preserves resumable state: task, baseline/head SHA, branch and worktree status, last completed step and what is unknown.
 - If a dispatch outcome is ambiguous (a worker may have started or written), inspect the worktree, branch and artifacts before retrying. Never start a second writer on the same worktree.
 - Interruption, retry, stale review, reconnect and restart behavior are trial checks (#21), not assumptions.

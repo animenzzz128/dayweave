@@ -11,7 +11,7 @@ Keep screenshots, session IDs, logs and paths private and outside Git. Use synth
 
 ## Before
 - **User:** refresh the app. Note the sidebar tasks per worktree group and the project list (private screenshot).
-- **Coordinator:** record, privately, the names of the CLI's native session folders, the Herdr workspaces and panes, and the timestamps of any aggregate result or status page.
+- **Coordinator:** record, privately, the names of the CLI's native session folders, the named Herdr session with its workspaces and panes, and the timestamps of any aggregate result or status page.
 - **Preflight:** the installed `claude --help` lists `--no-session-persistence` and `--name`. If not, stop: the test is **blocked**. Do not run a persisted fallback.
 
 ## Run
@@ -32,7 +32,7 @@ Keep screenshots, session IDs, logs and paths private and outside Git. Use synth
 
 **Fail** if any worker or reviewer appears as an app task or project, or the app imports its events even though no native transcript exists. Report the observation with private evidence; do not describe it as success.
 
-**Blocked** if the flag is unsupported or Herdr preflight fails.
+**Blocked** if the flag is unsupported or Herdr attach or preflight fails. Preflight runs in a pane of the attached named session ([entry steps](prompts/new-request.md#从应用聊天进入-herdr)); the app chat's own shell lacking `HERDR_ENV` is expected and does not block the test.
 
 ## Limits
 - No native transcript for a session ID shows only that this file is absent. It does not prove the app holds no other metadata about the run; the visible sidebar is the acceptance signal.
