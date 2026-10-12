@@ -131,7 +131,8 @@ test('an ambiguous outcome stays held until a complete reconcile finds exactly o
  r=G.reconcile(s,q.reference,p.id,liveRead(d,p,{events:{[dest]:[saved(p,k,{id:'look',description:p.body})]}}));a.equal(r.conclusion,'unmarked');a.equal(h().hold,'ambiguous');
  r=G.reconcile(s,q.reference,p.id,wide(d,p));a.equal(r.status,'unverified','a later empty read does not turn earlier duplicates into not_created');a.equal(r.conclusion,'ambiguous');
  a.equal(A.read(s,q.reference).status,'unverified');a.throws(()=>G.readback(s,q.reference,p.id,back(p,saved(p,k,{id:'a1'}))),/Several matching events/);
- r=G.reconcile(s,q.reference,p.id,liveRead(d,p,{events:{[dest]:[saved(p,k,{id:'a1'})]}}));a.equal(r.status,'executed');a.equal(r.conclusion,'one match read back');a.equal(h().remoteRef,dest+'/a1');a.equal(h().hold,undefined);
+ r=G.reconcile(s,q.reference,p.id,liveRead(d,p,{events:{[dest]:[saved(p,k,{id:'a1'})]}}));a.equal(r.status,'unverified','a narrow single match does not clear the hold');a.equal(h().hold,'ambiguous');
+ r=G.reconcile(s,q.reference,p.id,wide(d,p,{events:{[dest]:[saved(p,k,{id:'a1'})]}}));a.equal(r.status,'executed');a.equal(r.conclusion,'one match read back');a.equal(h().remoteRef,dest+'/a1');a.equal(h().hold,undefined);
 }));
 
 test('a not-created action in a multi-action version needs a newly approved version, even while another action of it is pending',()=>withStore(s=>{
