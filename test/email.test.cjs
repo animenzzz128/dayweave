@@ -107,3 +107,16 @@ test('page-order scripts render the Gmail snapshot with escaped content, health,
  delete D.email;await p.ctx.render();a.match(p.html(),/Status unknown/);a.match(p.html(),/This is not an empty inbox/);
  p=await page(C.mergeSnapshot(null,google()),'/home');html=p.html();a.match(html,/id="home-email"/);a.match(html,/3 messages<\/strong> in the last collected snapshot \(1 unread\)/);a.match(html,/not live access/);
 });
+
+test('review fixes: an omitted email record with a down source is failed/retained; enabled must be boolean',()=>{
+ const old=C.mergeSnapshot(null,google());
+ for(const status of ['failed','unavailable','partial']){const next=google();next.generatedAt='2026-10-08T12:00:00Z';next.sources.find(s=>s.id==='gmail').status=status;delete next.email;
+  const e=C.mergeSnapshot(old,next).email,h=M.health(e,'2026-10-08T13:00:00Z');
+  a.equal(e.coverage.status,'failed',status);a.equal(e.coverage.complete,false);a.equal(h.state,'failed');a.equal(h.retained,3);a.ok(e.messages.every(m=>m.retained));
+  a.equal(e.checkedAt,'2026-10-08T12:00:00Z','attempt time');a.equal(e.retainedFrom,'2026-10-07T12:00:00Z');a.equal(e.lastSuccess,'2026-10-07T12:00:00Z');a.match(e.coverage.errors[0],new RegExp('Gmail source '+status));}
+ const ok=google();ok.generatedAt='2026-10-08T12:00:00Z';delete ok.email;const kept=C.mergeSnapshot(old,ok).email;a.equal(kept.coverage.status,'complete','an ok source without a record keeps the earlier record');a.equal(kept.checkedAt,'2026-10-07T12:00:00Z','with its own time, so it ages to stale');
+ const gone=google();delete gone.email;gone.sources=gone.sources.filter(s=>s.id!=='gmail');a.throws(()=>C.mergeSnapshot(old,gone),/Email sourceId must be listed/,'an enabled record never loses its source silently');
+ const first=google();first.sources.find(s=>s.id==='gmail').status='unavailable';const f=C.mergeSnapshot(null,first).email;a.equal(f.coverage.status,'failed');a.deepEqual(f.messages,[],'a first failure carries no messages');
+ for(const v of ['true',1,'false',0,null,undefined])a.throws(()=>M.normalize({...record(),enabled:v}),/enabled must be true or false/,String(v));
+ a.deepEqual(M.normalize({enabled:false,note:'Legacy'}),{enabled:false,note:'Legacy'});
+});

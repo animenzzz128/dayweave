@@ -4,6 +4,7 @@
 
 - Email shows the last collected read-only Gmail snapshot: inbox, last seven days, at most 50 messages, metadata and snippets, no attachments. Collection time, coverage, errors and stale/retained labels are explicit; unknown, disabled, failed and partial reads never read as an empty inbox. Send, delete and label capabilities are rejected. Home shows an inbox summary.
 - Google Calendar coverage carries provider, source, account, destination calendar ID and the bounded list of calendars read. Only the active calendar source invalidates coverage, so a Gmail failure does not. Provider identity joins new proposal fingerprints; identity changes invalidate prepared versions. Legacy Outlook snapshots stay readable.
+- Failure semantics (review round 1): failed and unavailable sources both keep earlier records and last success; the first import applies the same active-calendar invalidation; an omitted email record with a non-ok Gmail source shows as failed with retained messages; a calendar identity switch during a failure shows the new identity and keeps no previous-account events; legacy-shaped coverage cannot describe a Google-only snapshot; `email.enabled` must be boolean.
 - Synthetic Google-only example (`examples/google-snapshot.json`) and the [collection procedure](docs/google.md). No OAuth client, token store or new dependency.
 
 ## 1.5.5 — 2026-10-11
