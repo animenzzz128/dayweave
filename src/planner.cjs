@@ -63,6 +63,17 @@ function gaps(d,from,to,now,settings){
  if((d.events||[]).some(e=>(e.recurrence&&e.recurrence!=='One time'&&e.recurrence!=='none')||e.recurringSeries===true))out.push('A recurring series was not expanded into occurrences, so some busy time may be missing.');
  return out;
 }
+// Calendar events that are this app's own started actions: an executed receipt's remoteRef (in the same account and calendar as
+// the approved copy, or the destination when no copy survives), or the exact approved copy (same calendar, title and occurrence
+// interval; one event per occurrence). They are allocations, not lost capacity. Every other busy event reduces usable time.
+function ownEvents(d,copies,occ){
+ const own=new Set(),events=d.events||[],refs=new Map(),cov=d.calendarCoverage||{};
+ for(const h of d.actionHistory||[])if(h.status==='executed'&&typeof h.remoteRef==='string'&&h.remoteRef)refs.set(h.remoteRef,h.id);
+ const same=(e,p)=>(e.calendarId==null||e.calendarId===p.calendarId)&&(e.account==null||e.account===p.account);
+ for(const e of events){const id=refs.get(e.remoteRef)??refs.get(e.id);if(id!==undefined&&same(e,copies.get(id)||cov))own.add(e);}
+ for(const [id,p] of copies)for(const [a,b] of occ.get(id)||[]){const e=events.find(e=>!own.has(e)&&e.busy!==false&&e.title===p.title&&same(e,p)&&Date.parse(e.start)===a&&Date.parse(e.end)===b);if(e)own.add(e);}
+ return own;
+}
 const local=x=>new Intl.DateTimeFormat('en-US',{timeZone:C.TZ,month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(x));
 const plural=(n,w)=>n+' '+w+(n===1?'':'s');
 function plan({snapshot:d,date,now=new Date(),todos={},archive={},dismissed={},started=[],settings={}}){
@@ -79,11 +90,13 @@ function plan({snapshot:d,date,now=new Date(),todos={},archive={},dismissed={},s
  if(result.gaps.length){result.unscheduled.push(...tasks.map(t=>({kind:t.kind,id:t.id,title:t.title,reason:'Not planned: calendar coverage is not verified for this day.'})));return result;}
  // Started actions (pending, unverified or executed) are canonical protections: their frozen approval copy (`started`, supplied by
  // the store) or snapshot copy keeps occupying time and covering work even after a source failure or a restore dropped the proposal.
- const startedCopies=new Map();for(const p of [...(started||[]),...(d.proposals||[])])if(p&&attempted(d,p.id)&&!startedCopies.has(p.id))startedCopies.set(p.id,p);
+ // Only a copy whose fingerprint matches the frozen receipt counts; a stale same-ID copy (an older restore or collector version) never does.
+ const receipt=new Map((d.actionHistory||[]).filter(h=>ATTEMPTED.includes(h.status)).map(h=>[h.id,h.fingerprint])),startedCopies=new Map();
+ for(const p of [...(started||[]),...(d.proposals||[])])if(p&&receipt.has(p.id)&&P.fingerprint(p)===receipt.get(p.id)&&!startedCopies.has(p.id))startedCopies.set(p.id,p);
  const orphan=(d.actionHistory||[]).filter(h=>['pending','unverified'].includes(h.status)&&!startedCopies.has(h.id));
- if(orphan.length)result.gaps.push(plural(orphan.length,'pending or unverified action')+' without a stored copy: its time is unknown. Reconcile it first.');
+ if(orphan.length)result.gaps.push(plural(orphan.length,'pending or unverified action')+' without a stored copy matching its receipt: its time is unknown. Reconcile it first.');
  // Kept proposals (anything this run does not replace) occupy every occurrence and cover part of some work.
- const kept=[...(d.proposals||[]).filter(p=>!startedCopies.has(p.id)&&!replaceable(d,p,date)&&!(dismissed?.[p.id]&&!attempted(d,p.id))),...startedCopies.values()],occ=new Map();
+ const kept=[...(d.proposals||[]).filter(p=>!attempted(d,p.id)&&!replaceable(d,p,date)&&!dismissed?.[p.id]),...startedCopies.values()],occ=new Map();
  for(const p of kept){try{occ.set(p.id,P.occurrences(p).map(o=>[Date.parse(o.start),Date.parse(o.end)]));}catch(e){result.gaps.push('Proposal "'+String(p.title||p.id).slice(0,80)+'" could not be expanded into occurrences, so its time is unknown: '+e.message);}}
  if(result.gaps.length){result.unscheduled.push(...tasks.map(t=>({kind:t.kind,id:t.id,title:t.title,reason:'Not planned: existing proposals or actions could not be placed in time.'})));return result;}
  const covered=new Map(),counted=new Set();
@@ -94,15 +107,17 @@ function plan({snapshot:d,date,now=new Date(),todos={},archive={},dismissed={},s
  for(const p of kept){const live=attempted(d,p.id)?occ.get(p.id):occ.get(p.id).filter(([,b])=>b>+now);add(p.id,p.sourceRefs||(bySource.has(p.source)?[{kind:'assignment',id:bySource.get(p.source)}]:[]),live.reduce((n,[a,b])=>n+Math.round((b-a)/MIN),0));}
  for(const h of d.actionHistory||[])if(ATTEMPTED.includes(h.status)&&h.sourceRefs&&Number.isFinite(h.minutes))add(h.id,h.sourceRefs,h.minutes);
  const valid=([a,b])=>Number.isFinite(a)&&Number.isFinite(b)&&b>a;
- const events=(d.events||[]).filter(e=>e.busy!==false).map(e=>[Date.parse(e.start),Date.parse(e.end)]).filter(valid),held=[...occ.values()].flat().filter(valid),busy=[...events,...held];
- // Usable time comes from calendar events only. Kept and started blocks already allocate part of it, so the reserve holds across
- // repeated generation: budget = (1 - reserve) x usable - already allocated.
+ const own=ownEvents(d,startedCopies,occ),span=e=>[Date.parse(e.start),Date.parse(e.end)];
+ const events=(d.events||[]).filter(e=>e.busy!==false&&!own.has(e)).map(span).filter(valid),held=[...[...occ.values()].flat(),...[...own].map(span)].filter(valid),busy=[...events,...held];
+ // Usable time comes from other calendar events only. Kept and started blocks, including started blocks that have since been
+ // imported as events, already allocate part of it, so the reserve holds across repeated generation and refreshes:
+ // budget = (1 - reserve) x usable - already allocated.
  const usable=minutesFree(start,to,events),already=usable-minutesFree(start,to,busy),budget=Math.max(0,Math.floor(usable*(1-s.reserve))-already);
  result.usable={minutes:usable,budget,allocated:0,alreadyAllocated:already};result.ready=true;
  const blocked=busy.map(([a,b])=>[a-s.gap*MIN,b+s.gap*MIN]);let allocated=0;
  for(const t of tasks){
-  const ref={kind:t.kind,id:t.id,title:t.title},already=covered.get(refKey(t))||0,need=t.minutes-already,deadline=t.dueAt?Date.parse(t.dueAt):Infinity,until=Math.min(to,deadline);
-  if(need<=0){result.unscheduled.push({...ref,reason:`Already covered by ${already} minutes of proposed or approved blocks.`});continue;}
+  const ref={kind:t.kind,id:t.id,title:t.title},have=covered.get(refKey(t))||0,need=t.minutes-have,deadline=t.dueAt?Date.parse(t.dueAt):Infinity,until=Math.min(to,deadline);
+  if(need<=0){result.unscheduled.push({...ref,reason:`Already covered by ${have} minutes of proposed or approved blocks.`});continue;}
   if(deadline<=+now){result.unscheduled.push({...ref,reason:'Deadline has passed. Decide whether it still matters.'});continue;}
   if(deadline<=start){result.unscheduled.push({...ref,reason:'Deadline ('+local(deadline)+') falls before the '+s.dayStart+' start of '+date+'. Plan it on an earlier day.'});continue;}
   const parts=chunks(need,s.maxBlock);let placed=0,why='';
@@ -114,8 +129,8 @@ function plan({snapshot:d,date,now=new Date(),todos={},archive={},dismissed={},s
    const p={id,title,start:b.start,end:b.end,status:'proposed',action:'create',provider:'google',account:cov.account,calendar:cov.calendar,calendarId:cov.calendarId,timezone:d.timezone,recurrence:'One time',attendees:[],location:'',busy:true,reminderMinutes:s.reminderMinutes,
     body:`Dayweave focus block for ${t.kind==='todo'?'todo':'assignment'} "${t.title}".`,source:t.kind==='assignment'?t.source:'',origin:'planner',planDate:date,
     sourceRefs:[{kind:t.kind,id:t.id,...(t.kind==='todo'?{version:t.version}:{dueAt:t.dueAt,estimateMinutes:t.estimateMinutes})}],
-    reason:`${t.kind==='todo'?'Todo':'Required coursework'}${t.dueAt?' due '+local(t.dueAt):' with no deadline'} · block ${i+1} of ${parts.length} · ${len} of ${need} remaining minutes${already?` (${already} already planned)`:''}.`};
-   const errs=P.errors(p,{...d,proposals:[]},now);if(errs.length){why='Rejected by calendar checks: '+errs.join(' ');break;}
+    reason:`${t.kind==='todo'?'Todo':'Required coursework'}${t.dueAt?' due '+local(t.dueAt):' with no deadline'} · block ${i+1} of ${parts.length} · ${len} of ${need} remaining minutes${have?` (${have} already planned)`:''}.`};
+   const errs=P.errors(p,{...d,proposals:[]},now,[...startedCopies.values()]);if(errs.length){why='Rejected by calendar checks: '+errs.join(' ');break;}
    result.blocks.push(p);blocked.push([at-s.gap*MIN,at+(len+s.gap)*MIN]);allocated+=len;placed+=len;
   }
   if(placed<need)result.unscheduled.push({...ref,reason:(placed?`Partly planned: ${placed} of ${need} minutes. `:'')+why});

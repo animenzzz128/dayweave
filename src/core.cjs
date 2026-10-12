@@ -99,7 +99,9 @@ function mergeSnapshot(old,incoming){
   if(down.has(calendarSource(cov))){result.calendarCoverage={...(moved?cov:old.calendarCoverage),complete:false};result.proposals=old.proposals.filter(p=>started.has(p.id));}
   // Local planner blocks are not part of a source snapshot; keep those whose identity and evidence still hold.
   else if(typeof module!=='undefined')result.proposals=[...incoming.proposals,...require('./planner.cjs').keep(old,result)];
-  result.proposals=result.proposals.map(p=>started.has(p.id)&&old.proposals.find(o=>o.id===p.id)||p);
+  // Of the old and incoming copies of a started action, the one matching the frozen receipt fingerprint wins, else the old one.
+  const P2=typeof module!=='undefined'?require('./phase2.cjs'):window.PlannerPhase2,receipt=new Map(result.actionHistory.map(h=>[h.id,h.fingerprint]));
+  result.proposals=result.proposals.map(p=>{if(!started.has(p.id))return p;const o=old.proposals.find(o=>o.id===p.id);return [o,p].find(x=>x&&P2&&P2.fingerprint(x)===receipt.get(p.id))||o||p;});
   if(M&&(old.email!=null||incoming.email!=null))result.email=M.merge(old.email,incoming.email,incoming.sources,incoming.generatedAt);
   return validate(result);
 }
