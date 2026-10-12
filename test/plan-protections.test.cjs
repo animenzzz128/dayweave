@@ -53,7 +53,7 @@ test('B3: started blocks stay canonical through a calendar failure, a restore an
   const t=s.saveTodo({title:'Write report',dueAt:null,durationMinutes:60,notes:''}).todo;s.importSnapshot(d);const backup=s.backups()[0];a.ok(backup,'the import made a daily backup with the todo and no plan');
   s.generatePlan(tomorrow);
   const block=s.snapshot().proposals.find(p=>p.sourceRefs?.[0]?.id===t.id),q=A.prepare(s,[block.id]);
-  A.record(s,{reference:q.reference,id:block.id,status:'pending',recordedAt:new Date().toISOString(),humanApproval:'Synthetic test approval'});
+  A.record(s,{reference:q.reference,id:block.id,status:'pending',recordedAt:new Date().toISOString(),humanApproval:{channel:'chat',text:'Approve '+q.reference,at:new Date().toISOString()}});
   const check=label=>{const r=s.generatePlan(tomorrow);a.equal(r.ready,true,label+': '+r.gaps.join());a.equal(r.blocks.some(b=>b.sourceRefs[0].id===t.id),false,label+': the todo is not planned twice');
    a.match(reasons(r)[t.id],/Already covered by 60 minutes/,label);a.equal(r.blocks.some(b=>overlaps(b,block)),false,label+': nothing overlaps the started block');};
   const failed=structuredClone(d);failed.sources.find(x=>x.id==='google-calendar').status='failed';s.importSnapshot(failed);

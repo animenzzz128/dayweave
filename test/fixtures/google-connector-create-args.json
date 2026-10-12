@@ -1,0 +1,29 @@
+{
+ "note": "Top-level argument names of the connected Google Calendar create_event tool declaration (tool schema only, no account data).",
+ "tool": "google_calendar_create_event",
+ "arguments": [
+  "add_google_meet",
+  "attendee_optionality",
+  "attendees",
+  "auto_decline_mode",
+  "calendar_id",
+  "chat_status",
+  "color_id",
+  "decline_message",
+  "description",
+  "end_date",
+  "end_time",
+  "event_type",
+  "guests_can_modify",
+  "location",
+  "recurrence",
+  "reminders",
+  "self_attendance",
+  "start_date",
+  "start_time",
+  "timezone_str",
+  "title",
+  "transparency",
+  "visibility"
+ ]
+}
