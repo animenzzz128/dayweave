@@ -63,14 +63,14 @@ function gaps(d,from,to,now,settings){
  if((d.events||[]).some(e=>(e.recurrence&&e.recurrence!=='One time'&&e.recurrence!=='none')||e.recurringSeries===true))out.push('A recurring series was not expanded into occurrences, so some busy time may be missing.');
  return out;
 }
-// Calendar events that are this app's own started actions: an executed receipt's remoteRef (in the same account and calendar as
-// the approved copy, or the destination when no copy survives), or the exact approved copy (same calendar, title and occurrence
+// Calendar events that are this app's own started actions: an executed receipt's remoteRef, as the event's remoteRef, its ID or
+// its calendarId/ID (in the same account and calendar as the approved copy, or the destination when no copy survives), or the exact approved copy (same calendar, title and occurrence
 // interval; one event per occurrence). They are allocations, not lost capacity. Every other busy event reduces usable time.
 function ownEvents(d,copies,occ){
  const own=new Set(),events=d.events||[],refs=new Map(),cov=d.calendarCoverage||{};
  for(const h of d.actionHistory||[])if(h.status==='executed'&&typeof h.remoteRef==='string'&&h.remoteRef)refs.set(h.remoteRef,h.id);
  const same=(e,p)=>(e.calendarId==null||e.calendarId===p.calendarId)&&(e.account==null||e.account===p.account);
- for(const e of events){const id=refs.get(e.remoteRef)??refs.get(e.id);if(id!==undefined&&same(e,copies.get(id)||cov))own.add(e);}
+ for(const e of events){const id=refs.get(e.remoteRef)??refs.get(e.id)??(e.calendarId&&e.id?refs.get(e.calendarId+'/'+e.id):undefined);if(id!==undefined&&same(e,copies.get(id)||cov))own.add(e);}
  for(const [id,p] of copies)for(const [a,b] of occ.get(id)||[]){const e=events.find(e=>!own.has(e)&&e.busy!==false&&e.title===p.title&&same(e,p)&&Date.parse(e.start)===a&&Date.parse(e.end)===b);if(e)own.add(e);}
  return own;
 }
