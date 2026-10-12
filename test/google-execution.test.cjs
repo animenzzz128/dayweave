@@ -76,7 +76,7 @@ test('pending is recorded only after verify and recheck pass; it freezes the tar
  a.throws(()=>G.pending(s,q.reference,p.id,ok(q),ARGS,liveRead(d,p,{reads:[]})),/Do not write: .*every calendar/);a.equal(s.snapshot().actionHistory.length,0);
  a.throws(()=>A.record(s,{reference:q.reference,id:p.id,status:'pending',recordedAt:new Date().toISOString(),humanApproval:'Approve '+q.reference}),/human chat approval/,'a bare string is not enough for Google');
  a.throws(()=>A.record(s,{reference:q.reference,id:p.id,status:'pending',recordedAt:new Date().toISOString(),humanApproval:{...ok(q),text:'Do not approve '+q.reference}}),/must be exactly/);
- a.throws(()=>A.record(s,{reference:q.reference,id:p.id,status:'executed',recordedAt:new Date().toISOString(),verifiedAt:new Date().toISOString(),remoteRef:'x/y',evidence:'forged'}),/Record the Google pending receipt/);
+ a.throws(()=>A.record(s,{reference:q.reference,id:p.id,status:'executed',recordedAt:new Date().toISOString(),verifiedAt:new Date().toISOString(),remoteRef:'x/y',evidence:'forged'}),/recorded only with scripts\/google-calendar\.cjs/,'outcomes come only from the bridge read-back or reconcile');
  const r=G.pending(s,q.reference,p.id,ok(q),ARGS,liveRead(d,p));a.equal(r.status,'pending');a.deepEqual(r.write,G.toConnector(p,k));a.equal(r.tool,'google_calendar_create_event');
  const h=s.snapshot().actionHistory.find(x=>x.id===p.id);
  a.deepEqual({status:h.status,reference:h.reference,provider:h.provider,account:h.account,calendarId:h.calendarId,sourceRefs:h.sourceRefs,minutes:h.minutes,key:h.idempotencyKey,store:h.store,fingerprint:h.fingerprint,connector:h.connector},{status:'pending',reference:q.reference,provider:'google',account:p.account,calendarId:p.calendarId,sourceRefs:p.sourceRefs,minutes:60,key:k,store:s.storeId(),fingerprint:P.fingerprint(p),connector:'google-calendar-connector'});
@@ -99,23 +99,50 @@ test('read-back compares the raw connector shape and the queried calendar; any d
  a.match(G.readback(s,q.reference,p.id,back(p,saved(p,k),{account:'other@example.com'})).mismatches.join(' '),/different or unknown account/);
  const bad=G.readback(s,q.reference,p.id,back(p,saved(p,k,{location:'Somewhere else'})));a.equal(bad.status,'unverified');a.match(s.snapshot().actionHistory[0].evidence,/location differs.*Human resolution required/);a.equal(A.read(s,q.reference).status,'unverified');
  const good=G.readback(s,q.reference,p.id,back(p,saved(p,k)));a.equal(good.status,'executed',JSON.stringify(good));const h=s.snapshot().actionHistory[0];
- a.equal(h.remoteRef,p.calendarId+'/'+saved(p,k).id);a.ok(h.verifiedAt);a.match(h.evidence,/every approved field matched/);a.deepEqual(h.attempts.map(x=>x.status),['pending','unverified','unverified','unverified']);
+ a.equal(h.remoteRef,p.calendarId+'/'+saved(p,k).id);a.ok(h.verifiedAt);a.match(h.evidence,/the compared approved fields matched.*Other returned fields were not compared/);a.deepEqual(h.attempts.map(x=>x.status),['pending','unverified','unverified','unverified']);
  a.equal(h.humanApproval.text,'Approve '+q.reference,'approval evidence survives later states');a.equal(h.idempotencyKey,k);a.deepEqual(h.sourceRefs,p.sourceRefs);
  a.equal(A.read(s,q.reference).status,'executed');a.throws(()=>G.readback(s,q.reference,p.id,back(p,saved(p,k))),/current: executed/);
 }));
 
-test('reconciliation never invents provenance: unknown, other-calendar, ambiguous and unmarked outcomes stay unverified; absence needs a complete search',()=>withStore(s=>{
+// A search wide enough to conclude absence: at least 24 hours on each side of the action.
+const wide=(d,p,extra={})=>liveRead(d,p,{start:new Date(Date.parse(p.start)-25*3600000).toISOString(),end:new Date(Date.parse(p.end)+25*3600000).toISOString(),...extra});
+test('reconciliation never invents provenance: unknown, other-calendar and unmarked outcomes stay unverified; absence needs a complete search 24 hours either side',()=>withStore(s=>{
  const {d,p,q,k}=setup(s),dest=p.calendarId,other='course-schedule@example.com';G.pending(s,q.reference,p.id,ok(q),ARGS,liveRead(d,p));
  let r=G.reconcile(s,q.reference,p.id,liveRead(d,p,{reads:[{calendarId:dest,complete:false,events:[]},{calendarId:other,complete:true,events:[]}]}));a.equal(r.conclusion,'unknown');a.equal(s.snapshot().actionHistory[0].status,'unverified');
  r=G.reconcile(s,q.reference,p.id,liveRead(d,p,{events:{[other]:[saved(p,k,{id:'wrong'})]}}));a.equal(r.status,'unverified');a.equal(r.conclusion,'other-calendar');a.deepEqual(r.matches,[other+'/wrong']);
  a.equal(s.snapshot().actionHistory[0].remoteRef,undefined,'no target reference is invented for an event on another calendar');
- r=G.reconcile(s,q.reference,p.id,liveRead(d,p,{events:{[dest]:[saved(p,k,{id:'a1'}),saved(p,k,{id:'a2'})]}}));a.equal(r.conclusion,'ambiguous');a.deepEqual(r.matches,['a1','a2']);
- a.throws(()=>G.readback(s,q.reference,p.id,back(p,saved(p,k,{id:'a1'}))),/Several matching events/,'an ambiguous outcome cannot be read back into executed');
  r=G.reconcile(s,q.reference,p.id,liveRead(d,p,{events:{[dest]:[saved(p,k,{id:'look',description:p.body})]}}));a.equal(r.conclusion,'unmarked');
- r=G.reconcile(s,q.reference,p.id,liveRead(d,p));a.equal(r.status,'not_created');a.match(s.snapshot().actionHistory[0].evidence,/found no event with this action marker/);a.equal(A.read(s,q.reference).status,'failed');
+ // A complete read of only the action interval says nothing about the rest of the day: no absence, no retry.
+ r=G.reconcile(s,q.reference,p.id,liveRead(d,p));a.equal(r.status,'unverified');a.equal(r.conclusion,'unknown');a.match(s.snapshot().actionHistory[0].evidence,/at least 24 hours before to 24 hours after/);
+ r=G.reconcile(s,q.reference,p.id,wide(d,p));a.equal(r.status,'not_created');a.match(r.conclusion,/absent in the searched window/);
+ a.match(s.snapshot().actionHistory[0].evidence,/found no event with this action marker in that window/);a.equal(A.read(s,q.reference).status,'failed');
  a.throws(()=>G.pending(s,q.reference,p.id,ok(q),ARGS,liveRead(d,p)),/failed and cannot be executed/,'a retry needs a new approved version');
  const q2=A.prepare(s,[p.id]);a.notEqual(q2.reference,q.reference);G.pending(s,q2.reference,p.id,ok(q2),ARGS,liveRead(d,p));
  r=G.reconcile(s,q2.reference,p.id,liveRead(d,p,{events:{[dest]:[saved(p,k)]}}));a.equal(r.status,'executed');a.equal(r.conclusion,'one match read back');a.equal(s.snapshot().actionHistory[0].remoteRef,dest+'/'+saved(p,k).id);
+}));
+
+test('an ambiguous outcome stays held until a complete reconcile finds exactly one marked event; unknown, unmarked or empty reads never clear it',()=>withStore(s=>{
+ const {d,p,q,k}=setup(s),dest=p.calendarId,other='course-schedule@example.com',h=()=>s.snapshot().actionHistory[0];G.pending(s,q.reference,p.id,ok(q),ARGS,liveRead(d,p));
+ let r=G.reconcile(s,q.reference,p.id,liveRead(d,p,{events:{[dest]:[saved(p,k,{id:'a1'}),saved(p,k,{id:'a2'})]}}));a.equal(r.conclusion,'ambiguous');a.deepEqual(r.matches,['a1','a2']);
+ a.throws(()=>G.readback(s,q.reference,p.id,back(p,saved(p,k,{id:'a1'}))),/Several matching events/,'an ambiguous outcome cannot be read back into executed');
+ // Review repro: an incomplete (unknown) reconcile, then a direct read-back of a1, must not reach executed.
+ r=G.reconcile(s,q.reference,p.id,liveRead(d,p,{reads:[{calendarId:dest,complete:false,events:[]},{calendarId:other,complete:true,events:[]}]}));a.equal(r.conclusion,'unknown');a.equal(r.hold,'ambiguous');a.equal(h().hold,'ambiguous');
+ a.throws(()=>G.readback(s,q.reference,p.id,back(p,saved(p,k,{id:'a1'}))),/Several matching events/,'still held after an unknown reconcile');
+ r=G.reconcile(s,q.reference,p.id,liveRead(d,p,{events:{[dest]:[saved(p,k,{id:'look',description:p.body})]}}));a.equal(r.conclusion,'unmarked');a.equal(h().hold,'ambiguous');
+ r=G.reconcile(s,q.reference,p.id,wide(d,p));a.equal(r.status,'unverified','a later empty read does not turn earlier duplicates into not_created');a.equal(r.conclusion,'ambiguous');
+ a.equal(A.read(s,q.reference).status,'unverified');a.throws(()=>G.readback(s,q.reference,p.id,back(p,saved(p,k,{id:'a1'}))),/Several matching events/);
+ r=G.reconcile(s,q.reference,p.id,liveRead(d,p,{events:{[dest]:[saved(p,k,{id:'a1'})]}}));a.equal(r.status,'executed');a.equal(r.conclusion,'one match read back');a.equal(h().remoteRef,dest+'/a1');a.equal(h().hold,undefined);
+}));
+
+test('a not-created action in a multi-action version needs a newly approved version, even while another action of it is pending',()=>withStore(s=>{
+ const {tomorrow}=setup(s);s.saveTodo({title:'Second synthetic task',dueAt:null,durationMinutes:30});s.generatePlan(tomorrow);
+ const d=s.snapshot(),[x,y]=d.proposals.filter(p=>p.origin==='planner'&&p.planDate===tomorrow);a.ok(x&&y);const q=A.prepare(s,[x.id,y.id]);
+ G.pending(s,q.reference,x.id,ok(q),ARGS,liveRead(d,x));G.pending(s,q.reference,y.id,ok(q),ARGS,liveRead(d,y));
+ a.equal(G.reconcile(s,q.reference,x.id,wide(d,x)).status,'not_created');a.equal(A.read(s,q.reference).status,'pending','the other action keeps the version pending');
+ a.throws(()=>G.pending(s,q.reference,x.id,ok(q),ARGS,liveRead(d,x)),/newly prepared and approved version/,'no retry under the old version');
+ a.throws(()=>A.record(s,{reference:q.reference,id:x.id,status:'pending',recordedAt:new Date().toISOString(),humanApproval:ok(q)}),/newly prepared and approved version/);
+ a.match(G.verify(s,q.reference,ok(q),ARGS).actions.find(v=>v.id===x.id).errors.join(' '),/newly prepared and approved version/);
+ const q2=A.prepare(s,[x.id]);G.pending(s,q2.reference,x.id,ok(q2),ARGS,liveRead(d,x));a.equal(s.snapshot().actionHistory.find(h=>h.id===x.id).reference,q2.reference,'a new exact version may retry');
 }));
 
 test('restore keeps the logical store identity and the frozen pending key; new prepared versions stay invalidated; another store is rejected',()=>withStore(s=>{
@@ -146,12 +173,18 @@ test('executed receipts keep covering their todo after the proposal leaves the s
  }finally{await new Promise(r=>srv.close(r));fs.rmSync(dir,{recursive:true,force:true});}});
 
 test('operator CLI shows the profile, verifies and reports without writing; usage errors exit non-zero',()=>withStore((s,dir)=>{
- const {q}=setup(s);s.close();const f=(n,v)=>{const x=path.join(dir,n);fs.writeFileSync(x,JSON.stringify(v));return x;},run=(...args)=>{try{return {code:0,out:execFileSync(process.execPath,['scripts/google-calendar.cjs',...args],{env:{...process.env,DAYWEAVE_DATA_DIR:dir},encoding:'utf8',stdio:'pipe'})};}catch(e){return {code:e.status,out:e.stdout,err:e.stderr};}};
+ const {q,p}=setup(s);s.close();const f=(n,v)=>{const x=path.join(dir,n);fs.writeFileSync(x,JSON.stringify(v));return x;},run=(...args)=>{try{return {code:0,out:execFileSync(process.execPath,['scripts/google-calendar.cjs',...args],{env:{...process.env,DAYWEAVE_DATA_DIR:dir},encoding:'utf8',stdio:'pipe'})};}catch(e){return {code:e.status,out:e.stdout,err:e.stderr};}};
  let r=run('profile');a.equal(r.code,0);a.deepEqual(JSON.parse(r.out).unsupported,['sendUpdates','client event ID','extendedProperties']);
  r=run('verify',q.reference,f('a.json',ok(q)),f('args.json',ARGS));a.equal(r.code,0,r.err);a.equal(JSON.parse(r.out).go,true);
  r=run('verify',q.reference,f('b.json',{...ok(q),text:'Do not approve '+q.reference}),f('args.json',ARGS));a.equal(r.code,1);a.equal(JSON.parse(r.out).go,false);
  r=run('status',q.reference);a.equal(r.code,0);a.equal(JSON.parse(r.out).receipts[0].status,'not attempted');
  r=run('launch');a.equal(r.code,1);a.match(r.err,/Usage/);
+ const legacy=(script,...args)=>{try{execFileSync(process.execPath,[script,...args],{env:{...process.env,DAYWEAVE_DATA_DIR:dir},encoding:'utf8',stdio:'pipe'});return {code:0,err:''};}catch(e){return {code:e.status,err:e.stderr};}};
+ for(const status of ['pending','executed']){r=legacy('scripts/approval.cjs','record',f('legacy-'+status+'.json',{reference:q.reference,id:p.id,status,recordedAt:new Date().toISOString(),verifiedAt:new Date().toISOString(),remoteRef:p.calendarId+'/x',evidence:'forged',humanApproval:ok(q)}));
+  a.notEqual(r.code,0,status);a.match(r.err,/recorded only with scripts\/google-calendar\.cjs/,'the legacy approval CLI records no Google '+status);}
+ fs.writeFileSync(path.join(dir,'data.json'),JSON.stringify({proposals:[{id:'g-1',provider:'google'}],actionHistory:[]}));
+ r=legacy('scripts/record-action.cjs',f('legacy-json.json',{id:'g-1',status:'pending',fingerprint:'x',recordedAt:new Date().toISOString()}));a.notEqual(r.code,0);a.match(r.err,/recorded only with scripts\/google-calendar\.cjs/);
+ a.equal(JSON.parse(fs.readFileSync(path.join(dir,'data.json'),'utf8')).actionHistory.length,0);
  const again=new Store(dir);try{a.equal(again.snapshot().actionHistory.length,0,'verify and status record nothing');}finally{again.close();}
  s.open();
 }));
@@ -163,8 +196,8 @@ test('page-order scripts show prepared, pending, unverified and executed receipt
  const nodes=new Map(),node=k=>{if(!nodes.has(k))nodes.set(k,{textContent:'',innerHTML:''});return nodes.get(k);};let snap=D,versions=V;
  const ctx=vm.createContext({URL,URLSearchParams,Date,Intl,console,encodeURIComponent,window:{addEventListener(){}},document:{querySelector:node,querySelectorAll:()=>[],addEventListener(){}},location:{pathname:'/review',search:''},history:{pushState(){}},fetch:async url=>({ok:true,json:async()=>url.endsWith('session')?{csrf:'t'}:url.includes('approvals')?versions:{snapshot:snap,progress:S}})});
  for(const f of order)vm.runInContext(fs.readFileSync(files[f],'utf8'),ctx,{filename:files[f]});await new Promise(r=>setImmediate(r));
- let html=node('#page').innerHTML;a.match(html,/<h2>In progress<\/h2>/);a.match(html,/data-status="pending"/);a.match(html,/Pending · write started or outcome not yet read back/);a.match(html,/Source: todo todo-[0-9a-f]+ v1/);a.match(html,/Approve Q-\d+/);a.match(html,/It never writes to a calendar/);
+ let html=node('#page').innerHTML;a.match(html,/<h2>In progress<\/h2>/);a.match(html,/data-status="pending"/);a.match(html,/Pending · write started or outcome not yet read back/);a.match(html,/Source: todo todo-[0-9a-f]+ v1/);a.match(html,/Approve Q-\d+/);a.match(html,/It never writes to a calendar/);a.equal(vm.runInContext('fmtFull("not a time")',ctx),'Invalid time','a malformed legacy approval time renders instead of throwing');
  snap=D.__executed.d;versions=D.__executed.v;await vm.runInContext('render()',ctx);html=node('#page').innerHTML;a.match(html,/data-status="unverified"/);a.match(html,/reminder differs/);a.doesNotMatch(html,/<b>now/);
  snap=D.__final.d;versions=D.__final.v;ctx.location.search='?tab=history';await vm.runInContext('render()',ctx);html=node('#page').innerHTML;
- a.match(html,/data-status="executed"/);a.match(html,/Executed · read back and verified/);a.match(html,/remote event student@example\.com\/evt[0-9a-f]{10}/);a.match(html,/key d0[0-9a-f]{30}/);a.match(html,/Earlier states \(2\)/);a.match(html,/every approved field matched/);
+ a.match(html,/data-status="executed"/);a.match(html,/Executed · read back and verified/);a.match(html,/remote event student@example\.com\/evt[0-9a-f]{10}/);a.match(html,/key d0[0-9a-f]{30}/);a.match(html,/Earlier states \(2\)/);a.match(html,/the compared approved fields matched/);
 });

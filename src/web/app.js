@@ -92,7 +92,7 @@ async function historyView(q){const result=await api('history?'+q);return `<form
 // Dated weekly evidence trends (read-only). A week without observations says so instead of showing 0; failed sources,
 // duplicates and the 30-day retention limit stay visible; a non-comparable pair shows no change at all.
 const dayLabel=k=>new Intl.DateTimeFormat('en-US',{timeZone:'UTC',weekday:'short',month:'short',day:'numeric',year:'numeric'}).format(new Date(k+'T00:00:00Z'));
-const fmtFull=x=>x?new Intl.DateTimeFormat('en-US',{timeZone:D.timezone,year:'numeric',month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZoneName:'short'}).format(new Date(x)):'Unknown';
+const fmtFull=x=>{if(!x)return 'Unknown';const t=new Date(x);return Number.isFinite(+t)?new Intl.DateTimeFormat('en-US',{timeZone:D.timezone,year:'numeric',month:'short',day:'numeric',hour:'numeric',minute:'2-digit',timeZoneName:'short'}).format(t):'Invalid time';};
 const trendMetrics=[['done','Required · submitted, graded or excused'],['not_submitted','Required · not submitted'],['unknown','Required · submission status unknown'],['other','Required · other or missing status'],['choice','Selectable (choice) · not required'],['uncertain','Requirement uncertain or missing · not counted as required']];
 const trendExcluded=[['retained','Not fresh · source failed (earlier records retained) or unavailable'],['archived','Removed from source (archived) · not counted'],['unlisted','No listed source · not counted']];
 const trendNone=(t,w)=>t.query.truncated||w.unread?'No observations read':'No observations';

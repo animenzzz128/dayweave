@@ -4,7 +4,7 @@
 // connector's create arguments, checks a live re-read, compares the connector's read-back and records local receipts.
 // It holds no credentials and makes no network calls.
 const crypto=require('node:crypto'),C=require('./core.cjs'),P=require('./phase2.cjs'),A=require('./approvals.cjs');
-const LIVE_MAX_AGE_MS=15*60000;
+const LIVE_MAX_AGE_MS=15*60000,ABSENCE_MARGIN_MS=24*3600000;
 // Capability profile of the connected create tool, taken from its declaration. Only `sends` (plus `location` when the approved
 // location is non-empty) is sent, with `fixed` values; `notSent` arguments keep their defaults. The connector offers no
 // invitation-update setting, client event ID or extended properties, so none is claimed: duplicate protection is the
@@ -102,7 +102,8 @@ function verify(s,ref,approval,declared,now=new Date()){const q=A.read(s,ref),d=
  if(!['prepared','pending','partial'].includes(q.status))blockers.push('Version '+q.reference+' is '+q.status+' and cannot be executed.');
  blockers.push(...evidence(approval,q.reference,q.at,now));
  if(!Array.isArray(declared)||!declared.every(x=>typeof x==='string'))blockers.push('Record the create tool\'s declared argument names (a list) before writing.');
- const actions=q.value.map(p=>{const k=key(store,p),current=d.proposals.find(x=>x.id===p.id),errors=[...P.errors(p,d,now),...actionErrors(p,d)];
+ const actions=q.value.map(p=>{const k=key(store,p),current=d.proposals.find(x=>x.id===p.id),errors=[...P.errors(p,d,now,s.startedCopies(d)),...actionErrors(p,d)],h=statusOf(d,p.id);
+  if(h?.status==='not_created'&&h.reference===q.reference)errors.push('This action was not created under '+q.reference+'; a retry needs a newly prepared and approved version.');
   if(!current||P.fingerprint(current)!==P.fingerprint(p))errors.push('The saved proposal changed since this version was prepared.');
   const missing=Array.isArray(declared)?required(p).filter(f=>!declared.includes(f)):[];if(missing.length)errors.push('The connector cannot set approved fields ('+missing.join(', ')+'). Stop rather than drop them.');
   return {id:p.id,fingerprint:P.fingerprint(p),receipt:statusOf(d,p.id)?.status||null,idempotencyKey:k,marker:marker(p,k),sourceRefs:p.sourceRefs||[],profile:PROFILE.name,tool:PROFILE.tool,request:toConnector(p,k),errors:[...new Set(errors)]};});
@@ -116,26 +117,34 @@ function recheck(s,ref,id,read,now=new Date()){const {p,k,d}=action(s,ref,id),r=
 // 3. Record pending before the remote save, only after verify and the live recheck both pass for this action.
 function pending(s,ref,id,approval,declared,read,now=new Date()){const v=verify(s,ref,approval,declared,now),a=v.actions.find(x=>x.id===id);if(!a)throw Error('Action is not part of this exact approval');
  const problems=[...v.blockers,...a.errors,...recheck(s,ref,id,read,now).errors];if(problems.length)throw Error('Do not write: '+[...new Set(problems)].join(' '));
- A.record(s,{reference:v.reference,id,status:'pending',recordedAt:new Date(now).toISOString(),humanApproval:approval,evidence:'Live re-read at '+read.checkedAt+' was complete for '+read.reads.length+' calendars with no conflicts or duplicates.'});
+ A.record(s,{reference:v.reference,id,status:'pending',recordedAt:new Date(now).toISOString(),humanApproval:approval,evidence:'Live re-read at '+read.checkedAt+' was complete for '+read.reads.length+' calendars with no conflicts or duplicates.'},{bridge:A.BRIDGE});
  return {id,status:'pending',tool:PROFILE.tool,write:a.request,idempotencyKey:a.idempotencyKey,next:'Call the create tool once with exactly these arguments, then read the event back. If the response is lost or unclear, run reconcile; never retry blindly.'};}
 // 4. Compare the connector read-back and record executed (all fields match) or unverified (any difference). `rb` is
 // {calendarId, account, event}: the calendar and account of the authenticated read, and the raw event it returned.
 function readback(s,ref,id,rb,now=new Date(),{fromReconcile=false}={}){const {p,k,d,h}=action(s,ref,id),st=h?.status;if(!['pending','unverified'].includes(st))throw Error('Record pending before a read-back (current: '+(st||'none')+').');
- if(h.conclusion==='ambiguous'&&!fromReconcile)throw Error('Several matching events were found; resolve them with the human and run a fresh reconcile that finds exactly one.');
+ if(held(h)&&!fromReconcile)throw Error('Several matching events were found; resolve them with the human and run a fresh reconcile that finds exactly one.');
  const ev=plain(rb)?rb.event:null,m=[];if(!plain(rb)||rb.calendarId!==p.calendarId)m.push('read from calendar '+(plain(rb)?rb.calendarId:'unknown')+', not the approved '+p.calendarId);if(!plain(rb)||rb.account!==p.account)m.push('read with a different or unknown account');
  const mismatches=[...m,...compare(p,k,ev)],at=new Date(now).toISOString(),ok=!mismatches.length,ref2=plain(ev)&&typeof ev.id==='string'&&ev.id&&plain(rb)&&typeof rb.calendarId==='string'?rb.calendarId+'/'+ev.id:null;
- if(ok)A.record(s,{reference:ref,id,status:'executed',recordedAt:at,verifiedAt:at,remoteRef:ref2,evidence:'Read back event '+ev.id+' from '+rb.calendarId+'; every approved field matched (title, times, description and marker, location, busy state, popup reminder, default event type, organizer, no attendees, meeting or recurrence).'});
- else A.record(s,{reference:ref,id,status:'unverified',recordedAt:at,...(ref2?{remoteRef:ref2}:{}),evidence:'Read-back mismatch: '+mismatches.join('; ')+'. Human resolution required; do not edit, delete or retry automatically.'});
+ if(ok)A.record(s,{reference:ref,id,status:'executed',recordedAt:at,verifiedAt:at,remoteRef:ref2,evidence:'Read back event '+ev.id+' from '+rb.calendarId+'; the compared approved fields matched (title, times, description and marker, location, busy state, popup reminder, default event type, organizer, no attendees, meeting or recurrence). Other returned fields were not compared.'},{bridge:A.BRIDGE});
+ else A.record(s,{reference:ref,id,status:'unverified',recordedAt:at,...(ref2?{remoteRef:ref2}:{}),evidence:'Read-back mismatch: '+mismatches.join('; ')+'. Human resolution required; do not edit, delete or retry automatically.'},{bridge:A.BRIDGE});
  return {id,status:ok?'executed':'unverified',mismatches};}
-// 5. Reconcile an unknown outcome from a fresh complete live re-read. Absence needs positive evidence; ambiguity, unmarked
-// look-alikes and markers on another calendar stay unverified. Calendar provenance always comes from the read, never the target.
+// Several marked events once found for an action keep it held until a complete reconcile finds exactly one; an unknown or
+// partial read in between does not clear it.
+const held=h=>h?.hold==='ambiguous'||h?.conclusion==='ambiguous';
+// 5. Reconcile an unknown outcome from a fresh complete live re-read. Absence needs positive evidence: complete reads of every
+// queried calendar from at least 24 hours before to 24 hours after the action, and it holds only for that window (never global
+// absence). Ambiguity, unmarked look-alikes and markers on another calendar stay unverified. Calendar provenance always comes
+// from the read, never the target.
 function reconcile(s,ref,id,search,now=new Date()){const {p,k,d,h}=action(s,ref,id),st=h?.status;if(!['pending','unverified'].includes(st))throw Error('Nothing to reconcile (current: '+(st||'none')+').');
- const r=live(p,k,search,d,now),at=new Date(now).toISOString(),note=(x,extra={})=>({reference:ref,id,recordedAt:at,...x,...extra});
- const stay=(conclusion,evidenceText,extra={})=>{A.record(s,note({status:'unverified',conclusion,evidence:evidenceText}));return {id,status:'unverified',conclusion,...extra};};
+ const r=live(p,k,search,d,now),at=new Date(now).toISOString(),note=(x,extra={})=>({reference:ref,id,recordedAt:at,...x,...extra}),hold=held(h);
+ const stay=(conclusion,evidenceText,extra={})=>{const keep=hold||conclusion==='ambiguous';A.record(s,note({status:'unverified',conclusion,...(keep?{hold:'ambiguous'}:{}),evidence:evidenceText+(hold&&conclusion!=='ambiguous'?' Several marked events were found earlier; only a complete reconcile that finds exactly one clears that.':'')}),{bridge:A.BRIDGE});return {id,status:'unverified',conclusion,...(keep?{hold:'ambiguous'}:{}),...extra};};
  if(r.errors.length)return stay('unknown','Outcome unknown; the search cannot decide: '+r.errors.join(' '),{errors:r.errors});
  if(r.foreign.length)return stay('other-calendar','This action\'s marker was found on another calendar ('+r.foreign.map(x=>x.calendarId+'/'+x.event.id).join(', ')+'); the write may have landed on the wrong calendar. Human resolution required; do not delete or retry automatically.',{matches:r.foreign.map(x=>x.calendarId+'/'+x.event.id)});
  if(r.target.length>1)return stay('ambiguous','Multiple matching events ('+r.target.map(x=>x.event.id).join(', ')+'); human resolution required. Do not delete or retry automatically.',{matches:r.target.map(x=>x.event.id)});
  if(!r.target.length&&r.possible.length)return stay('unmarked','An event with the same title and times but no action marker exists on the destination ('+r.possible.map(x=>x.event.id).join(', ')+'); human resolution required.',{matches:r.possible.map(x=>x.event.id)});
- if(!r.target.length){A.record(s,note({status:'not_created',evidence:'Complete live re-read at '+search.checkedAt+' of '+search.reads.length+' calendars from '+search.start+' to '+search.end+' found no event with this action marker.'}));return {id,status:'not_created',conclusion:'absent; a retry needs a newly prepared and approved version'};}
+ if(!r.target.length){
+  if(hold)return stay('ambiguous','A complete re-read now finds no marked event, but several were found earlier; human resolution required. Do not retry automatically.');
+  if(!(Date.parse(search.start)<=Date.parse(p.start)-ABSENCE_MARGIN_MS&&Date.parse(search.end)>=Date.parse(p.end)+ABSENCE_MARGIN_MS))return stay('unknown','No marked event in '+search.start+' to '+search.end+', but absence needs complete reads from at least 24 hours before to 24 hours after the action; read the wider window.');
+  A.record(s,note({status:'not_created',evidence:'Complete live re-read at '+search.checkedAt+' of '+search.reads.length+' calendars ('+search.reads.map(x=>x.calendarId).join(', ')+') from '+search.start+' to '+search.end+' found no event with this action marker in that window.'}),{bridge:A.BRIDGE});return {id,status:'not_created',conclusion:'absent in the searched window; a retry needs a newly prepared and approved version'};}
  const one=r.target[0];return {...readback(s,ref,id,{calendarId:one.calendarId,account:search.account,event:one.event},now,{fromReconcile:true}),conclusion:'one match read back'};}
-module.exports={LIVE_MAX_AGE_MS,PROFILE,key,marker,description,required,toConnector,actionErrors,evidence,times,live,compare,verify,recheck,pending,readback,reconcile};
+module.exports={LIVE_MAX_AGE_MS,ABSENCE_MARGIN_MS,PROFILE,key,marker,description,required,toConnector,actionErrors,evidence,times,live,compare,verify,recheck,pending,readback,reconcile};
