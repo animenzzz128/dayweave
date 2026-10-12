@@ -29,6 +29,7 @@ const CAL_DOWN=['failed','unavailable'];
 function calendarSource(cov){return typeof cov?.sourceId==='string'&&cov.sourceId?cov.sourceId:'outlook';}
 function calendarProvider(x){return x?.provider||'outlook';}
 function sameCalendar(a,b){const p=calendarProvider(a);return p===calendarProvider(b)&&calendarSource(a)===calendarSource(b)&&(a?.account??null)===(b?.account??null)&&(p!=='google'||a?.calendarId===b?.calendarId);}
+const startedIds=d=>new Set((d.actionHistory||[]).filter(h=>['pending','unverified','executed'].includes(h.status)).map(h=>h.id));
 // The active calendar source of a snapshot is failed or unavailable.
 function calendarDown(d){const id=calendarSource(d.calendarCoverage);return d.sources.some(s=>s.id===id&&CAL_DOWN.includes(s.status));}
 function validateCoverage(cov,sources){
@@ -62,7 +63,8 @@ function proposalErrors(p,data,now=new Date()){
  if(!Number.isFinite(stamp(p.start))||!Number.isFinite(stamp(p.end))||stamp(p.end)<=stamp(p.start))errors.push('End must follow start.');
  if(stamp(p.start)<stamp(now))errors.push('This proposed time has passed.');
  const parts=t=>Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:TZ,hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(t)).map(x=>[x.type,x.value]));
- if(Number.isFinite(stamp(p.start))&&Number.isFinite(stamp(p.end))){const s=parts(p.start),e=parts(p.end);if(+s.hour<9||dayKey(p.start)!==dayKey(p.end)||(+e.hour===0))errors.push('Keep the midnight–9 AM sleep window free.');}
+ // A block may end exactly at local midnight (the 09:00–24:00 day) but never start before 09:00 or run past midnight.
+ if(Number.isFinite(stamp(p.start))&&Number.isFinite(stamp(p.end))){const s=parts(p.start),e=parts(p.end),midnight=e.hour==='00'&&e.minute==='00'&&dayKey(p.end)===new Date(Date.parse(dayKey(p.start)+'T12:00:00Z')+86400000).toISOString().slice(0,10);if(+s.hour<9||dayKey(p.start)!==dayKey(p.end)&&!midnight||(+e.hour===0&&!midnight))errors.push('Keep the midnight–9 AM sleep window free.');}
  if(data.events.some(e=>e.busy!==false&&overlap(p,e)))errors.push('Overlaps a known calendar commitment.');
  if(data.actionHistory?.some(e=>e.id===p.id&&e.status==='executed'))errors.push('This action is already recorded as executed.');
  if(!data.calendarCoverage?.complete)errors.push('Calendar coverage is incomplete; refresh it before requesting changes.');
@@ -72,7 +74,7 @@ function proposalErrors(p,data,now=new Date()){
 function mergeSnapshot(old,incoming){
   const M=emailModule();
   // A first import gets the same active-calendar failure invalidation as later ones.
-  if(!old){let d=validate(incoming);if(calendarDown(d))d={...d,...(d.calendarCoverage?{calendarCoverage:{...d.calendarCoverage,complete:false}}:{}),proposals:[]};return M&&d.email!=null?validate({...d,email:M.merge(null,d.email,d.sources,d.generatedAt)}):d;}
+  if(!old){let d=validate(incoming);if(calendarDown(d))d={...d,...(d.calendarCoverage?{calendarCoverage:{...d.calendarCoverage,complete:false}}:{}),proposals:d.proposals.filter(p=>startedIds(d).has(p.id))};return M&&d.email!=null?validate({...d,email:M.merge(null,d.email,d.sources,d.generatedAt)}):d;}
   const result={...old,...incoming};
   for(const key of ['actionHistory','candidateHistory'])result[key]=[...new Map([...(old[key]||[]),...(incoming[key]||[])].map(x=>[x.id,x])).values()];
   // Preserve the newer user-reported career state when merging an older snapshot.
@@ -91,7 +93,15 @@ function mergeSnapshot(old,incoming){
   result.sources=incoming.sources.map(s=>down.has(s.id)?{...s,lastSuccess:moved&&s.id===oldCal?null:old.sources.find(x=>x.id===s.id)?.lastSuccess||null}:s);
   // Only the active calendar source (legacy: outlook) invalidates coverage; an email or other source failure does not.
   // After an identity change the incomplete coverage shows the identity this import reported, never the previous one.
-  if(down.has(calendarSource(cov))){result.calendarCoverage={...(moved?cov:old.calendarCoverage),complete:false};result.proposals=[];}
+  // Started actions (pending, unverified, executed) are not actionable and stay as protections: a calendar failure keeps them, and a
+  // collector copy with the same ID never replaces their reviewed fields.
+  const started=startedIds(result);
+  if(down.has(calendarSource(cov))){result.calendarCoverage={...(moved?cov:old.calendarCoverage),complete:false};result.proposals=old.proposals.filter(p=>started.has(p.id));}
+  // Local planner blocks are not part of a source snapshot; keep those whose identity and evidence still hold.
+  else if(typeof module!=='undefined')result.proposals=[...incoming.proposals,...require('./planner.cjs').keep(old,result)];
+  // Of the old and incoming copies of a started action, the one matching the frozen receipt fingerprint wins, else the old one.
+  const P2=typeof module!=='undefined'?require('./phase2.cjs'):window.PlannerPhase2,receipt=new Map(result.actionHistory.map(h=>[h.id,h.fingerprint]));
+  result.proposals=result.proposals.map(p=>{if(!started.has(p.id))return p;const o=old.proposals.find(o=>o.id===p.id);return [o,p].find(x=>x&&P2&&P2.fingerprint(x)===receipt.get(p.id))||o||p;});
   if(M&&(old.email!=null||incoming.email!=null))result.email=M.merge(old.email,incoming.email,incoming.sources,incoming.generatedAt);
   return validate(result);
 }

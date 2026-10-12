@@ -14,6 +14,9 @@ function createServer(dir){const store=new Store(dir),sessions=new Map();const s
  if(req.method==='POST'&&u.pathname==='/api/progress')return send(200,{ok:true,...store.saveState(body.kind,body.id,body.value)});
  if(req.method==='POST'&&u.pathname==='/api/effort/confirm')return send(200,{sample:store.confirmEffort(body.id)});
  if(req.method==='POST'&&u.pathname==='/api/effort/clear')return send(200,store.clearEffort(body.id));
+ if(req.method==='POST'&&u.pathname==='/api/todos/save')return send(200,store.saveTodo(body?.todo));
+ if(req.method==='POST'&&u.pathname==='/api/todos/complete')return send(200,store.completeTodo(body?.id,body?.done));
+ if(req.method==='POST'&&u.pathname==='/api/plan/generate')return send(200,store.generatePlan(body?.date));
  if(req.method==='POST'&&u.pathname==='/api/workload-mode')return send(200,{mode:store.setWorkloadMode(body?.mode)});
  if(req.method==='POST'&&u.pathname==='/api/migrate-progress')return send(200,{migrated:store.migrateProgress(body)});
  if(req.method==='POST'&&u.pathname==='/api/backup')return send(200,{name:store.backup()});

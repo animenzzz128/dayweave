@@ -188,12 +188,14 @@
       {
         "id": "student@example.com",
         "name": "Student",
-        "role": "destination"
+        "role": "destination",
+        "accessRole": "owner"
       },
       {
         "id": "course-schedule@example.com",
         "name": "Course schedule",
-        "role": "busy"
+        "role": "busy",
+        "accessRole": "reader"
       }
     ],
     "checkedAt": "2026-10-07T12:00:00Z"

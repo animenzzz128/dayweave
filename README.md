@@ -15,6 +15,8 @@ The repository contains reusable application code and fictional examples only. P
 - Prepares an immutable Q-number for explicit confirmation in assistant chat. **The dashboard itself never writes to a calendar or learning platform.**
 - Rejects proposals that overlap known commitments, fall outside verified coverage, occur in the past, or reuse an executed action ID.
 - Retains source records on collection failure, marks stale snapshots, and keeps 30 days of local snapshots.
+- Recommends daily focus blocks from your todos and required coursework on request: deterministic, inside fresh complete Google Calendar coverage, 09:00–24:00, at most 90 minutes each with rest gaps and at least 20% left free. Recommendations are proposals; nothing is written without an approved Q version.
+- Keeps explicit local todos; an email becomes a todo only when you adopt it and confirm its title, due date and duration.
 - Shows the last collected read-only Gmail snapshot (inbox, last seven days, at most 50 messages) with its collection time and coverage. Nothing is sent, deleted or labelled.
 - Includes a reusable operating prompt for an assistant-driven refresh workflow.
 
@@ -65,7 +67,7 @@ Rendering does not collect data. An authorized assistant or future adapter suppl
 
 ## Phase 2 additions
 
-Calendar requests now include exact account and event fields, bounded daily/weekly recurrence checks, individually reviewed personal-event updates, and a local pending/verified action journal. Assignment help offers outline, draft, review, and explanation requests with user-supplied notes. See [the Phase 2 workflow](docs/phase-2.md) for execution and account-dependent acceptance requirements.
+Google Calendar writes follow a root-assistant procedure with a local verify/recheck/pending/read-back/reconcile tool after explicit chat approval of an exact Q version ([Google](docs/google.md#approved-google-calendar-writes-root-procedure)); the app itself never writes. Calendar requests include exact account and event fields, bounded daily/weekly recurrence checks, individually reviewed personal-event updates, and a local pending/verified action journal. Assignment help offers outline, draft, review, and explanation requests with user-supplied notes. See [the Phase 2 workflow](docs/phase-2.md) for execution and account-dependent acceptance requirements.
 
 ## Daily workflow
 

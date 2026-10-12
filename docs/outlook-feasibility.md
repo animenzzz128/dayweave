@@ -4,6 +4,8 @@ Decision date: 2026-10-08. Scope: issue #14, documentation and permitted read-on
 
 ## Decision
 
+Google path (2026-10-12): see [Phase 5 feasibility: Google path](google.md#phase-5-feasibility-google-path). It does not change this Outlook decision or resolve the administrator restriction.
+
 **NO-GO for implementing or enabling a remote Outlook executor now.** Supported provider mechanisms exist, but the permitted identity probe did not establish an authorized connector session. Calendar access, tenant consent, write permission, login renewal and unattended delivery remain unverified. No supported end-to-end Dayweave approval-to-executor channel has been demonstrated.
 
 **GO for retaining local review and the existing human chat-approval workflow**, conditional on independently verifying authorized source access on each run. It does not authorize a calendar write. Scheduled refreshes remain read-only. Email remains disabled. No OAuth registration, consent change, token acquisition, subscription, automation creation/change, provider mutation, messaging, submission, release or deployment was performed.
