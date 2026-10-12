@@ -85,15 +85,15 @@
 应用聊天的终端工具（如 `exec_command`）运行在 Herdr 之外，缺少 `HERDR_ENV=1` 是正常的。不要在那里断言或要求它，也不要在那里运行 `herdr` 控制命令（workspace、tab、pane、agent、worktree 等）。
 
 三种标识不要混用：
-- **Herdr 命名会话**：`herdr --session <名称>` 附着（不存在则创建）的独立服务器；客户端断开后会话和工作者继续运行。名称从私有配置取，通常与请求对应。
+- **Herdr 命名会话**：`herdr --session <名称>` 附着（不存在则创建）的、共享 Herdr 服务器上的命名会话，不是独立服务器；客户端断开后会话和工作者继续运行。名称从私有配置取，通常与请求对应。
 - **工作区/标签/面板 ID**（如 `w2`、`w2:p1`）：只在该命名会话内有效。每个请求一个工作区，最多一个写入面板和一个审查面板；协调者附着用的 shell 面板是控制面板，不是任务面板。
 - **PTY 会话 ID**：终端工具为这次附着返回的句柄，只用于后续 `write_stdin`/读取输出。它不是 Herdr ID；结束它只断开客户端，不停止 Herdr 会话。
 
 步骤：
 1. 用终端工具以 `tty=true`、工作目录为本请求工作树，运行已安装的 `herdr --session <请求会话名>`；记录返回的 PTY 会话 ID。不要无 TTY 附着：实测它不报错，而是照常附着并输出 TUI 画面，退出码不能说明附着是否可用。
 2. 读取 PTY 输出，等 TUI 绘制完成、目标面板出现 shell 提示符后再输入。
-3. **新建的会话**：只有一个初始 shell 面板且已选中。用 `write_stdin` 向它输入预检，例如 PowerShell：`if ($env:HERDR_ENV -eq '1') { $env:HERDR_SESSION; $env:HERDR_WORKSPACE_ID; $env:HERDR_PANE_ID } else { 'HERDR_ENV missing in pane' }`。会话名与预期一致后，在该面板运行 `herdr workspace list`、`herdr pane list --workspace <ID>`，再用显式 ID 和 `--no-focus` 创建或操作请求工作区。
-4. **已存在的会话**：附着后选中的是上次的焦点面板，可能正在运行工作者，向它输入会变成该工作者的输入。先从 PTY 画面判断选中面板；不能确认它是空闲在提示符的 shell 时，不输入任何内容。可用 TUI 自身的操作（如新建标签，按键以已安装 `herdr --default-config` 和用户配置为准）得到一个新的 shell 面板，确认画面后再预检；之后用 `herdr pane list` 取得显式 ID，查看工作者用 `herdr pane read` 等只读命令，不向工作者面板发送文字或按键。无法确定安全面板时，用 TUI 的 detach 操作断开并按失败处理。
+3. **新建的会话**：应用 shell 不能运行 herdr 命令，只能凭 PTY 画面判断。只有画面显示仅一个工作区、仅一个初始面板且停在 shell 提示符时才按新会话处理；否则（包括同一请求的会话已存在、重新进入恢复的情况）按第 4 步处理。新会话用 `write_stdin` 向该初始面板输入预检，例如 PowerShell：`if ($env:HERDR_ENV -eq '1') { $env:HERDR_SESSION; $env:HERDR_WORKSPACE_ID; $env:HERDR_PANE_ID } else { 'HERDR_ENV missing in pane' }`。会话名与预期一致后，在该面板运行 `herdr workspace list`、`herdr pane list --workspace <ID>`，再用显式 ID 和 `--no-focus` 创建或操作请求工作区。
+4. **已存在的会话**：附着后选中的是上次的焦点面板，可能正在运行工作者，向它输入会变成该工作者的输入。先从 PTY 画面判断选中面板；只有确认它是空闲在提示符的 shell 时才输入，不能确认（包括无法判断是否为工作者）时不输入任何内容。可用 TUI 自身的操作（如新建标签，按键以已安装 `herdr --default-config` 和用户配置为准）得到一个新的 shell 面板：新标签开在当前选中的工作区里，那可能属于其他请求，所以先确认选中的是本请求工作区再新建，并把新面板当作控制面板；新建是否移动焦点、焦点按客户端还是按会话保存尚未验证，不依赖焦点行为，每次输入前重新确认画面。确认新面板是空闲 shell 后再预检；之后用 `herdr pane list` 取得显式 ID，查看工作者用 `herdr pane read` 等只读命令，不向工作者面板发送文字或按键。无法确定安全面板时，用 TUI 的 detach 操作断开并按失败处理。
 5. 不执行 `herdr server stop` 或 `herdr session stop`，不关闭无关面板。
 
 ### 5. 模型路由
