@@ -57,3 +57,32 @@ test('a prepared version is invalidated when the verified account or provider ch
  }finally{s.close();fs.rmSync(dir,{recursive:true,force:true});}}
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'dw-legacy-')),s=new Store(dir);try{const d=fresh(legacy());s.importSnapshot(d);const q=A.prepare(s,[d.proposals[0].id]);s.importSnapshot(d);a.equal(A.read(s,q.reference).status,'prepared','an unchanged legacy import keeps the version');a.deepEqual(A.read(s,q.reference).errors,[]);}finally{s.close();fs.rmSync(dir,{recursive:true,force:true});}
 });
+
+test('review fixes: unavailable retains like failed, first-import failure invalidates, identity switches keep honest provenance',()=>{
+ for(const status of ['failed','unavailable']){const old=C.mergeSnapshot(null,google()),next=google();next.generatedAt='2026-10-08T12:00:00Z';next.sources.find(s=>s.id==='google-calendar').status=status;next.sources.find(s=>s.id==='google-calendar').lastSuccess=null;next.events=[];
+  const r=C.mergeSnapshot(old,next);a.deepEqual(r.events.map(e=>e.id),['gcal-seminar','gcal-holiday'],status+' keeps prior events');a.equal(r.sources.find(s=>s.id==='google-calendar').lastSuccess,'2026-10-07T12:00:00Z',status+' keeps lastSuccess');
+  const course=google();course.sources.find(s=>s.id==='course-a').status=status;course.assignments=course.assignments.filter(x=>x.sourceId!=='course-a');
+  a.deepEqual(C.mergeSnapshot(old,course).assignments.filter(x=>x.sourceId==='course-a').map(x=>x.id),old.assignments.filter(x=>x.sourceId==='course-a').map(x=>x.id),status+' coursework retained');
+  const first=google();first.sources.find(s=>s.id==='google-calendar').status=status;const f=C.mergeSnapshot(null,first);a.equal(f.calendarCoverage.complete,false,'first import '+status);a.deepEqual(f.proposals,[]);
+  a.ok(P.errors(google().proposals[0],f,now).length,'nothing is requestable after a first-import failure');}
+ const old=C.mergeSnapshot(null,google());
+ for(const edit of [c=>{c.account='other@example.com';},c=>{c.calendarId='course-schedule@example.com';c.calendar='Course schedule';}]){
+  const next=google();edit(next.calendarCoverage);next.sources.find(s=>s.id==='google-calendar').status='failed';next.events=[];const r=C.mergeSnapshot(old,next);
+  a.equal(r.calendarCoverage.complete,false);a.equal(r.calendarCoverage.account,next.calendarCoverage.account,'coverage shows the identity this import reported');a.equal(r.calendarCoverage.calendarId,next.calendarCoverage.calendarId);
+  a.deepEqual(r.events,[],'the previous identity\'s events are not kept');a.equal(r.sources.find(s=>s.id==='google-calendar').lastSuccess,null);a.deepEqual(r.proposals,[]);}
+ const same=google();same.sources.find(s=>s.id==='google-calendar').status='failed';same.calendarCoverage.checkedAt='2026-10-08T12:00:00Z';a.equal(C.mergeSnapshot(old,same).calendarCoverage.checkedAt,'2026-10-07T12:00:00Z','same identity keeps the earlier checked window');
+ const shaped=google();delete shaped.calendarCoverage.provider;a.throws(()=>C.mergeSnapshot(null,shaped),/Coverage without a provider is Outlook coverage/);a.throws(()=>C.validate(shaped),/provider "google"/);
+ const both=google();delete both.calendarCoverage.provider;both.sources.push({id:'outlook',name:'Legacy',status:'ok'});a.doesNotThrow(()=>C.validate(both),'an Outlook source keeps legacy-shaped coverage valid');
+ a.doesNotThrow(()=>C.mergeSnapshot(C.mergeSnapshot(null,legacy()),legacy()),'legacy Outlook snapshots still import');
+});
+
+test('a prepared Google version is invalidated by an account switch whose calendar read failed',()=>{
+ const real=Date.now(),iso=h=>new Date(real+h*3600000).toISOString(),day=C.dayKey(real+86400000);
+ const fresh=d=>{C.configure(d.timezone);d.generatedAt=iso(0);d.calendarCoverage={...d.calendarCoverage,checkedAt:iso(0),start:iso(-1),end:iso(96)};d.events=[];d.proposals=d.proposals.map(p=>({...p,start:C.zonedISO(day,'14:00'),end:C.zonedISO(day,'15:00')}));d.email&&(d.email.checkedAt=iso(0),d.email.request={...d.email.request,from:iso(-168),to:iso(0)},d.email.messages=[]);return d;};
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'dw-google-switch-')),s=new Store(dir);try{
+  const d=fresh(google());s.importSnapshot(d);const q=A.prepare(s,[d.proposals[0].id]);a.equal(q.status,'prepared');
+  const next=fresh(google());next.calendarCoverage.account='other@example.com';next.sources.find(x=>x.id==='google-calendar').status='unavailable';s.importSnapshot(next);
+  const cov=s.snapshot().calendarCoverage;a.equal(cov.account,'other@example.com');a.equal(cov.complete,false);a.equal(A.read(s,q.reference).status,'invalidated');
+  a.throws(()=>A.record(s,{reference:q.reference,id:d.proposals[0].id,status:'pending',recordedAt:iso(0),humanApproval:'synthetic'}),/no longer executable/);
+ }finally{s.close();fs.rmSync(dir,{recursive:true,force:true});}
+});
