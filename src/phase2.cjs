@@ -17,7 +17,7 @@ function occurrences(p){
  if(step*(r.count-1)>90)throw Error('Keep the reviewed recurrence horizon within 90 days.');
  return Array.from({length:r.count},(_,i)=>{const d=new Date(Date.parse(date+'T12:00:00Z')+i*step*86400000).toISOString().slice(0,10);return {start:C.zonedISO(d,`${s.hour}:${s.minute}`),end:C.zonedISO(d,`${e.hour}:${e.minute}`)};});
 }
-function errors(p,d,now=new Date()){
+function errors(p,d,now=new Date(),started=[]){
  C.configure(d.timezone);const out=[];
  if(!p.id||!p.title?.trim())out.push('An action ID and title are required.');
  if(p.status&&p.status!=='proposed')out.push('Only a current proposed action can be approved.');
@@ -50,8 +50,16 @@ function errors(p,d,now=new Date()){
  }
  let list=[];try{list=occurrences(p);}catch(e){out.push(e.message);}
  // Every occurrence of an action already started (pending, unverified or executed) is taken, even before it reaches the calendar.
- const startedIds=new Set((d.actionHistory||[]).filter(h=>['pending','unverified','executed'].includes(h.status)).map(h=>h.id)),taken=[];
- for(const q of (d.proposals||[]).filter(q=>q.id!==p.id&&startedIds.has(q.id))){try{taken.push(...occurrences(q));}catch{out.push('An already started action could not be expanded into occurrences; reconcile it first.');}}
+ // Only the copy whose fingerprint matches the frozen receipt counts (the store's approval copies first, then the snapshot); a
+ // stale same-ID copy never does. A pending or unverified action with no matching copy has unknown time, so nothing is requestable.
+ // An update may overlap the executed create of its own target event (same receipt remoteRef).
+ const taken=[],copies=[...started,...(d.proposals||[])];
+ for(const h of (d.actionHistory||[]).filter(h=>h.id!==p.id&&['pending','unverified','executed'].includes(h.status))){
+   if(p.action==='update'&&h.remoteRef&&h.remoteRef===p.remoteRef)continue;
+   const q=copies.find(q=>q&&q.id===h.id&&fingerprint(q)===h.fingerprint);
+   if(!q){if(h.status!=='executed')out.push('An already started action has no stored copy matching its receipt, so its time is unknown; reconcile it first.');continue;}
+   try{taken.push(...occurrences(q));}catch{out.push('An already started action could not be expanded into occurrences; reconcile it first.');}
+ }
  for(const o of list){
    if(taken.some(t=>C.overlap(o,t)))out.push('Overlaps an action that was already started (pending, unverified or executed).');
    const base=C.proposalErrors({...p,...o},{...d,events:d.events.filter(e=>e.id!==exclude),actionHistory:[]},now);out.push(...base);
@@ -59,9 +67,9 @@ function errors(p,d,now=new Date()){
  }
  return [...new Set(out)];
 }
-function request(chosen,d,now=new Date()){
+function request(chosen,d,now=new Date(),started=[]){
  if(!chosen.length)throw Error('Select at least one proposal.');
- const failures=chosen.flatMap(p=>errors(p,d,now).map(e=>`${p.title}: ${e}`));
+ const failures=chosen.flatMap(p=>errors(p,d,now,started).map(e=>`${p.title}: ${e}`));
  if(new Set(chosen.map(p=>p.id)).size!==chosen.length)failures.push('Duplicate selected action IDs.');
  const targets=chosen.filter(p=>p.action==='update').map(p=>p.remoteRef);if(new Set(targets).size!==targets.length)failures.push('Select only one change per existing event.');
  if(failures.length)throw Error(failures.join('\n'));
