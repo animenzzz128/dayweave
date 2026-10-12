@@ -29,6 +29,7 @@ const CAL_DOWN=['failed','unavailable'];
 function calendarSource(cov){return typeof cov?.sourceId==='string'&&cov.sourceId?cov.sourceId:'outlook';}
 function calendarProvider(x){return x?.provider||'outlook';}
 function sameCalendar(a,b){const p=calendarProvider(a);return p===calendarProvider(b)&&calendarSource(a)===calendarSource(b)&&(a?.account??null)===(b?.account??null)&&(p!=='google'||a?.calendarId===b?.calendarId);}
+const startedIds=d=>new Set((d.actionHistory||[]).filter(h=>['pending','unverified','executed'].includes(h.status)).map(h=>h.id));
 // The active calendar source of a snapshot is failed or unavailable.
 function calendarDown(d){const id=calendarSource(d.calendarCoverage);return d.sources.some(s=>s.id===id&&CAL_DOWN.includes(s.status));}
 function validateCoverage(cov,sources){
@@ -73,7 +74,7 @@ function proposalErrors(p,data,now=new Date()){
 function mergeSnapshot(old,incoming){
   const M=emailModule();
   // A first import gets the same active-calendar failure invalidation as later ones.
-  if(!old){let d=validate(incoming);if(calendarDown(d))d={...d,...(d.calendarCoverage?{calendarCoverage:{...d.calendarCoverage,complete:false}}:{}),proposals:[]};return M&&d.email!=null?validate({...d,email:M.merge(null,d.email,d.sources,d.generatedAt)}):d;}
+  if(!old){let d=validate(incoming);if(calendarDown(d))d={...d,...(d.calendarCoverage?{calendarCoverage:{...d.calendarCoverage,complete:false}}:{}),proposals:d.proposals.filter(p=>startedIds(d).has(p.id))};return M&&d.email!=null?validate({...d,email:M.merge(null,d.email,d.sources,d.generatedAt)}):d;}
   const result={...old,...incoming};
   for(const key of ['actionHistory','candidateHistory'])result[key]=[...new Map([...(old[key]||[]),...(incoming[key]||[])].map(x=>[x.id,x])).values()];
   // Preserve the newer user-reported career state when merging an older snapshot.
@@ -92,9 +93,13 @@ function mergeSnapshot(old,incoming){
   result.sources=incoming.sources.map(s=>down.has(s.id)?{...s,lastSuccess:moved&&s.id===oldCal?null:old.sources.find(x=>x.id===s.id)?.lastSuccess||null}:s);
   // Only the active calendar source (legacy: outlook) invalidates coverage; an email or other source failure does not.
   // After an identity change the incomplete coverage shows the identity this import reported, never the previous one.
-  if(down.has(calendarSource(cov))){result.calendarCoverage={...(moved?cov:old.calendarCoverage),complete:false};result.proposals=[];}
+  // Started actions (pending, unverified, executed) are not actionable and stay as protections: a calendar failure keeps them, and a
+  // collector copy with the same ID never replaces their reviewed fields.
+  const started=startedIds(result);
+  if(down.has(calendarSource(cov))){result.calendarCoverage={...(moved?cov:old.calendarCoverage),complete:false};result.proposals=old.proposals.filter(p=>started.has(p.id));}
   // Local planner blocks are not part of a source snapshot; keep those whose identity and evidence still hold.
-  else if(typeof module!=='undefined')result.proposals=[...incoming.proposals,...require('./planner.cjs').keep(old,result,down)];
+  else if(typeof module!=='undefined')result.proposals=[...incoming.proposals,...require('./planner.cjs').keep(old,result)];
+  result.proposals=result.proposals.map(p=>started.has(p.id)&&old.proposals.find(o=>o.id===p.id)||p);
   if(M&&(old.email!=null||incoming.email!=null))result.email=M.merge(old.email,incoming.email,incoming.sources,incoming.generatedAt);
   return validate(result);
 }

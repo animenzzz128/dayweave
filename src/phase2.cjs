@@ -49,7 +49,11 @@ function errors(p,d,now=new Date()){
    if(!['One time','none',undefined].includes(p.recurrence))out.push('Recurrence changes require a separately supported workflow.');
  }
  let list=[];try{list=occurrences(p);}catch(e){out.push(e.message);}
+ // Every occurrence of an action already started (pending, unverified or executed) is taken, even before it reaches the calendar.
+ const startedIds=new Set((d.actionHistory||[]).filter(h=>['pending','unverified','executed'].includes(h.status)).map(h=>h.id)),taken=[];
+ for(const q of (d.proposals||[]).filter(q=>q.id!==p.id&&startedIds.has(q.id))){try{taken.push(...occurrences(q));}catch{out.push('An already started action could not be expanded into occurrences; reconcile it first.');}}
  for(const o of list){
+   if(taken.some(t=>C.overlap(o,t)))out.push('Overlaps an action that was already started (pending, unverified or executed).');
    const base=C.proposalErrors({...p,...o},{...d,events:d.events.filter(e=>e.id!==exclude),actionHistory:[]},now);out.push(...base);
    if(d.events.some(e=>e.id!==exclude&&e.title===p.title&&Date.parse(e.start)===Date.parse(o.start)&&Date.parse(e.end)===Date.parse(o.end)))out.push('An event with the same title and interval already exists.');
  }
