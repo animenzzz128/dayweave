@@ -72,16 +72,20 @@ function proposalErrors(p,data,now=new Date()){
  return errors;
 }
 // Google execution receipts start only as a pending receipt the local bridge records in this database, so a snapshot import
-// never adds one. An incoming receipt counts as Google when it says so, carries bridge-only fields, belongs to a Google
-// proposal or receipt (`googleIds` adds the store's approval copies), or, under Google coverage, to no Outlook proposal.
-// Receipts the local journal already holds are ignored (local wins). A consistency guard, not authentication.
-const BRIDGE_FIELDS=['idempotencyKey','store','connector','calendarId','hold','holdScope','conclusion'];
+// never adds one. An incoming receipt the local journal lacks is rejected when it names a provider other than Outlook, carries
+// a field only Google receipts have (GOOGLE_FIELDS or a structured humanApproval, including the planner's sourceRefs/minutes),
+// or belongs to a Google proposal or receipt (`googleIds` adds the store's approval copies). While the local or incoming
+// coverage is Google, every other new receipt is rejected too unless it belongs to an Outlook proposal already in the local
+// snapshot: an incoming proposal never vouches for its own receipt. Receipts the local journal already holds are ignored
+// (local wins). A consistency guard, not authentication.
+const GOOGLE_FIELDS=['idempotencyKey','store','connector','account','calendarId','sourceRefs','minutes','hold','holdScope','conclusion'];
 function importedGoogleReceipts(old,incoming,googleIds=[]){
-  const props=[...(old?.proposals||[]),...(incoming.proposals||[])],google=new Set(googleIds),local=new Set((old?.actionHistory||[]).map(h=>h.id));
-  for(const p of props)if(calendarProvider(p)==='google')google.add(p.id);
+  const google=new Set(googleIds),local=new Set((old?.actionHistory||[]).map(h=>h?.id));
+  for(const p of [...(old?.proposals||[]),...(incoming.proposals||[])])if(calendarProvider(p)==='google')google.add(p.id);
   for(const h of old?.actionHistory||[])if(h?.provider==='google')google.add(h.id);
-  const outlook=new Set(props.filter(p=>!google.has(p.id)).map(p=>p.id)),googleCoverage=calendarProvider(incoming.calendarCoverage||old?.calendarCoverage)==='google';
-  return (Array.isArray(incoming.actionHistory)?incoming.actionHistory:[]).filter(h=>!local.has(h?.id)&&(h?.provider==='google'||BRIDGE_FIELDS.some(k=>h?.[k]!=null)||google.has(h?.id)||googleCoverage&&!outlook.has(h?.id))).map(h=>String(h?.id));
+  const outlook=new Set((old?.proposals||[]).filter(p=>!google.has(p.id)).map(p=>p.id)),googleCoverage=[old?.calendarCoverage,incoming.calendarCoverage].some(c=>c&&calendarProvider(c)==='google');
+  const googleShaped=h=>calendarProvider(h)!=='outlook'||GOOGLE_FIELDS.some(k=>h?.[k]!=null)||(!!h?.humanApproval&&typeof h.humanApproval==='object');
+  return (Array.isArray(incoming.actionHistory)?incoming.actionHistory:[]).filter(h=>!local.has(h?.id)&&(googleShaped(h)||google.has(h?.id)||googleCoverage&&!outlook.has(h?.id))).map(h=>String(h?.id));
 }
 function mergeSnapshot(old,incoming,{googleIds=[]}={}){
   const M=emailModule(),forged=importedGoogleReceipts(old,incoming,googleIds);

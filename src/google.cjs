@@ -131,26 +131,38 @@ function readback(s,ref,id,rb,now=new Date(),{fromReconcile=false}={}){const {p,
 // Several marked events once found for an action keep it held until a complete reconcile finds exactly one; an unknown or
 // partial read in between does not clear it.
 const held=h=>h?.hold==='ambiguous'||h?.conclusion==='ambiguous';
-// The hold remembers where several marked events were found: the union of those complete searches' windows and calendars,
-// and the matches. A single match clears it only from complete reads covering all of that and 24 hours either side of the
-// action, so a narrower search cannot leave another marked event unseen. Holds recorded before scopes were kept only have
-// the 24-hour minimum.
-function widen(scope,search,matches){if(scope&&!(instant(scope.start)&&instant(scope.end)))scope={...scope,start:search.start,end:search.end};const ids=(search.reads||[]).map(r=>r.calendarId),iso=x=>new Date(x).toISOString();
- return {start:iso(Math.min(Date.parse(search.start),scope?Date.parse(scope.start):Infinity)),end:iso(Math.max(Date.parse(search.end),scope?Date.parse(scope.end):-Infinity)),
-  calendars:[...new Set([...(scope?.calendars||[]),...ids])].sort(),matches:[...new Set([...(scope?.matches||[]),...matches])]};}
-function uncovered(p,scope,search){if(scope&&!(instant(scope.start)&&instant(scope.end)&&Array.isArray(scope.calendars)))return ['resolve it with the human: the recorded hold scope cannot be read, so no search can be shown to cover it'];const from=Math.min(Date.parse(p.start)-ABSENCE_MARGIN_MS,scope?Date.parse(scope.start):Infinity),to=Math.max(Date.parse(p.end)+ABSENCE_MARGIN_MS,scope?Date.parse(scope.end):-Infinity),read=(search.reads||[]).map(r=>r.calendarId),out=[];
+// The hold remembers where marked events were seen: the windows and read calendars of those searches, and the matches with
+// their calendars and times. A single match clears it only from complete reads covering all of that and 24 hours either side
+// of the action, so a narrower search cannot leave a known marked event unseen. A hold with no recorded scope (recorded before
+// scopes were kept) or an unreadable one has an unknown range: `unknown` is set and stays set, only the readable parts are
+// kept, and no search can clear it; the human has to resolve it.
+const names=x=>Array.isArray(x)?x.filter(v=>typeof v==='string'&&v):[];
+function scopeOf(h){const raw=h?.holdScope,x=plain(raw)?raw:{},all=v=>Array.isArray(v)&&v.every(i=>typeof i==='string'&&i);
+ const known=plain(raw)&&x.unknown!==true&&instant(x.start)&&instant(x.end)&&Date.parse(x.start)<=Date.parse(x.end)&&all(x.calendars)&&all(x.matches);
+ return {start:instant(x.start)?x.start:null,end:instant(x.end)?x.end:null,calendars:names(x.calendars),matches:names(x.matches),...(known?{}:{unknown:true})};}
+// Adds the marked events one search saw: each match with its calendar and interval. A search that saw several also adds its
+// window and read calendars. That window counts only when both bounds are valid instants; otherwise, or when a match has no
+// calendar, the range becomes unknown rather than invented.
+function widen(scope,search,found,tz){const several=found.length>1,bounds=plain(search)&&instant(search.start)&&instant(search.end)&&Date.parse(search.start)<=Date.parse(search.end),iso=x=>new Date(x).toISOString(),wide=several&&bounds;
+ const spans=found.map(x=>times(x.event,tz)).filter(Boolean),from=[...(scope?.start?[Date.parse(scope.start)]:[]),...(wide?[Date.parse(search.start)]:[]),...spans.map(t=>t.start)],to=[...(scope?.end?[Date.parse(scope.end)]:[]),...(wide?[Date.parse(search.end)]:[]),...spans.map(t=>t.end)];
+ const read=several&&plain(search)&&Array.isArray(search.reads)?search.reads.filter(plain).map(r=>r.calendarId):[],lost=several&&!bounds||found.some(x=>typeof x.calendarId!=='string'||!x.calendarId);
+ return {start:from.length?iso(Math.min(...from)):null,end:to.length?iso(Math.max(...to)):null,calendars:[...new Set([...(scope?.calendars||[]),...names(read),...names(found.map(x=>x.calendarId))])].sort(),
+  matches:[...new Set([...(scope?.matches||[]),...found.map(x=>x.calendarId+'/'+x.event.id)])],...(scope?.unknown||lost?{unknown:true}:{})};}
+function uncovered(p,scope,search){if(scope.unknown)return ['resolve it with the human: the earlier hold scope is unknown (recorded before scopes were kept, unreadable, or seen by a search without valid bounds), so no search can be shown to cover it'];
+ const from=Math.min(Date.parse(p.start)-ABSENCE_MARGIN_MS,Date.parse(scope.start)),to=Math.max(Date.parse(p.end)+ABSENCE_MARGIN_MS,Date.parse(scope.end)),read=names(search.reads.map(r=>r.calendarId)),out=[];
  if(!(Date.parse(search.start)<=from&&Date.parse(search.end)>=to))out.push('read '+new Date(from).toISOString()+' to '+new Date(to).toISOString());
- const missing=(scope?.calendars||[]).filter(c=>!read.includes(c));if(missing.length)out.push('read '+missing.join(', '));return out;}
+ const missing=scope.calendars.filter(c=>!read.includes(c));if(missing.length)out.push('read '+missing.join(', '));return out;}
 // 5. Reconcile an unknown outcome from a fresh complete live re-read. Absence needs positive evidence: complete reads of every
 // queried calendar from at least 24 hours before to 24 hours after the action, and it holds only for that window (never global
 // absence). Ambiguity, unmarked look-alikes and markers on another calendar stay unverified. Calendar provenance always comes
 // from the read, never the target.
 function reconcile(s,ref,id,search,now=new Date()){const {p,k,d,h}=action(s,ref,id),st=h?.status;if(!['pending','unverified'].includes(st))throw Error('Nothing to reconcile (current: '+(st||'none')+').');
  const r=live(p,k,search,d,now),at=new Date(now).toISOString(),note=(x,extra={})=>({reference:ref,id,recordedAt:at,...x,...extra}),hold=held(h);
- // Several marked events on the destination in a complete search start or widen the hold, whatever else the search found.
- const several=!r.errors.length&&r.target.length>1,scope=several?widen(h?.holdScope,search,r.target.map(x=>x.calendarId+'/'+x.event.id)):h?.holdScope;
- const stay=(conclusion,evidenceText,extra={})=>{const keep=hold||several;A.record(s,note({status:'unverified',conclusion,...(keep?{hold:'ambiguous',...(scope?{holdScope:scope}:{})}:{}),evidence:evidenceText+(hold&&conclusion!=='ambiguous'?' Several marked events were found earlier; only a complete reconcile that finds exactly one clears that.':'')}),{bridge:A.BRIDGE});return {id,status:'unverified',conclusion,...(keep?{hold:'ambiguous'}:{}),...extra};};
- if(r.errors.length)return stay('unknown','Outcome unknown; the search cannot decide: '+r.errors.join(' '),{errors:r.errors});
+ // Marked events this search saw, on the destination or another calendar, even if it was incomplete or had errors: they exist.
+ // Two or more start or widen the hold; while held, any marked event seen joins the scope. Calendar provenance comes from the read.
+ const found=[...r.target,...r.foreign],seen=found.map(x=>x.calendarId+'/'+x.event.id),several=found.length>1,keep=hold||several,prior=hold?scopeOf(h):null,scope=keep&&found.length?widen(prior,search,found,p.timezone):prior;
+ const stay=(conclusion,evidenceText,extra={})=>{A.record(s,note({status:'unverified',conclusion,...(keep?{hold:'ambiguous',holdScope:scope}:{}),evidence:evidenceText+(several&&!hold?' Several marked events were seen ('+seen.join(', ')+'); the action is held until a complete reconcile covering where they were found finds exactly one.':'')+(hold&&conclusion!=='ambiguous'?' Several marked events were found earlier; only a complete reconcile that finds exactly one clears that.':'')}),{bridge:A.BRIDGE});return {id,status:'unverified',conclusion,...(keep?{hold:'ambiguous'}:{}),...extra};};
+ if(r.errors.length)return stay('unknown','Outcome unknown; the search cannot decide: '+r.errors.join(' '),{errors:r.errors,...(seen.length?{matches:seen}:{})});
  if(r.foreign.length)return stay('other-calendar','This action\'s marker was found on another calendar ('+r.foreign.map(x=>x.calendarId+'/'+x.event.id).join(', ')+'); the write may have landed on the wrong calendar. Human resolution required; do not delete or retry automatically.',{matches:r.foreign.map(x=>x.calendarId+'/'+x.event.id)});
  if(r.target.length>1)return stay('ambiguous','Multiple matching events ('+r.target.map(x=>x.event.id).join(', ')+'); human resolution required. Do not delete or retry automatically.',{matches:r.target.map(x=>x.event.id)});
  if(!r.target.length&&r.possible.length)return stay('unmarked','An event with the same title and times but no action marker exists on the destination ('+r.possible.map(x=>x.event.id).join(', ')+'); human resolution required.',{matches:r.possible.map(x=>x.event.id)});
@@ -158,7 +170,7 @@ function reconcile(s,ref,id,search,now=new Date()){const {p,k,d,h}=action(s,ref,
   if(hold)return stay('ambiguous','A complete re-read now finds no marked event, but several were found earlier; human resolution required. Do not retry automatically.');
   if(!(Date.parse(search.start)<=Date.parse(p.start)-ABSENCE_MARGIN_MS&&Date.parse(search.end)>=Date.parse(p.end)+ABSENCE_MARGIN_MS))return stay('unknown','No marked event in '+search.start+' to '+search.end+', but absence needs complete reads from at least 24 hours before to 24 hours after the action; read the wider window.');
   A.record(s,note({status:'not_created',evidence:'Complete live re-read at '+search.checkedAt+' of '+search.reads.length+' calendars ('+search.reads.map(x=>x.calendarId).join(', ')+') from '+search.start+' to '+search.end+' found no event with this action marker in that window.'}),{bridge:A.BRIDGE});return {id,status:'not_created',conclusion:'absent in the searched window; a retry needs a newly prepared and approved version'};}
- const one=r.target[0],gap=hold?uncovered(p,h.holdScope,search):[];
- if(gap.length)return stay('ambiguous','One marked event ('+one.event.id+') was found, but several were found earlier'+(Array.isArray(h.holdScope?.calendars)?' between '+h.holdScope.start+' and '+h.holdScope.end+' on '+h.holdScope.calendars.join(', '):'')+'; this search does not rule out another one. To clear the hold, '+gap.join(' and ')+' completely.',{matches:[one.calendarId+'/'+one.event.id],needs:gap});
+ const one=r.target[0],gap=hold?uncovered(p,prior,search):[];
+ if(gap.length)return stay('ambiguous','One marked event ('+one.event.id+') was found, but several were found earlier'+(prior.unknown?' in a range that is not known':' between '+prior.start+' and '+prior.end+' on '+prior.calendars.join(', '))+'; this search does not rule out another one. To clear the hold, '+gap.join(' and ')+(prior.unknown?'.':' completely.'),{matches:[one.calendarId+'/'+one.event.id],needs:gap});
  return {...readback(s,ref,id,{calendarId:one.calendarId,account:search.account,event:one.event},now,{fromReconcile:true}),conclusion:'one match read back'};}
 module.exports={LIVE_MAX_AGE_MS,ABSENCE_MARGIN_MS,PROFILE,key,marker,description,required,toConnector,actionErrors,evidence,times,live,compare,verify,recheck,pending,readback,reconcile};

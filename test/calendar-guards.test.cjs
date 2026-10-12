@@ -39,26 +39,27 @@ test('item1: the hold scope widens across rounds and names every calendar read; 
  let r=G.reconcile(s,R,p.id,read(s,p,{events:{[DEST]:[marked(p,k,'a1'),marked(p,k,'a2')]}}));a.equal(r.conclusion,'ambiguous');
  r=G.reconcile(s,R,p.id,read(s,p,{before:30,after:30,extra:[EXTRA],events:{[DEST]:[marked(p,k,'a1'),marked(p,k,'a3',27)]}}));a.equal(r.conclusion,'ambiguous');
  const scope=receipt(s,p.id).holdScope;a.equal(Date.parse(scope.start),Date.parse(p.start)-30*H);a.equal(Date.parse(scope.end),Date.parse(p.end)+30*H);a.ok(scope.calendars.includes(EXTRA));a.deepEqual(scope.matches,[DEST+'/a1',DEST+'/a2',DEST+'/a3']);
- for(const [search,re] of [[read(s,p,{before:31,after:31,extra:[EXTRA],complete:false,events:{[DEST]:[marked(p,k,'a1')]}}),/unknown/],[read(s,p,{before:31,after:31,extra:[EXTRA],events:{[OTHER]:[marked(p,k,'w1')],[DEST]:[marked(p,k,'a1')]}}),/other-calendar/],[read(s,p,{before:31,after:31,extra:[EXTRA]}),/ambiguous/]]){
-  r=G.reconcile(s,R,p.id,search);a.equal(r.status,'unverified');a.match(r.conclusion,re);a.equal(receipt(s,p.id).hold,'ambiguous');a.deepEqual(receipt(s,p.id).holdScope,scope);}
+ // A single marked event seen while held joins the matches (with its calendar); it does not add the search's window.
+ for(const [search,re,more] of [[read(s,p,{before:31,after:31,extra:[EXTRA],complete:false,events:{[DEST]:[marked(p,k,'a1')]}}),/unknown/,[]],[read(s,p,{before:31,after:31,extra:[EXTRA],events:{[OTHER]:[marked(p,k,'w1')]}}),/other-calendar/,[OTHER+'/w1']],[read(s,p,{before:31,after:31,extra:[EXTRA]}),/ambiguous/,[]]]){
+  r=G.reconcile(s,R,p.id,search);a.equal(r.status,'unverified');a.match(r.conclusion,re);a.equal(receipt(s,p.id).hold,'ambiguous');scope.matches.push(...more);a.deepEqual(receipt(s,p.id).holdScope,scope);}
  r=G.reconcile(s,R,p.id,read(s,p,{before:25,after:25,extra:[EXTRA],events:{[DEST]:[marked(p,k,'a1')]}}));a.equal(r.status,'unverified','25 hours does not cover the 30-hour round');
  r=G.reconcile(s,R,p.id,read(s,p,{before:31,after:31,events:{[DEST]:[marked(p,k,'a1')]}}));a.equal(r.status,'unverified','a calendar read in the ambiguous round must be read again');a.match(r.needs.join(' '),/extra-calendar@example\.com/);
  r=G.reconcile(s,R,p.id,read(s,p,{before:30,after:30,extra:[EXTRA],events:{[DEST]:[marked(p,k,'a1')]}}));a.equal(r.status,'executed',JSON.stringify(r));
 }));
 
-test('item1: several marked events also hold when a marker is on another calendar; holds without a recorded scope need 24 hours either side',()=>withStore(s=>{
+test('item1: several marked events also hold when a marker is on another calendar; holds without a recorded scope never clear by themselves',()=>withStore(s=>{
  const {x,y}=setup(s),{q,p,k}=start(s,[x.id,y.id],x.id),R=q.reference;
  let r=G.reconcile(s,R,p.id,read(s,p,{events:{[OTHER]:[marked(p,k,'w1')],[DEST]:[marked(p,k,'a1'),marked(p,k,'a2')]}}));a.equal(r.conclusion,'other-calendar');a.equal(receipt(s,p.id).hold,'ambiguous','several on the destination hold even with a foreign marker');
  r=G.reconcile(s,R,p.id,read(s,p,{events:{[DEST]:[marked(p,k,'a1')]}}));a.equal(r.status,'unverified');
- // A hold recorded before scopes were kept: no range is known, so the documented 24-hour minimum applies.
+ // A hold recorded before scopes were kept: its range is unknown, so even 24 hours either side cannot be shown to cover it.
  const t=start(s,[y.id],y.id),h=receipt(s,y.id);s.db.prepare('UPDATE receipts SET value=? WHERE id=?').run(JSON.stringify({...h,status:'unverified',conclusion:'ambiguous',hold:'ambiguous',recordedAt:new Date().toISOString(),evidence:'Multiple matching events (b1, b2).'}),y.id);
  r=G.reconcile(s,t.q.reference,y.id,read(s,t.p,{events:{[DEST]:[marked(t.p,t.k,'b1')]}}));a.equal(r.status,'unverified','legacy hold: narrow search refused');
- r=G.reconcile(s,t.q.reference,y.id,read(s,t.p,{before:24,after:24,events:{[DEST]:[marked(t.p,t.k,'b1')]}}));a.equal(r.status,'executed','legacy hold: 24 hours either side clears');
+ r=G.reconcile(s,t.q.reference,y.id,read(s,t.p,{before:24,after:24,events:{[DEST]:[marked(t.p,t.k,'b1')]}}));a.equal(r.status,'unverified','legacy hold: the range is unknown');a.match(r.needs.join(' '),/hold scope is unknown/);
  // Without a hold, one marked event in a narrow complete search is still read back as before.
  withStore(s2=>{const {x:x2,y:y2}=setup(s2),u=start(s2,[x2.id],x2.id);a.equal(G.reconcile(s2,u.q.reference,x2.id,read(s2,u.p,{events:{[DEST]:[marked(u.p,u.k,'c1')]}})).status,'executed');
   // An unreadable stored scope fails closed instead of being treated as covered.
   const v=start(s2,[y2.id],y2.id),hv=receipt(s2,y2.id);s2.db.prepare('UPDATE receipts SET value=? WHERE id=?').run(JSON.stringify({...hv,status:'unverified',conclusion:'ambiguous',hold:'ambiguous',holdScope:{start:'garbage',end:null},recordedAt:new Date().toISOString(),evidence:'Multiple matching events.'}),y2.id);
-  const w=G.reconcile(s2,v.q.reference,y2.id,read(s2,v.p,{before:48,after:48,events:{[DEST]:[marked(v.p,v.k,'d1')]}}));a.equal(w.status,'unverified');a.match(w.needs.join(' '),/hold scope cannot be read/);});
+  const w=G.reconcile(s2,v.q.reference,y2.id,read(s2,v.p,{before:48,after:48,events:{[DEST]:[marked(v.p,v.k,'d1')]}}));a.equal(w.status,'unverified');a.match(w.needs.join(' '),/hold scope is unknown/);});
 }));
 
 // Item 2: every not_created version stays refused, through later versions, restore and import.
@@ -135,3 +136,105 @@ test('item4: Review labels not_created as absent in the searched window, with ea
  const html=node('#page').innerHTML;a.match(html,/data-status="not_created"/);a.match(html,/Not created · absent in searched window/);a.doesNotMatch(html,/verified absent/i);
  a.match(html,/found no event with this action marker in that window/);a.match(html,new RegExp('not_created under '+V.at(-1).reference),'earlier not_created states name their version');
 });
+
+// Review round 1 of #46: unknown hold ranges, holds from incomplete or cross-calendar searches, imported receipts that vouch
+// for themselves, and outcomes of claims that already started.
+const put=(s,id,h)=>s.db.prepare('UPDATE receipts SET value=? WHERE id=?').run(JSON.stringify(h),id);
+const legacyHold=(s,id,extra={})=>put(s,id,{...receipt(s,id),status:'unverified',conclusion:'ambiguous',hold:'ambiguous',recordedAt:new Date().toISOString(),evidence:'Multiple matching events.',...extra});
+test('B1: a hold recorded without a scope stays held, since an earlier wider search may have seen a match 40 hours away',()=>withStore(s=>{
+ const {x}=setup(s),{q,p,k}=start(s,[x.id],x.id),R=q.reference;
+ // Before scopes were kept, a ±48h search found a1 at the action time and a2 40 hours later and recorded only the hold.
+ legacyHold(s,x.id);
+ for(const w of [24,48,100]){const r=G.reconcile(s,R,x.id,read(s,p,{before:w,after:w,events:{[DEST]:[marked(p,k,'a1')]}}));a.equal(r.status,'unverified','±'+w+'h cannot be shown to cover an unknown range');a.match(r.needs.join(' '),/hold scope is unknown/);}
+ a.equal(receipt(s,x.id).hold,'ambiguous');a.equal(receipt(s,x.id).holdScope.unknown,true,'the unknown range is recorded');a.deepEqual(receipt(s,x.id).holdScope.matches,[DEST+'/a1']);
+ // A later ambiguous narrow search cannot replace the unknown range with its own window.
+ let r=G.reconcile(s,R,x.id,read(s,p,{events:{[DEST]:[marked(p,k,'a1'),marked(p,k,'a3')]}}));a.equal(r.conclusion,'ambiguous');
+ a.equal(receipt(s,x.id).holdScope.unknown,true,'unknown stays set');a.deepEqual(receipt(s,x.id).holdScope.matches,[DEST+'/a1',DEST+'/a3']);
+ r=G.reconcile(s,R,x.id,read(s,p,{before:24,after:24,events:{[DEST]:[marked(p,k,'a1')]}}));a.equal(r.status,'unverified');a.equal(receipt(s,x.id).hold,'ambiguous');
+ a.throws(()=>G.readback(s,R,x.id,{calendarId:DEST,account:p.account,event:marked(p,k,'a1')}),/Several matching events/);
+}));
+
+test('B1: an unreadable scope stays unknown after a later ambiguous narrow search',()=>withStore(s=>{
+ const {x}=setup(s),{q,p,k}=start(s,[x.id],x.id),R=q.reference;
+ legacyHold(s,x.id,{holdScope:{start:'garbage',end:null}});
+ let r=G.reconcile(s,R,x.id,read(s,p,{events:{[DEST]:[marked(p,k,'a1'),marked(p,k,'a2')]}}));a.equal(r.conclusion,'ambiguous');
+ r=G.reconcile(s,R,x.id,read(s,p,{before:24,after:24,events:{[DEST]:[marked(p,k,'a1')]}}));a.equal(r.status,'unverified','the narrow ambiguous search did not reset the range to ±1 hour');
+ a.equal(receipt(s,x.id).holdScope.unknown,true,'unknown stays set');a.match(r.needs.join(' '),/hold scope is unknown/);
+}));
+
+test('B1: non-array scope calendars and matches are neither spread into characters nor thrown on',()=>withStore(s=>{
+ const {x}=setup(s),{q,p,k}=start(s,[x.id],x.id),R=q.reference,from=new Date(Date.parse(p.start)-30*H).toISOString(),to=new Date(Date.parse(p.end)+30*H).toISOString();
+ legacyHold(s,x.id,{holdScope:{start:from,end:to,calendars:'abc',matches:7}});
+ let r=G.reconcile(s,R,x.id,read(s,p,{before:30,after:30,events:{[DEST]:[marked(p,k,'b1'),marked(p,k,'b2')]}}));a.equal(r.conclusion,'ambiguous');
+ const sc=receipt(s,x.id).holdScope;a.ok(!sc.calendars.some(c=>c.length===1),'no characters spread into calendars');a.deepEqual(sc.matches,[DEST+'/b1',DEST+'/b2']);a.equal(sc.unknown,true);a.equal(sc.start,from,'readable parts are kept');a.equal(sc.end,to);
+ r=G.reconcile(s,R,x.id,read(s,p,{before:48,after:48,events:{[DEST]:[marked(p,k,'b1')]}}));a.equal(r.status,'unverified');a.match(r.needs.join(' '),/hold scope is unknown/);
+}));
+
+test('B2: an incomplete search that sees several marked events starts the hold with its matches and valid window',()=>withStore(s=>{
+ const {x,y}=setup(s),{q,p,k}=start(s,[x.id],x.id),R=q.reference;
+ let r=G.reconcile(s,R,x.id,read(s,p,{before:25,after:25,complete:false,events:{[DEST]:[marked(p,k,'a1'),marked(p,k,'a2',20)]}}));
+ a.equal(r.conclusion,'unknown');a.equal(r.hold,'ambiguous','the events it did see exist');a.deepEqual(r.matches,[DEST+'/a1',DEST+'/a2']);
+ const sc=receipt(s,x.id).holdScope;a.deepEqual(sc.matches,[DEST+'/a1',DEST+'/a2']);a.equal(Date.parse(sc.start),Date.parse(p.start)-25*H);a.equal(Date.parse(sc.end),Date.parse(p.end)+25*H);a.equal(sc.unknown,undefined);
+ r=G.reconcile(s,R,x.id,read(s,p,{events:{[DEST]:[marked(p,k,'a1')]}}));a.equal(r.status,'unverified','a narrow complete search cannot hide a2');
+ a.throws(()=>G.readback(s,R,x.id,{calendarId:DEST,account:p.account,event:marked(p,k,'a1')}),/Several matching events/,'no direct read-back');
+ r=G.reconcile(s,R,x.id,read(s,p,{before:25,after:25,events:{[DEST]:[marked(p,k,'a1')]}}));a.equal(r.status,'executed','a complete covering search clears it');
+ // Invalid search bounds: the hold starts, but no range is invented from them.
+ const t=start(s,[y.id],y.id),bad={...read(s,t.p,{events:{[DEST]:[marked(t.p,t.k,'b1'),marked(t.p,t.k,'b2')]}}),start:'not a time'};
+ r=G.reconcile(s,t.q.reference,y.id,bad);a.equal(r.conclusion,'unknown');a.equal(r.hold,'ambiguous');a.equal(receipt(s,y.id).holdScope.unknown,true);a.notEqual(receipt(s,y.id).holdScope.start,'not a time');
+ r=G.reconcile(s,t.q.reference,y.id,read(s,t.p,{before:48,after:48,events:{[DEST]:[marked(t.p,t.k,'b1')]}}));a.equal(r.status,'unverified');a.match(r.needs.join(' '),/hold scope is unknown/);
+}));
+
+test('N2: one destination marker and one on another calendar hold too, keeping that calendar and window',()=>withStore(s=>{
+ const {x,y}=setup(s),{q,p,k}=start(s,[x.id],x.id),R=q.reference;
+ // A narrower window: the other-calendar marker is 20 hours away.
+ let r=G.reconcile(s,R,x.id,read(s,p,{before:25,after:25,events:{[DEST]:[marked(p,k,'a1')],[OTHER]:[marked(p,k,'w1',20)]}}));a.equal(r.conclusion,'other-calendar');a.equal(r.hold,'ambiguous');
+ a.deepEqual(receipt(s,x.id).holdScope.matches,[DEST+'/a1',OTHER+'/w1']);
+ r=G.reconcile(s,R,x.id,read(s,p,{events:{[DEST]:[marked(p,k,'a1')]}}));a.equal(r.status,'unverified','a narrower window cannot skip w1');
+ r=G.reconcile(s,R,x.id,read(s,p,{before:25,after:25,events:{[DEST]:[marked(p,k,'a1')]}}));a.equal(r.status,'executed','w1 is gone from a complete covering read');
+ // Changed coverage calendars: the other marker was on a calendar that later coverage no longer lists.
+ const t=start(s,[y.id],y.id);
+ r=G.reconcile(s,t.q.reference,y.id,read(s,t.p,{events:{[DEST]:[marked(t.p,t.k,'b1')],[OTHER]:[marked(t.p,t.k,'e1')]}}));a.equal(r.hold,'ambiguous');a.ok(receipt(s,y.id).holdScope.calendars.includes(OTHER));
+ const inc=refreshed(s);inc.calendarCoverage.calendars=inc.calendarCoverage.calendars.filter(c=>c.id!==OTHER);s.importSnapshot(inc);
+ r=G.reconcile(s,t.q.reference,y.id,read(s,t.p,{before:24,after:24,events:{[DEST]:[marked(t.p,t.k,'b1')]}}));a.equal(r.status,'unverified','a search without that calendar cannot clear it');a.ok(r.needs.join(' ').includes(OTHER));
+ r=G.reconcile(s,t.q.reference,y.id,read(s,t.p,{before:24,after:24,extra:[OTHER],events:{[DEST]:[marked(t.p,t.k,'b1')]}}));a.equal(r.status,'executed');
+}));
+
+test('N1: a claim that already started under a version older history would refuse can still record its outcome',()=>withStore(s=>{
+ // Q2 [x] is prepared before x is recorded not_created under Q1.
+ const {x,y}=setup(s),q1=A.prepare(s,[x.id,y.id]),q2=A.prepare(s,[x.id]);
+ G.pending(s,q1.reference,x.id,ok(q1),ARGS,read(s,x));a.equal(G.reconcile(s,q1.reference,x.id,read(s,x,{before:25,after:25})).status,'not_created');
+ G.pending(s,q2.reference,x.id,ok(q2),ARGS,read(s,x));
+ // As recorded before attempts kept their version: the earlier not_created state has no reference and is newer than Q2.
+ const h=receipt(s,x.id);put(s,x.id,{...h,attempts:h.attempts.map(({reference,...rest})=>rest)});
+ a.match(G.verify(s,q2.reference,ok(q2),ARGS).actions[0].errors.join(' '),/newly prepared and approved version/,'a new claim under Q2 is refused');
+ const k=receipt(s,x.id).idempotencyKey;
+ let r=G.reconcile(s,q2.reference,x.id,read(s,x,{complete:false}));a.equal(r.status,'unverified','reconcile records the outcome of the started claim');
+ r=G.readback(s,q2.reference,x.id,{calendarId:DEST,account:x.account,event:marked(x,k,'n1')});a.equal(r.status,'executed','read-back records it');
+ a.equal(receipt(s,x.id).reference,q2.reference);a.ok(receipt(s,x.id).attempts.some(v=>v.status==='not_created'),'history kept');
+}));
+
+test('N4: an unreferenced earlier not_created state with an unreadable time refuses every version; no time is invented',()=>withStore(s=>{
+ const {x}=setup(s),q1=A.prepare(s,[x.id]);G.pending(s,q1.reference,x.id,ok(q1),ARGS,read(s,x));G.reconcile(s,q1.reference,x.id,read(s,x,{before:25,after:25}));
+ const h=receipt(s,x.id);put(s,x.id,{...h,attempts:[...h.attempts,{status:'not_created',recordedAt:'unknown',evidence:'Legacy.'}]});
+ const q2=A.prepare(s,[x.id]);a.match(G.verify(s,q2.reference,ok(q2),ARGS).actions[0].errors.join(' '),/newly prepared and approved version/,'fails closed for a genuinely new version');
+ a.equal(receipt(s,x.id).attempts.at(-1).recordedAt,'unknown');
+}));
+
+test('B3: under Google coverage an incoming proposal cannot vouch for its own receipt; Google-only fields are refused everywhere',()=>withStore(s=>{
+ const {x}=setup(s),before=JSON.stringify(s.snapshot().actionHistory);
+ const z={id:'collector-z',title:'Collector block',start:x.start,end:x.end,calendar:x.calendar,account:x.account,timezone:x.timezone,status:'proposed'};
+ const forgedZ=(extra={})=>({id:z.id,status:'executed',fingerprint:P.fingerprint(z),recordedAt:new Date().toISOString(),verifiedAt:new Date().toISOString(),remoteRef:DEST+'/evt',evidence:'Imported, not read back.',...extra});
+ for(const [label,h] of [['allocation fields',forgedZ({sourceRefs:[{kind:'todo',id:'todo-forged'}],minutes:600})],['no Google fields',forgedZ()]]){
+  const inc=refreshed(s);inc.proposals.push(z);inc.actionHistory.push(h);a.throws(()=>s.importSnapshot(inc),/cannot add Google calendar receipts/,label);a.equal(JSON.stringify(s.snapshot().actionHistory),before,'nothing written: '+label);}
+ // Switching the incoming coverage to Outlook does not lift the guard while the local coverage is Google.
+ let inc=refreshed(s);const cov=inc.calendarCoverage;inc.calendarCoverage={start:cov.start,end:cov.end,complete:true,checkedAt:cov.checkedAt,account:cov.account,calendar:cov.calendar,note:'Outlook-shaped'};inc.sources.push({id:'outlook',name:'Outlook',status:'ok',lastSuccess:inc.generatedAt});
+ inc.actionHistory.push(forgedZ({id:'switch-1'}));a.throws(()=>s.importSnapshot(inc),/cannot add Google calendar receipts/,'Outlook-shaped incoming coverage');a.equal(JSON.stringify(s.snapshot().actionHistory),before);
+ // Only an Outlook proposal already in the local snapshot keeps the legacy exception, and never with Google-only fields.
+ inc=refreshed(s);inc.proposals.push(z);s.importSnapshot(inc);
+ inc=refreshed(s);inc.actionHistory.push(forgedZ({minutes:600}));a.throws(()=>s.importSnapshot(inc),/cannot add Google calendar receipts/,'local Outlook proposal, Google fields');
+ inc=refreshed(s);inc.actionHistory.push(forgedZ());s.importSnapshot(inc);a.equal(receipt(s,z.id).status,'executed','legacy receipt for a local Outlook proposal');
+ withStore(o=>{const d=structuredClone(require('../examples/snapshot.json')),base={status:'executed',fingerprint:'f',recordedAt:'2026-10-07T12:00:00Z',verifiedAt:'2026-10-07T12:00:00Z',remoteRef:'r',evidence:'e'};
+  for(const [label,extra] of [['sourceRefs',{sourceRefs:[{kind:'assignment',id:'a'}]}],['minutes',{minutes:600}],['account',{account:'student@example.com'}],['structured approval',{humanApproval:{channel:'chat',text:'Approve Q-1',at:'2026-10-07T12:00:00Z'}}],['other provider',{provider:'caldav'}]])
+   a.throws(()=>o.importSnapshot({...structuredClone(d),actionHistory:[{id:'o-'+label,...base,...extra}]}),/cannot add Google calendar receipts/,'Outlook coverage, '+label);
+  o.importSnapshot({...structuredClone(d),actionHistory:[{id:'o-legacy',...base,humanApproval:'Approved in chat.'}]});a.equal(o.snapshot().actionHistory.length,1,'the Phase 4 receipt shape still imports');});
+}));
