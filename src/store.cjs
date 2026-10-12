@@ -16,6 +16,8 @@ class Store{
  CREATE TABLE IF NOT EXISTS approvals(id INTEGER PRIMARY KEY AUTOINCREMENT,at TEXT NOT NULL,status TEXT NOT NULL,value TEXT NOT NULL,fingerprints TEXT NOT NULL);
  PRAGMA user_version=1;`);}
  close(){this.db.close();}
+ // Random identity of this private database, created once; receipts and idempotency keys are bound to it.
+ storeId(){const get=()=>this.db.prepare("SELECT value FROM meta WHERE key='storeId'").get();if(!get())this.db.prepare("INSERT OR IGNORE INTO meta VALUES('storeId',?)").run(crypto.randomUUID());return get().value;}
  transaction(fn){this.db.exec('BEGIN IMMEDIATE');try{const result=fn();this.db.exec('COMMIT');return result;}catch(e){this.db.exec('ROLLBACK');throw e;}}
  log(kind,status,label,value={}){this.db.prepare('INSERT INTO audit(at,kind,status,label,value) VALUES(?,?,?,?,?)').run(new Date().toISOString(),kind,status,label,JSON.stringify(value));}
  snapshot(){const row=this.db.prepare("SELECT value FROM meta WHERE key='snapshot'").get();if(!row)return null;const d=JSON.parse(row.value);for(const kind of collections)d[kind]=this.db.prepare('SELECT value FROM records WHERE kind=? ORDER BY rowid').all(kind).map(r=>JSON.parse(r.value));d.actionHistory=this.db.prepare('SELECT value FROM receipts').all().map(r=>JSON.parse(r.value));return d;}
