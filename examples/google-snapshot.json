@@ -1,0 +1,381 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "2026-10-07T12:00:00Z",
+  "timezone": "America/New_York",
+  "summary": "Synthetic Google demo: a read-only Gmail snapshot and Google Calendar coverage, with no Outlook source.",
+  "coverageNote": "DEMO ONLY — all courses, mail, events and records below are fictional. No accounts are connected. Dates are fixed, so the snapshot shows as stale.",
+  "courses": [
+    {
+      "id": "course-a",
+      "code": "COURSE A",
+      "name": "Research Methods",
+      "category": "academic",
+      "note": "Fictional course. Two of two selectable reflections submitted.",
+      "source": "https://example.com/courses/a"
+    },
+    {
+      "id": "course-b",
+      "code": "COURSE B",
+      "name": "Product Workshop",
+      "category": "academic",
+      "note": "Fictional course; one group receipt needs verification.",
+      "source": "https://example.com/courses/b"
+    },
+    {
+      "id": "course-c",
+      "code": "COURSE C",
+      "name": "Upcoming Seminar",
+      "category": "unpublished",
+      "note": "Demo of inaccessible content.",
+      "source": "https://example.com/courses/c"
+    }
+  ],
+  "assignments": [
+    {
+      "id": "brief-a",
+      "courseId": "course-a",
+      "course": "COURSE A",
+      "title": "Research brief",
+      "dueAt": "2026-10-09T21:00:00Z",
+      "status": "not_submitted",
+      "requirement": "required",
+      "sourceId": "course-a",
+      "source": "https://example.com/assignments/brief",
+      "estimateMinutes": 90,
+      "evidence": "Synthetic assignment with a verified deadline.",
+      "description": "Develop a short argument supported by three sources.",
+      "materials": "Assignment rubric and reading list.",
+      "aiPolicy": "Check course-specific rules before requesting a draft.",
+      "checklist": [
+        "Choose the question.",
+        "Verify three sources.",
+        "Outline, revise and check the rubric."
+      ]
+    },
+    {
+      "id": "presentation-b",
+      "courseId": "course-b",
+      "course": "COURSE B",
+      "title": "Group presentation",
+      "dueAt": "2026-10-12T20:00:00Z",
+      "status": "not_submitted",
+      "requirement": "required",
+      "sourceId": "course-b",
+      "source": "https://example.com/assignments/presentation",
+      "estimateMinutes": 180,
+      "evidence": "Synthetic group assignment; not submitted.",
+      "description": "Prepare a concise team presentation with evidence and a recommendation.",
+      "materials": "Team topic and presentation guidelines.",
+      "checklist": [
+        "Confirm responsibilities.",
+        "Build the argument.",
+        "Rehearse and verify submission requirements."
+      ]
+    },
+    {
+      "id": "reflection-a",
+      "courseId": "course-a",
+      "course": "COURSE A",
+      "title": "Additional reflection opportunity",
+      "dueAt": "2026-10-08T21:00:00Z",
+      "status": "not_submitted",
+      "requirement": "choice",
+      "sourceId": "course-a",
+      "source": "https://example.com/assignments/reflection",
+      "evidence": "Synthetic example: the two-response quota is already met.",
+      "description": "Do not treat every selectable response as mandatory.",
+      "materials": "Personal class notes.",
+      "checklist": [
+        "Confirm whether an additional submission is useful."
+      ]
+    },
+    {
+      "id": "receipt-b",
+      "courseId": "course-b",
+      "course": "COURSE B",
+      "title": "Verify group submission receipt",
+      "dueAt": "2026-10-05T21:00:00Z",
+      "status": "unknown",
+      "requirement": "required",
+      "sourceId": "course-b",
+      "source": "https://example.com/assignments/receipt",
+      "evidence": "Synthetic example with an unclear group receipt.",
+      "description": "Verify evidence before declaring the work overdue.",
+      "checklist": [
+        "Locate the group's receipt."
+      ]
+    },
+    {
+      "id": "submitted-a",
+      "courseId": "course-a",
+      "course": "COURSE A",
+      "title": "Reading response",
+      "dueAt": "2026-10-06T21:00:00Z",
+      "status": "submitted",
+      "requirement": "required",
+      "sourceId": "course-a",
+      "source": "https://example.com/assignments/submitted",
+      "evidence": "Synthetic verified submission; grading pending.",
+      "description": "A submitted assignment should not trigger an overdue reminder.",
+      "checklist": []
+    }
+  ],
+  "events": [
+    {
+      "id": "gcal-seminar",
+      "title": "Seminar",
+      "start": "2026-10-07T17:00:00Z",
+      "end": "2026-10-07T18:00:00Z",
+      "busy": true,
+      "sourceId": "google-calendar",
+      "source": "https://example.com/calendar",
+      "location": "Demo classroom",
+      "provider": "google",
+      "account": "student@example.com",
+      "calendarId": "course-schedule@example.com",
+      "calendar": "Course schedule"
+    },
+    {
+      "id": "gcal-holiday",
+      "title": "Campus holiday (all day)",
+      "start": "2026-10-08T04:00:00Z",
+      "end": "2026-10-09T04:00:00Z",
+      "allDay": true,
+      "busy": true,
+      "sourceId": "google-calendar",
+      "source": "https://example.com/calendar",
+      "location": "",
+      "provider": "google",
+      "account": "student@example.com",
+      "calendarId": "student@example.com",
+      "calendar": "Student"
+    }
+  ],
+  "proposals": [
+    {
+      "id": "proposal-a",
+      "title": "Research brief focus block",
+      "start": "2026-10-07T19:00:00Z",
+      "end": "2026-10-07T20:00:00Z",
+      "calendar": "Student",
+      "recurrence": "One time",
+      "status": "proposed",
+      "source": "https://example.com/assignments/brief",
+      "reason": "Reserve one hour for the outline and evidence review.",
+      "action": "create",
+      "account": "student@example.com",
+      "timezone": "America/New_York",
+      "attendees": [],
+      "location": "",
+      "body": "Personal focus time.",
+      "busy": true,
+      "reminderMinutes": 15,
+      "provider": "google",
+      "calendarId": "student@example.com"
+    }
+  ],
+  "calendarCoverage": {
+    "complete": true,
+    "start": "2026-10-07T04:00:00Z",
+    "end": "2026-10-09T04:00:00Z",
+    "note": "Fictional two-day Google Calendar window across two read calendars. Proposals still require explicit approval and a live recheck.",
+    "provider": "google",
+    "sourceId": "google-calendar",
+    "account": "student@example.com",
+    "calendar": "Student",
+    "calendarId": "student@example.com",
+    "calendars": [
+      {
+        "id": "student@example.com",
+        "name": "Student",
+        "role": "destination"
+      },
+      {
+        "id": "course-schedule@example.com",
+        "name": "Course schedule",
+        "role": "busy"
+      }
+    ],
+    "checkedAt": "2026-10-07T12:00:00Z"
+  },
+  "priorities": [
+    {
+      "title": "Finish the research brief",
+      "detail": "Choose an argument and validate its evidence.",
+      "source": "https://example.com/assignments/brief"
+    },
+    {
+      "title": "Plan the presentation",
+      "detail": "Agree on responsibilities before building slides.",
+      "source": "https://example.com/assignments/presentation"
+    },
+    {
+      "title": "Resolve the missing receipt",
+      "detail": "Verify the group's submission rather than assuming it is missing.",
+      "source": "https://example.com/assignments/receipt"
+    }
+  ],
+  "sources": [
+    {
+      "id": "course-a",
+      "name": "Example LMS · Course A",
+      "status": "ok",
+      "lastSuccess": "2026-10-07T12:00:00Z",
+      "source": "https://example.com/courses/a",
+      "note": "Synthetic source."
+    },
+    {
+      "id": "course-b",
+      "name": "Example LMS · Course B",
+      "status": "partial",
+      "lastSuccess": "2026-10-07T12:00:00Z",
+      "source": "https://example.com/courses/b",
+      "note": "Fictional receipt uncertainty."
+    },
+    {
+      "id": "google-calendar",
+      "name": "Example Google Calendar",
+      "status": "ok",
+      "lastSuccess": "2026-10-07T12:00:00Z",
+      "source": "https://example.com/calendar",
+      "note": "No actual calendar connected."
+    },
+    {
+      "id": "gmail",
+      "name": "Example Gmail inbox",
+      "status": "ok",
+      "lastSuccess": "2026-10-07T12:00:00Z",
+      "source": "https://example.com/mail",
+      "note": "Fictional read-only inbox snapshot."
+    }
+  ],
+  "career": {
+    "enabled": true,
+    "source": "https://example.com/profile",
+    "tracks": [
+      {
+        "title": "Career exploration",
+        "reason": "Add verified experience and preferred roles locally before enabling recommendations."
+      }
+    ],
+    "unknowns": [
+      "Target roles, preferred locations and start date.",
+      "Work eligibility and verified profile facts."
+    ],
+    "candidates": [
+      {
+        "id": "person-example",
+        "name": "Alex Example",
+        "market": "US",
+        "source": "https://example.com/people/alex",
+        "evidence": "Fictional university and operations background.",
+        "checkedAt": "2026-10-07T12:00:00Z",
+        "relationship": "unknown",
+        "reason": "Illustrates a shared operations interest.",
+        "scores": {
+          "role": 4,
+          "shared": 3,
+          "market": 4,
+          "reason": 3
+        }
+      }
+    ],
+    "roles": [
+      {
+        "id": "role-example",
+        "title": "Example strategy graduate",
+        "market": "US",
+        "source": "https://example.com/jobs/strategy",
+        "evidence": "Synthetic 2027 full-time posting.",
+        "checkedAt": "2026-10-07T12:00:00Z",
+        "startYear": 2027,
+        "sponsorship": "unknown",
+        "fit": "Illustrates fit with an eligibility gap."
+      }
+    ],
+    "note": "Synthetic research demonstration. Not real people or vacancies.",
+    "profile": {
+      "summary": "Fictional graduate seeking full-time strategy roles",
+      "startYear": 2027,
+      "usSponsorshipRequired": true,
+      "workEligibility": {}
+    }
+  },
+  "questions": [
+    "This demo contains no real people, institutions, course content, account URLs or credentials."
+  ],
+  "actionHistory": [],
+  "candidateHistory": [],
+  "weeklyReview": "Synthetic demo. Weekly review requires real local history and user-provided progress.",
+  "email": {
+    "enabled": true,
+    "provider": "google",
+    "account": "student@example.com",
+    "sourceId": "gmail",
+    "capabilities": {
+      "read": true,
+      "send": false,
+      "delete": false,
+      "labels": false
+    },
+    "checkedAt": "2026-10-07T12:00:00Z",
+    "lastSuccess": "2026-10-07T12:00:00Z",
+    "request": {
+      "query": "in:inbox newer_than:7d",
+      "windowDays": 7,
+      "limit": 50,
+      "from": "2026-09-30T12:00:00Z",
+      "to": "2026-10-07T12:00:00Z"
+    },
+    "coverage": {
+      "status": "complete",
+      "morePages": false,
+      "errors": [],
+      "note": "Fictional single page; the collector reported no further pages."
+    },
+    "messages": [
+      {
+        "id": "msg-001",
+        "threadId": "thr-001",
+        "receivedAt": "2026-10-07T10:00:00.000Z",
+        "from": "Course B Team <team@example.com>",
+        "subject": "Presentation roles",
+        "snippet": "Could we confirm who presents the recommendation section before Friday?",
+        "labels": [
+          "INBOX"
+        ],
+        "unread": true,
+        "hasAttachments": false,
+        "attachmentCount": null
+      },
+      {
+        "id": "msg-002",
+        "threadId": "thr-002",
+        "receivedAt": "2026-10-06T16:00:00.000Z",
+        "from": "Library Desk <library@example.com>",
+        "subject": "Room booking reminder",
+        "snippet": "Your study room booking is listed for next week. No action needed if the time still works.",
+        "labels": [
+          "INBOX"
+        ],
+        "unread": false,
+        "hasAttachments": false,
+        "attachmentCount": null
+      },
+      {
+        "id": "msg-003",
+        "threadId": "thr-001",
+        "receivedAt": "2026-10-06T06:00:00.000Z",
+        "from": "Course B Team <team@example.com>",
+        "subject": "Re: Presentation roles",
+        "snippet": "Draft slides attached for review.",
+        "labels": [
+          "INBOX"
+        ],
+        "unread": false,
+        "hasAttachments": true,
+        "attachmentCount": 1
+      }
+    ]
+  }
+}

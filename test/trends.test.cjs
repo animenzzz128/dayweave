@@ -196,8 +196,8 @@ test('server: GET /api/trends uses the existing session and local-request checks
 });
 
 test('routed /settings?tab=trends renders dated weeks from the real API with index-order scripts',async()=>{
- const order=[...fs.readFileSync('src/web/index.html','utf8').matchAll(/<script src="\/([\w.]+)"><\/script>/g)].map(m=>m[1]),files={'core.js':'src/core.cjs','phase2.js':'src/phase2.cjs','phase3.js':'src/phase3.cjs','effort.js':'src/effort.cjs','workload.js':'src/workload.cjs','app.js':'src/web/app.js'};
- a.deepEqual(order,['core.js','phase2.js','phase3.js','effort.js','workload.js','app.js']);
+ const order=[...fs.readFileSync('src/web/index.html','utf8').matchAll(/<script src="\/([\w.]+)"><\/script>/g)].map(m=>m[1]),files={'core.js':'src/core.cjs','phase2.js':'src/phase2.cjs','phase3.js':'src/phase3.cjs','effort.js':'src/effort.cjs','workload.js':'src/workload.cjs','email.js':'src/email.cjs','app.js':'src/web/app.js'};
+ a.deepEqual(order,['core.js','phase2.js','phase3.js','effort.js','workload.js','email.js','app.js']);
  const dir=tmp(),s=require('../src/approvals.cjs').attach(createServer(dir));await new Promise(r=>s.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+s.address().port;
  const EVIL='<img src=x onerror=alert(1)>';
  try{

@@ -81,8 +81,8 @@ test('workload-mode endpoint requires session, Origin and CSRF and rejects inval
 });
 
 test('page-order scripts render Standard by default and Reduced with every warning kept',async()=>{
- const order=[...fs.readFileSync('src/web/index.html','utf8').matchAll(/<script src="\/([\w.]+)"><\/script>/g)].map(m=>m[1]),files={'core.js':'src/core.cjs','phase2.js':'src/phase2.cjs','phase3.js':'src/phase3.cjs','effort.js':'src/effort.cjs','workload.js':'src/workload.cjs','app.js':'src/web/app.js'};
- a.deepEqual(order,['core.js','phase2.js','phase3.js','effort.js','workload.js','app.js']);
+ const order=[...fs.readFileSync('src/web/index.html','utf8').matchAll(/<script src="\/([\w.]+)"><\/script>/g)].map(m=>m[1]),files={'core.js':'src/core.cjs','phase2.js':'src/phase2.cjs','phase3.js':'src/phase3.cjs','effort.js':'src/effort.cjs','workload.js':'src/workload.cjs','email.js':'src/email.cjs','app.js':'src/web/app.js'};
+ a.deepEqual(order,['core.js','phase2.js','phase3.js','effort.js','workload.js','email.js','app.js']);
  const real=new Date(),h=x=>new Date(real.getTime()+x*3600000).toISOString(),evil='<img src=x onerror=alert(1)>';
  const D=structuredClone(require('../examples/snapshot.json'));D.generatedAt=h(-1);D.sources=[...sources.map(x=>({...x,lastSuccess:h(-30)})),{id:'outlook',name:'Calendar',status:'ok'}];D.calendarCoverage={...D.calendarCoverage,complete:false,note:'Synthetic partial window.'};
  D.assignments=[item('u2',h(20),{title:'Urgent two'}),item('u1',h(-2),{title:evil}),item('later',h(200),{title:'Later required'}),item('pick',h(5),{requirement:'choice',title:'Pick one'}),item('unsure',h(5),{requirement:'uncertain',title:'Unsure task'}),item('fail',h(5),{sourceId:'course-b',title:'Failed source task'}),item('done',h(-3),{status:'graded',title:'Done task'}),item('done-fail',h(2),{sourceId:'course-b',status:'excused',title:'Done failed task'}),item('pick-unk',h(-1),{requirement:'choice',status:'unknown',title:'Pick unknown'})];

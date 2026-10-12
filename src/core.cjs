@@ -23,6 +23,22 @@ function zonedISO(date,time){
 }
 function fingerprint(a){return JSON.stringify([a.id,a.title,a.start,a.end,a.recurrence,a.calendar,a.source,a.status]);}
 function safeURL(s){try{const u=new URL(s);return ['https:','http:'].includes(u.protocol)?u.href:'#';}catch{return '#';}}
+// Calendar coverage identity. Legacy coverage without a provider is the Outlook source; Google coverage names its source,
+// account, destination calendar ID and the bounded list of calendars actually read.
+const CAL_DOWN=['failed','unavailable'];
+function calendarSource(cov){return typeof cov?.sourceId==='string'&&cov.sourceId?cov.sourceId:'outlook';}
+function calendarProvider(x){return x?.provider||'outlook';}
+function validateCoverage(cov,sources){
+  if(!cov||cov.provider===undefined)return;
+  if(!['google','outlook'].includes(cov.provider))throw Error('Calendar provider must be google or outlook');
+  if(cov.provider!=='google')return;
+  if(typeof cov.account!=='string'||!cov.account||typeof cov.calendarId!=='string'||!cov.calendarId)throw Error('Google coverage needs the verified account and destination calendar ID');
+  if(!sources.some(s=>s.id===cov.sourceId))throw Error('Google coverage sourceId must be listed in sources');
+  const ids=Array.isArray(cov.calendars)&&cov.calendars.length<=25?cov.calendars.map(c=>c&&typeof c.id==='string'&&c.id&&typeof c.name==='string'?c.id:null):[null];
+  if(!ids.length||ids.includes(null)||new Set(ids).size!==ids.length)throw Error('Google coverage needs a bounded list (1–25) of read calendars with id and name');
+  if(!ids.includes(cov.calendarId))throw Error('The destination calendar must be one of the read calendars');
+}
+const emailModule=()=>typeof module!=='undefined'?require('./email.cjs'):(typeof window!=='undefined'?window.PlannerEmail:null);
 function safeJSON(x){return JSON.stringify(x).replace(/</g,'\\u003c').replace(/>/g,'\\u003e').replace(/&/g,'\\u0026').replace(/\u2028/g,'\\u2028').replace(/\u2029/g,'\\u2029');}
 function validate(data){
   if(data.schemaVersion!==1||!Number.isFinite(stamp(data.generatedAt)))throw Error('Invalid snapshot metadata');
@@ -32,6 +48,8 @@ function validate(data){
   }
   for(const a of data.assignments)if(a.dueAt&&!Number.isFinite(stamp(a.dueAt)))throw Error('Invalid deadline');
   for(const e of [...data.events,...data.proposals])if(!Number.isFinite(stamp(e.start))||!Number.isFinite(stamp(e.end))||stamp(e.end)<=stamp(e.start))throw Error('Invalid event interval');
+  validateCoverage(data.calendarCoverage,data.sources);
+  const M=emailModule();if(M&&data.email!=null){const e=M.normalize(data.email);if(e.enabled&&!data.sources.some(s=>s.id===e.sourceId))throw Error('Email sourceId must be listed in sources');}
   return data;
 }
 function proposalErrors(p,data,now=new Date()){
@@ -47,7 +65,8 @@ function proposalErrors(p,data,now=new Date()){
  return errors;
 }
 function mergeSnapshot(old,incoming){
-  if(!old)return validate(incoming);
+  const M=emailModule();
+  if(!old){const d=validate(incoming);return M&&d.email!=null?validate({...d,email:M.merge(null,d.email,d.sources)}):d;}
   const result={...old,...incoming};
   for(const key of ['actionHistory','candidateHistory'])result[key]=[...new Map([...(old[key]||[]),...(incoming[key]||[])].map(x=>[x.id,x])).values()];
   // Preserve the newer user-reported career state when merging an older snapshot.
@@ -60,10 +79,13 @@ function mergeSnapshot(old,incoming){
     result[key]=[...incoming[key].filter(x=>!failed.has(x.sourceId)),...old[key].filter(x=>failed.has(x.sourceId))];
   }
   result.sources=incoming.sources.map(s=>s.status==='failed'?{...s,lastSuccess:old.sources.find(x=>x.id===s.id)?.lastSuccess||null}:s);
-  if(failed.has('outlook')){result.calendarCoverage={...old.calendarCoverage,complete:false};result.proposals=[];}
+  // Only the active calendar source (legacy: outlook) invalidates coverage; an email or other source failure does not.
+  const down=new Set(incoming.sources.filter(s=>CAL_DOWN.includes(s.status)).map(s=>s.id));
+  if(down.has(calendarSource(incoming.calendarCoverage||old.calendarCoverage))){result.calendarCoverage={...old.calendarCoverage,complete:false};result.proposals=[];}
+  if(M&&(old.email!=null||incoming.email!=null))result.email=M.merge(old.email,incoming.email,incoming.sources);
   return validate(result);
 }
-const api={get TZ(){return TZ;},configure,stamp,dayKey,classify,overlap,zonedISO,fingerprint,safeURL,safeJSON,validate,proposalErrors,mergeSnapshot};
+const api={get TZ(){return TZ;},configure,stamp,dayKey,classify,overlap,zonedISO,fingerprint,safeURL,safeJSON,calendarSource,calendarProvider,validateCoverage,validate,proposalErrors,mergeSnapshot};
 if(typeof module!=='undefined')module.exports=api;else window.PlannerCore=api;
 
 })();

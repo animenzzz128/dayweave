@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — Google providers (DW-GOOGLE-01)
+
+- Email shows the last collected read-only Gmail snapshot: inbox, last seven days, at most 50 messages, metadata and snippets, no attachments. Collection time, coverage, errors and stale/retained labels are explicit; unknown, disabled, failed and partial reads never read as an empty inbox. Send, delete and label capabilities are rejected. Home shows an inbox summary.
+- Google Calendar coverage carries provider, source, account, destination calendar ID and the bounded list of calendars read. Only the active calendar source invalidates coverage, so a Gmail failure does not. Provider identity joins new proposal fingerprints; identity changes invalidate prepared versions. Legacy Outlook snapshots stay readable.
+- Synthetic Google-only example (`examples/google-snapshot.json`) and the [collection procedure](docs/google.md). No OAuth client, token store or new dependency.
+
 ## 1.5.5 — 2026-10-11
 
 Phase 6 initial completion (#20): the four approved Phase 6 features (#26–#29). Every change is local, advisory and reversible. No schema `user_version` change and no new runtime dependency. See the [Phase 6 acceptance guide](docs/phase-6-acceptance.md).
