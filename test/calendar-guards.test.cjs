@@ -55,7 +55,7 @@ test('item1: several marked events also hold when a marker is on another calenda
  const t=start(s,[y.id],y.id),h=receipt(s,y.id);s.db.prepare('UPDATE receipts SET value=? WHERE id=?').run(JSON.stringify({...h,status:'unverified',conclusion:'ambiguous',hold:'ambiguous',recordedAt:new Date().toISOString(),evidence:'Multiple matching events (b1, b2).'}),y.id);
  r=G.reconcile(s,t.q.reference,y.id,read(s,t.p,{events:{[DEST]:[marked(t.p,t.k,'b1')]}}));a.equal(r.status,'unverified','legacy hold: narrow search refused');
  r=G.reconcile(s,t.q.reference,y.id,read(s,t.p,{before:24,after:24,events:{[DEST]:[marked(t.p,t.k,'b1')]}}));a.equal(r.status,'unverified','legacy hold: the range is unknown');a.match(r.needs.join(' '),/hold scope is unknown/);
- // Without a hold, one marked event in a narrow complete search is still read back as before.
+ // With no marked event seen earlier, one marked event in a narrow complete search is still read back as before.
  withStore(s2=>{const {x:x2,y:y2}=setup(s2),u=start(s2,[x2.id],x2.id);a.equal(G.reconcile(s2,u.q.reference,x2.id,read(s2,u.p,{events:{[DEST]:[marked(u.p,u.k,'c1')]}})).status,'executed');
   // An unreadable stored scope fails closed instead of being treated as covered.
   const v=start(s2,[y2.id],y2.id),hv=receipt(s2,y2.id);s2.db.prepare('UPDATE receipts SET value=? WHERE id=?').run(JSON.stringify({...hv,status:'unverified',conclusion:'ambiguous',hold:'ambiguous',holdScope:{start:'garbage',end:null},recordedAt:new Date().toISOString(),evidence:'Multiple matching events.'}),y2.id);
@@ -237,4 +237,109 @@ test('B3: under Google coverage an incoming proposal cannot vouch for its own re
   for(const [label,extra] of [['sourceRefs',{sourceRefs:[{kind:'assignment',id:'a'}]}],['minutes',{minutes:600}],['account',{account:'student@example.com'}],['structured approval',{humanApproval:{channel:'chat',text:'Approve Q-1',at:'2026-10-07T12:00:00Z'}}],['other provider',{provider:'caldav'}]])
    a.throws(()=>o.importSnapshot({...structuredClone(d),actionHistory:[{id:'o-'+label,...base,...extra}]}),/cannot add Google calendar receipts/,'Outlook coverage, '+label);
   o.importSnapshot({...structuredClone(d),actionHistory:[{id:'o-legacy',...base,humanApproval:'Approved in chat.'}]});a.equal(o.snapshot().actionHistory.length,1,'the Phase 4 receipt shape still imports');});
+}));
+
+// Review round 2 of #46 (R2-B1): every marked event a started claim sees is kept across outcomes, so two distinct ones seen by
+// different searches hold the action too, and a narrower search or a direct read-back cannot hide the earlier one.
+const backOf=(p,ev,calendarId=DEST)=>({calendarId,account:p.account,event:ev});
+test('R2-B1: a marker on another calendar, then a narrow single match on the destination, holds; a covering search clears it',()=>withStore(s=>{
+ const {x}=setup(s),{q,p,k}=start(s,[x.id],x.id),R=q.reference;
+ let r=G.reconcile(s,R,x.id,read(s,p,{before:25,after:25,events:{[OTHER]:[marked(p,k,'w1',20)]}}));a.equal(r.conclusion,'other-calendar');a.equal(r.hold,undefined,'one marked event is not yet a hold');
+ a.deepEqual(receipt(s,x.id).holdScope.matches,[OTHER+'/w1'],'the other-calendar marker is kept on the receipt');a.deepEqual(receipt(s,x.id).holdScope.calendars,[OTHER]);
+ r=G.reconcile(s,R,x.id,read(s,p,{events:{[DEST]:[marked(p,k,'a1')]}}));a.equal(r.status,'unverified','w1 was seen earlier; a ±1h search cannot rule it out');a.equal(r.hold,'ambiguous');a.equal(r.conclusion,'ambiguous');
+ a.deepEqual(receipt(s,x.id).holdScope.matches,[OTHER+'/w1',DEST+'/a1']);a.match(r.needs.join(' '),/read .* to /);a.equal(receipt(s,x.id).status,'unverified');
+ a.throws(()=>G.readback(s,R,x.id,backOf(p,marked(p,k,'a1'))),/Several matching events/);
+ r=G.reconcile(s,R,x.id,read(s,p,{before:25,after:25,events:{[DEST]:[marked(p,k,'a1')]}}));a.equal(r.status,'executed','a complete search covering w1, its calendar and ±24h finds only a1');a.equal(receipt(s,x.id).remoteRef,DEST+'/a1');
+}));
+
+test('R2-B1: a marker on another calendar blocks a direct read-back of a different event',()=>withStore(s=>{
+ const {x}=setup(s),{q,p,k}=start(s,[x.id],x.id),R=q.reference;
+ G.reconcile(s,R,x.id,read(s,p,{before:25,after:25,events:{[OTHER]:[marked(p,k,'w1',20)]}}));
+ a.throws(()=>G.readback(s,R,x.id,backOf(p,marked(p,k,'a1'))),/Marked event course-schedule@example\.com\/w1 was seen earlier/);a.equal(receipt(s,x.id).status,'unverified','nothing recorded');
+ // Reading w1 itself is allowed: it is the event seen, and it is on the wrong calendar, so it stays unverified with w1 kept.
+ const r=G.readback(s,R,x.id,backOf(p,marked(p,k,'w1',20),OTHER));a.equal(r.status,'unverified');a.deepEqual(receipt(s,x.id).holdScope.matches,[OTHER+'/w1']);
+ a.throws(()=>G.readback(s,R,x.id,backOf(p,marked(p,k,'a1'))),/was seen earlier/,'still refused after that read-back');
+}));
+
+test('R2-B1: an incomplete search that saw one marker 20 hours away keeps it; a narrow match of another event holds',()=>withStore(s=>{
+ const {x}=setup(s),{q,p,k}=start(s,[x.id],x.id),R=q.reference;
+ let r=G.reconcile(s,R,x.id,read(s,p,{before:25,after:25,complete:false,events:{[DEST]:[marked(p,k,'a1p',20)]}}));a.equal(r.conclusion,'unknown');a.equal(r.hold,undefined);
+ const sc=receipt(s,x.id).holdScope;a.deepEqual(sc.matches,[DEST+'/a1p']);a.equal(Date.parse(sc.start),Date.parse(p.start)+20*H,'its interval, not the search window');a.equal(sc.unknown,undefined);
+ r=G.reconcile(s,R,x.id,read(s,p,{events:{[DEST]:[marked(p,k,'a2')]}}));a.equal(r.status,'unverified');a.equal(r.hold,'ambiguous');a.deepEqual(receipt(s,x.id).holdScope.matches,[DEST+'/a1p',DEST+'/a2']);
+ a.throws(()=>G.readback(s,R,x.id,backOf(p,marked(p,k,'a2'))),/Several matching events/);
+ r=G.reconcile(s,R,x.id,read(s,p,{before:24,after:24,events:{[DEST]:[marked(p,k,'a2')]}}));a.equal(r.status,'executed','±24h covers a1p at +20h');
+}));
+
+test('R2-B1: identity is calendar and event ID: the same ID on another calendar is a second event, the same event seen again is not',()=>withStore(s=>{
+ const {x,y}=setup(s),{q,p,k}=start(s,[x.id],x.id),R=q.reference;
+ let r=G.reconcile(s,R,x.id,read(s,p,{events:{[OTHER]:[marked(p,k,'e1')]}}));a.equal(r.conclusion,'other-calendar');
+ r=G.reconcile(s,R,x.id,read(s,p,{events:{[DEST]:[marked(p,k,'e1')]}}));a.equal(r.status,'unverified');a.equal(r.hold,'ambiguous');a.deepEqual(receipt(s,x.id).holdScope.matches,[OTHER+'/e1',DEST+'/e1']);
+ a.throws(()=>G.readback(s,R,x.id,backOf(p,marked(p,k,'e1'))),/Several matching events/);
+ // The same destination event seen by several incomplete searches stays one event and can still be read back or reconciled.
+ const t=start(s,[y.id],y.id);
+ for(let i=0;i<3;i++){r=G.reconcile(s,t.q.reference,y.id,read(s,t.p,{complete:false,events:{[DEST]:[marked(t.p,t.k,'b1')]}}));a.equal(r.hold,undefined);}
+ a.deepEqual(receipt(s,y.id).holdScope.matches,[DEST+'/b1']);a.equal(receipt(s,y.id).hold,undefined);
+ r=G.reconcile(s,t.q.reference,y.id,read(s,t.p,{events:{[DEST]:[marked(t.p,t.k,'b1')]}}));a.equal(r.status,'executed','one complete narrow match of the same event');
+ withStore(s2=>{const {x:x2}=setup(s2),u=start(s2,[x2.id],x2.id);G.reconcile(s2,u.q.reference,x2.id,read(s2,u.p,{complete:false,events:{[DEST]:[marked(u.p,u.k,'c1')]}}));
+  a.throws(()=>G.readback(s2,u.q.reference,x2.id,backOf(u.p,marked(u.p,u.k,'c2'))),/was seen earlier/,'another event is refused');
+  a.equal(G.readback(s2,u.q.reference,x2.id,backOf(u.p,marked(u.p,u.k,'c1'))).status,'executed','the event seen earlier can be read back');});
+}));
+
+test('R2-B1: a marker whose times cannot be read, or that has no ID, is kept with an unknown range and never lets another event execute',()=>withStore(s=>{
+ const {x,y}=setup(s),{q,p,k}=start(s,[x.id],x.id),R=q.reference;
+ let r=G.reconcile(s,R,x.id,read(s,p,{before:25,after:25,events:{[DEST]:[{...marked(p,k,'m1'),start:'garbage'}]}}));a.equal(r.conclusion,'unknown');a.deepEqual(r.matches,[DEST+'/m1'],'the marker is detected although its times cannot be read');
+ a.match(r.errors.join(' '),/cannot be read/);const sc=receipt(s,x.id).holdScope;a.deepEqual(sc.matches,[DEST+'/m1']);a.equal(sc.unknown,true);
+ r=G.reconcile(s,R,x.id,read(s,p,{events:{[DEST]:[marked(p,k,'a1')]}}));a.equal(r.status,'unverified');a.equal(r.hold,'ambiguous');a.match(r.needs.join(' '),/hold scope is unknown/);
+ for(const w of [24,48])a.equal(G.reconcile(s,R,x.id,read(s,p,{before:w,after:w,events:{[DEST]:[marked(p,k,'a1')]}})).status,'unverified','±'+w+'h cannot cover an unknown range');
+ a.throws(()=>G.readback(s,R,x.id,backOf(p,marked(p,k,'a1'))),/Several matching events/);a.equal(receipt(s,x.id).holdScope.unknown,true,'unknown stays set');
+ // One marker without an event ID: its identity is unknown, so no event can be read back or reconciled into executed, and absence is never concluded.
+ const t=start(s,[y.id],y.id),{id:_,...noId}=marked(t.p,t.k,'gone');
+ r=G.reconcile(s,t.q.reference,y.id,read(s,t.p,{complete:false,events:{[DEST]:[noId]}}));a.equal(r.conclusion,'unknown');a.equal(receipt(s,y.id).holdScope.unknown,true);
+ a.throws(()=>G.readback(s,t.q.reference,y.id,backOf(t.p,marked(t.p,t.k,'b1'))),/not fully recorded/);
+ r=G.reconcile(s,t.q.reference,y.id,read(s,t.p,{events:{[DEST]:[marked(t.p,t.k,'b1')]}}));a.equal(r.status,'unverified');a.match(r.needs.join(' '),/hold scope is unknown/);
+ r=G.reconcile(s,t.q.reference,y.id,read(s,t.p,{before:25,after:25}));a.equal(r.status,'unverified','no not_created after a marked event was seen');
+}));
+
+test('R2-B1: successive partial and other-calendar outcomes add up to a hold; only a search covering both clears it',()=>withStore(s=>{
+ const {x}=setup(s),{q,p,k}=start(s,[x.id],x.id),R=q.reference;
+ let r=G.reconcile(s,R,x.id,read(s,p,{before:31,after:31,complete:false,events:{[DEST]:[marked(p,k,'a1',30)]}}));a.equal(r.hold,undefined);
+ r=G.reconcile(s,R,x.id,read(s,p,{events:{[OTHER]:[marked(p,k,'w1')]}}));a.equal(r.conclusion,'other-calendar');a.equal(r.hold,'ambiguous','two distinct markers across two searches');
+ a.match(receipt(s,x.id).evidence,/Several marked events have been seen for this action \(student@example\.com\/a1, course-schedule@example\.com\/w1\)/);
+ r=G.reconcile(s,R,x.id,read(s,p,{before:25,after:25,events:{[DEST]:[marked(p,k,'a3')]}}));a.equal(r.status,'unverified','±25h misses a1 at +30h');a.match(r.needs.join(' '),new RegExp(new Date(Date.parse(p.end)+30*H).toISOString()));
+ r=G.reconcile(s,R,x.id,read(s,p,{before:31,after:31,events:{[DEST]:[marked(p,k,'a3')]}}));a.equal(r.status,'executed');
+ a.ok(receipt(s,x.id).attempts.some(v=>v.conclusion==='other-calendar'&&v.holdScope?.matches.length===2),'each earlier state keeps the matches it saw');
+}));
+
+test('R2-B1: a not_created conclusion needs a claim that saw no marked event; a read-back mismatch of a marked event is kept',()=>withStore(s=>{
+ const {x,y}=setup(s),{q,p,k}=start(s,[x.id],x.id),R=q.reference;
+ const r=G.readback(s,R,x.id,backOf(p,{...marked(p,k,'a1'),location:'Elsewhere'}));a.equal(r.status,'unverified');a.deepEqual(receipt(s,x.id).holdScope.matches,[DEST+'/a1']);
+ a.equal(G.reconcile(s,R,x.id,read(s,p,{before:25,after:25})).status,'unverified','a1 was seen, so an empty search is not absence');
+ a.equal(G.reconcile(s,R,x.id,read(s,p,{events:{[DEST]:[marked(p,k,'a2')]}})).hold,'ambiguous','a1 and a2 are two events');
+ // A claim that saw nothing may still conclude absence, and the next claim starts with nothing seen.
+ const t=start(s,[y.id],y.id);a.equal(G.reconcile(s,t.q.reference,y.id,read(s,t.p,{before:25,after:25})).status,'not_created');
+ const q2=A.prepare(s,[y.id]);G.pending(s,q2.reference,y.id,ok(q2),ARGS,read(s,t.p));a.equal(receipt(s,y.id).holdScope,undefined);
+ a.equal(G.readback(s,q2.reference,y.id,backOf(t.p,marked(t.p,t.k,'b1'))).status,'executed');
+}));
+
+test('R2-B1: the marked events seen survive restore and snapshot import',()=>withStore(s=>{
+ const {x}=setup(s),{q,p,k}=start(s,[x.id],x.id),R=q.reference,early=s.backup();
+ G.reconcile(s,R,x.id,read(s,p,{before:25,after:25,events:{[OTHER]:[marked(p,k,'w1',20)]}}));const kept=receipt(s,x.id);
+ s.restore(early);a.deepEqual(receipt(s,x.id),kept,'restore of an older backup keeps the current receipt');
+ const inc=refreshed(s);inc.actionHistory=inc.actionHistory.map(h=>h.id===x.id?{...h,holdScope:{start:null,end:null,calendars:[],matches:[]},attempts:[]}:h);s.importSnapshot(inc);
+ a.deepEqual(receipt(s,x.id),kept,'an imported copy cannot erase what was seen');
+ a.throws(()=>G.readback(s,R,x.id,backOf(p,marked(p,k,'a1'))),/was seen earlier/);
+ a.equal(G.reconcile(s,R,x.id,read(s,p,{events:{[DEST]:[marked(p,k,'a1')]}})).hold,'ambiguous');
+}));
+
+test('R2-B1: outcomes recorded before marked events were kept fail closed unless they show none was seen',()=>withStore(s=>{
+ const {x,y}=setup(s),{q,p,k}=start(s,[x.id],x.id),R=q.reference;
+ // An other-calendar outcome recorded without a scope: its marker is known to exist but not which one.
+ put(s,x.id,{...receipt(s,x.id),status:'unverified',conclusion:'other-calendar',recordedAt:new Date().toISOString(),evidence:'This action\'s marker was found on another calendar (course-schedule@example.com/w1).'});
+ a.throws(()=>G.readback(s,R,x.id,backOf(p,marked(p,k,'a1'))),/not fully recorded/);
+ let r=G.reconcile(s,R,x.id,read(s,p,{before:48,after:48,events:{[DEST]:[marked(p,k,'a1')]}}));a.equal(r.status,'unverified');a.match(r.needs.join(' '),/hold scope is unknown/);a.equal(receipt(s,x.id).holdScope.unknown,true);
+ // Unmarked look-alike and too-narrow empty outcomes saw no marked event, so the old flow still works.
+ const t=start(s,[y.id],y.id);
+ for(const [conclusion,evidence] of [['unmarked','An event with the same title and times but no action marker exists on the destination (look).'],['unknown','No marked event in a to b, but absence needs complete reads from at least 24 hours before to 24 hours after the action; read the wider window.']])
+  {const h=receipt(s,y.id);put(s,y.id,{...h,status:'unverified',conclusion,recordedAt:new Date().toISOString(),evidence,attempts:[...(h.attempts||[]),{status:h.status,recordedAt:h.recordedAt,evidence:h.evidence||null,...(h.conclusion?{conclusion:h.conclusion}:{})}]});}
+ a.equal(G.reconcile(s,t.q.reference,y.id,read(s,t.p,{events:{[DEST]:[marked(t.p,t.k,'b1')]}})).status,'executed');
 }));
