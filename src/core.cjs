@@ -71,8 +71,25 @@ function proposalErrors(p,data,now=new Date()){
  if(data.calendarCoverage&& (stamp(p.start)<stamp(data.calendarCoverage.start)||stamp(p.end)>stamp(data.calendarCoverage.end)))errors.push('Outside the checked calendar window.');
  return errors;
 }
-function mergeSnapshot(old,incoming){
-  const M=emailModule();
+// Google execution receipts start only as a pending receipt the local bridge records in this database, so a snapshot import
+// never adds one. An incoming receipt the local journal lacks is rejected when it names a provider other than Outlook, carries
+// a field only Google receipts have (GOOGLE_FIELDS or a structured humanApproval, including the planner's sourceRefs/minutes),
+// or belongs to a Google proposal or receipt (`googleIds` adds the store's approval copies). While the local or incoming
+// coverage is Google, every other new receipt is rejected too unless it belongs to an Outlook proposal already in the local
+// snapshot: an incoming proposal never vouches for its own receipt. Receipts the local journal already holds are ignored
+// (local wins). A consistency guard, not authentication.
+const GOOGLE_FIELDS=['idempotencyKey','store','connector','account','calendarId','sourceRefs','minutes','hold','holdScope','conclusion'];
+function importedGoogleReceipts(old,incoming,googleIds=[]){
+  const google=new Set(googleIds),local=new Set((old?.actionHistory||[]).map(h=>h?.id));
+  for(const p of [...(old?.proposals||[]),...(incoming.proposals||[])])if(calendarProvider(p)==='google')google.add(p.id);
+  for(const h of old?.actionHistory||[])if(h?.provider==='google')google.add(h.id);
+  const outlook=new Set((old?.proposals||[]).filter(p=>!google.has(p.id)).map(p=>p.id)),googleCoverage=[old?.calendarCoverage,incoming.calendarCoverage].some(c=>c&&calendarProvider(c)==='google');
+  const googleShaped=h=>calendarProvider(h)!=='outlook'||GOOGLE_FIELDS.some(k=>h?.[k]!=null)||(!!h?.humanApproval&&typeof h.humanApproval==='object');
+  return (Array.isArray(incoming.actionHistory)?incoming.actionHistory:[]).filter(h=>!local.has(h?.id)&&(googleShaped(h)||google.has(h?.id)||googleCoverage&&!outlook.has(h?.id))).map(h=>String(h?.id));
+}
+function mergeSnapshot(old,incoming,{googleIds=[]}={}){
+  const M=emailModule(),forged=importedGoogleReceipts(old,incoming,googleIds);
+  if(forged.length)throw Error('Snapshot imports cannot add Google calendar receipts ('+forged.slice(0,5).map(x=>x.slice(0,80)).join(', ')+(forged.length>5?', …':'')+'). They are recorded only in this database by scripts/google-calendar.cjs; remove actionHistory from the snapshot.');
   // A first import gets the same active-calendar failure invalidation as later ones.
   if(!old){let d=validate(incoming);if(calendarDown(d))d={...d,...(d.calendarCoverage?{calendarCoverage:{...d.calendarCoverage,complete:false}}:{}),proposals:d.proposals.filter(p=>startedIds(d).has(p.id))};return M&&d.email!=null?validate({...d,email:M.merge(null,d.email,d.sources,d.generatedAt)}):d;}
   const result={...old,...incoming};
@@ -105,7 +122,7 @@ function mergeSnapshot(old,incoming){
   if(M&&(old.email!=null||incoming.email!=null))result.email=M.merge(old.email,incoming.email,incoming.sources,incoming.generatedAt);
   return validate(result);
 }
-const api={get TZ(){return TZ;},configure,stamp,dayKey,classify,overlap,zonedISO,fingerprint,safeURL,safeJSON,calendarSource,calendarProvider,sameCalendar,calendarDown,validateCoverage,validate,proposalErrors,mergeSnapshot};
+const api={get TZ(){return TZ;},configure,stamp,dayKey,classify,overlap,zonedISO,fingerprint,safeURL,safeJSON,calendarSource,calendarProvider,sameCalendar,calendarDown,validateCoverage,validate,proposalErrors,importedGoogleReceipts,mergeSnapshot};
 if(typeof module!=='undefined')module.exports=api;else window.PlannerCore=api;
 
 })();

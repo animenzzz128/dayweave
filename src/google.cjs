@@ -51,9 +51,12 @@ function times(ev,tz){const s=ev?.start,e=ev?.end;
  if(dateOnly(s)&&dateOnly(e)&&e>s){C.configure(tz);return {start:Date.parse(C.zonedISO(s,'00:00')),end:Date.parse(C.zonedISO(e,'00:00')),allDay:true};}
  return null;}
 const label=(ev,cal)=>String(ev?.summary||ev?.id||'event').slice(0,80)+' ('+cal+')';
+// Whether an event's description carries this action's marker line (any key: another store or version is still this action).
+const hasMarker=(p,ev)=>{const text=String(ev?.description??'');return (text+'\n').includes('Dayweave action: '+p.id+' ')||text.endsWith('Dayweave action: '+p.id);};
 // Checks a live re-read made with the connector immediately before writing (or while reconciling). Calendar provenance comes
 // from the query context: `reads[]` holds one complete read per calendar the operator queried, with that calendar's raw events.
-// Returns problems plus target duplicates, possible (unmarked) duplicates, markers on other calendars and busy conflicts.
+// Returns problems plus target duplicates, possible (unmarked) duplicates, markers on other calendars and busy conflicts. A
+// marked event whose times cannot be read is still returned as a match (it exists), besides making the read fail closed.
 function live(p,k,read,d,now=new Date()){const out=[],res={errors:out,target:[],possible:[],foreign:[],conflicts:[]};if(!plain(read)){out.push('Provide the live re-read.');return res;}
  if(!instant(read.checkedAt)||+new Date(now)-Date.parse(read.checkedAt)>LIVE_MAX_AGE_MS||Date.parse(read.checkedAt)>+new Date(now)+60000)out.push('The live re-read must be at most 15 minutes old.');
  if(read.provider!=='google'||read.account!==p.account)out.push('The live re-read is for a different provider or account.');
@@ -62,15 +65,15 @@ function live(p,k,read,d,now=new Date()){const out=[],res={errors:out,target:[],
  const ids=reads.map(r=>plain(r)&&typeof r.calendarId==='string'&&r.calendarId?r.calendarId:null),need=[p.calendarId,...(d.calendarCoverage?.calendars||[]).map(c=>c.id)];
  if(ids.includes(null)||new Set(ids).size!==ids.length)out.push('Each read needs its own queried calendarId, once.');
  if(need.some(id=>!ids.includes(id)))out.push('The live re-read must include the destination and every calendar in the verified coverage.');
- const s=Date.parse(p.start),e=Date.parse(p.end),mark='Dayweave action: '+p.id+' ';
+ const s=Date.parse(p.start),e=Date.parse(p.end);
  for(const r of reads.filter(plain)){const cal=r.calendarId;
   if(r.complete!==true)out.push('The read of '+cal+' is incomplete, so blank time is unknown.');
   if(!Array.isArray(r.events)){out.push('The read of '+cal+' has no event list.');continue;}
   for(const ev of r.events){if(!plain(ev)){out.push('An event on '+cal+' is not an object.');continue;}if(ev.status==='cancelled')continue;
-   const t=times(ev,p.timezone);if(!t){out.push('Event '+label(ev,cal)+' has times that cannot be read; blank time is unknown.');continue;}
+   const t=times(ev,p.timezone),item={calendarId:cal,event:ev};if(!t)out.push('Event '+label(ev,cal)+' has times that cannot be read; blank time is unknown.');
    if(Array.isArray(ev.recurrence)&&ev.recurrence.length)out.push('Event '+label(ev,cal)+' is an unexpanded recurring series; read its occurrences.');
-   const item={calendarId:cal,event:ev},marked=(String(ev.description??'')+'\n').includes(mark)||String(ev.description??'').endsWith('Dayweave action: '+p.id);
-   if(marked){(cal===p.calendarId?res.target:res.foreign).push(item);continue;}
+   if(hasMarker(p,ev)){(cal===p.calendarId?res.target:res.foreign).push(item);continue;}
+   if(!t)continue;
    if(cal===p.calendarId&&ev.summary===p.title&&t.start===s&&t.end===e)res.possible.push(item);
    else if(ev.transparency!=='transparent'&&t.start<e&&s<t.end)res.conflicts.push(item);}}
  return res;}
@@ -103,7 +106,7 @@ function verify(s,ref,approval,declared,now=new Date()){const q=A.read(s,ref),d=
  blockers.push(...evidence(approval,q.reference,q.at,now));
  if(!Array.isArray(declared)||!declared.every(x=>typeof x==='string'))blockers.push('Record the create tool\'s declared argument names (a list) before writing.');
  const actions=q.value.map(p=>{const k=key(store,p),current=d.proposals.find(x=>x.id===p.id),errors=[...P.errors(p,d,now,s.startedCopies(d)),...actionErrors(p,d)],h=statusOf(d,p.id);
-  if(h?.status==='not_created'&&h.reference===q.reference)errors.push('This action was not created under '+q.reference+'; a retry needs a newly prepared and approved version.');
+  if(A.notCreatedUnder(h,q))errors.push('This action was not created under '+q.reference+'; a retry needs a newly prepared and approved version.');
   if(!current||P.fingerprint(current)!==P.fingerprint(p))errors.push('The saved proposal changed since this version was prepared.');
   const missing=Array.isArray(declared)?required(p).filter(f=>!declared.includes(f)):[];if(missing.length)errors.push('The connector cannot set approved fields ('+missing.join(', ')+'). Stop rather than drop them.');
   return {id:p.id,fingerprint:P.fingerprint(p),receipt:statusOf(d,p.id)?.status||null,idempotencyKey:k,marker:marker(p,k),sourceRefs:p.sourceRefs||[],profile:PROFILE.name,tool:PROFILE.tool,request:toConnector(p,k),errors:[...new Set(errors)]};});
@@ -120,31 +123,79 @@ function pending(s,ref,id,approval,declared,read,now=new Date()){const v=verify(
  A.record(s,{reference:v.reference,id,status:'pending',recordedAt:new Date(now).toISOString(),humanApproval:approval,evidence:'Live re-read at '+read.checkedAt+' was complete for '+read.reads.length+' calendars with no conflicts or duplicates.'},{bridge:A.BRIDGE});
  return {id,status:'pending',tool:PROFILE.tool,write:a.request,idempotencyKey:a.idempotencyKey,next:'Call the create tool once with exactly these arguments, then read the event back. If the response is lost or unclear, run reconcile; never retry blindly.'};}
 // 4. Compare the connector read-back and record executed (all fields match) or unverified (any difference). `rb` is
-// {calendarId, account, event}: the calendar and account of the authenticated read, and the raw event it returned.
+// {calendarId, account, event}: the calendar and account of the authenticated read, and the raw event it returned. Once this
+// claim has seen a marked event, a direct read-back may only open that same event (calendar and ID); anything else, several
+// events or an earlier event that could not be fully recorded needs a reconcile (and possibly the human).
 function readback(s,ref,id,rb,now=new Date(),{fromReconcile=false}={}){const {p,k,d,h}=action(s,ref,id),st=h?.status;if(!['pending','unverified'].includes(st))throw Error('Record pending before a read-back (current: '+(st||'none')+').');
- if(held(h)&&!fromReconcile)throw Error('Several matching events were found; resolve them with the human and run a fresh reconcile that finds exactly one.');
- const ev=plain(rb)?rb.event:null,m=[];if(!plain(rb)||rb.calendarId!==p.calendarId)m.push('read from calendar '+(plain(rb)?rb.calendarId:'unknown')+', not the approved '+p.calendarId);if(!plain(rb)||rb.account!==p.account)m.push('read with a different or unknown account');
- const mismatches=[...m,...compare(p,k,ev)],at=new Date(now).toISOString(),ok=!mismatches.length,ref2=plain(ev)&&typeof ev.id==='string'&&ev.id&&plain(rb)&&typeof rb.calendarId==='string'?rb.calendarId+'/'+ev.id:null;
+ const ev=plain(rb)?rb.event:null,m=[],ref2=plain(ev)&&typeof ev.id==='string'&&ev.id&&plain(rb)&&typeof rb.calendarId==='string'?rb.calendarId+'/'+ev.id:null,prior=seen(h);
+ if(!fromReconcile){if(many(prior))throw Error('Several matching events were found; resolve them with the human and run a fresh reconcile that finds exactly one.');
+  if(prior.unknown)throw Error('A marked event seen earlier for this action was not fully recorded ('+UNKNOWN+'); resolve it with the human.');
+  if(prior.matches.some(x=>x!==ref2))throw Error('Marked event '+prior.matches.join(', ')+' was seen earlier for this action; read back only that event, or run a complete reconcile that covers where it was seen.');}
+ if(!plain(rb)||rb.calendarId!==p.calendarId)m.push('read from calendar '+(plain(rb)?rb.calendarId:'unknown')+', not the approved '+p.calendarId);if(!plain(rb)||rb.account!==p.account)m.push('read with a different or unknown account');
+ const mismatches=[...m,...compare(p,k,ev)],at=new Date(now).toISOString(),ok=!mismatches.length;
  if(ok)A.record(s,{reference:ref,id,status:'executed',recordedAt:at,verifiedAt:at,remoteRef:ref2,evidence:'Read back event '+ev.id+' from '+rb.calendarId+'; the compared approved fields matched (title, times, description and marker, location, busy state, popup reminder, default event type, organizer, no attendees, meeting or recurrence). Other returned fields were not compared.'},{bridge:A.BRIDGE});
- else A.record(s,{reference:ref,id,status:'unverified',recordedAt:at,...(ref2?{remoteRef:ref2}:{}),evidence:'Read-back mismatch: '+mismatches.join('; ')+'. Human resolution required; do not edit, delete or retry automatically.'},{bridge:A.BRIDGE});
+ else{// The read event joins this claim's marked events when it carries the marker, so a mismatch never drops what was seen.
+  const scope=join(prior,observe(hasMarker(p,ev)?[{calendarId:plain(rb)?rb.calendarId:null,event:ev}]:[],null,p.timezone));
+  A.record(s,{reference:ref,id,status:'unverified',recordedAt:at,...(ref2?{remoteRef:ref2}:{}),...(many(scope)?{hold:'ambiguous'}:{}),holdScope:bare(scope),evidence:'Read-back mismatch: '+mismatches.join('; ')+'. Human resolution required; do not edit, delete or retry automatically.'},{bridge:A.BRIDGE});}
  return {id,status:ok?'executed':'unverified',mismatches};}
-// Several marked events once found for an action keep it held until a complete reconcile finds exactly one; an unknown or
-// partial read in between does not clear it.
+// Marked events a started claim has seen. Every outcome after its pending receipt keeps them in `holdScope`, whether or not the
+// action is held: each marked event any reconcile or read-back saw (on the destination or another calendar, also in an
+// incomplete or erroring read) as `calendarId/eventId` with its calendar and interval, plus the window and read calendars of a
+// search that saw several at once. Within a claim they only grow. Two or more distinct events (calendar and ID) hold the action:
+// a single match clears it only from complete reads covering all of that and 24 hours either side of the action, so a narrower
+// search cannot leave a known marked event unseen. With one, only that same event is read back. `unknown` marks something that
+// could not be recorded (see UNKNOWN); it stays set, the readable parts are kept, and nothing clears it automatically.
 const held=h=>h?.hold==='ambiguous'||h?.conclusion==='ambiguous';
+const UNKNOWN='a marked event with times that cannot be read or without an event or calendar ID, several seen by a search without valid bounds, an unreadable stored scope, or an outcome recorded before marked events were kept';
+const names=x=>Array.isArray(x)?x.filter(v=>typeof v==='string'&&v):[],iso=x=>new Date(x).toISOString(),NONE=Object.freeze({start:null,end:null,calendars:[],matches:[]});
+const many=x=>x.several||x.matches.length>1,bare=({several,...x})=>x;
+// A recorded scope. An empty one (no marked event yet) is known; anything unreadable is unknown, keeping only its readable parts.
+function scopeOf(raw){const x=plain(raw)?raw:{},all=v=>Array.isArray(v)&&v.every(i=>typeof i==='string'&&i),empty=all(x.matches)&&!x.matches.length&&x.start==null&&x.end==null;
+ const known=plain(raw)&&x.unknown!==true&&all(x.calendars)&&all(x.matches)&&(empty||instant(x.start)&&instant(x.end)&&Date.parse(x.start)<=Date.parse(x.end));
+ return {start:instant(x.start)?x.start:null,end:instant(x.end)?x.end:null,calendars:names(x.calendars),matches:names(x.matches),...(known?{}:{unknown:true})};}
+function join(a,b){const lo=[a.start,b.start].filter(Boolean).map(Date.parse),hi=[a.end,b.end].filter(Boolean).map(Date.parse);
+ return {start:lo.length?iso(Math.min(...lo)):null,end:hi.length?iso(Math.max(...hi)):null,calendars:[...new Set([...a.calendars,...b.calendars])].sort(),matches:[...new Set([...a.matches,...b.matches])],several:!!(a.several||b.several),...(a.unknown||b.unknown?{unknown:true}:{})};}
+// The marked events one search (or read-back) saw: each match with its calendar and interval. A search that saw several also adds
+// its window and read calendars. That window counts only when both bounds are valid instants; otherwise, or when a match has no
+// calendar or event ID or its times cannot be read, the range becomes unknown rather than invented.
+function observe(found,search,tz){const several=found.length>1,bounds=plain(search)&&instant(search.start)&&instant(search.end)&&Date.parse(search.start)<=Date.parse(search.end),wide=several&&bounds;
+ const ids=found.map(x=>typeof x.calendarId==='string'&&x.calendarId&&typeof x.event?.id==='string'&&x.event.id?x.calendarId+'/'+x.event.id:null),spans=found.map(x=>times(x.event,tz)),ok=spans.filter(Boolean);
+ const from=[...(wide?[Date.parse(search.start)]:[]),...ok.map(t=>t.start)],to=[...(wide?[Date.parse(search.end)]:[]),...ok.map(t=>t.end)],read=several&&Array.isArray(search?.reads)?search.reads.filter(plain).map(r=>r.calendarId):[];
+ return {start:from.length?iso(Math.min(...from)):null,end:to.length?iso(Math.max(...to)):null,calendars:[...new Set([...names(read),...names(found.map(x=>x.calendarId))])].sort(),matches:[...new Set(ids.filter(Boolean))],several:false,
+  ...(ids.includes(null)||spans.includes(null)||several&&!bounds?{unknown:true}:{})};}
+// What the current claim has seen: the union over every outcome since its pending receipt (a hold, once recorded, stays). An
+// outcome with no recorded scope is from before every outcome kept one: unless it is known to have seen no marked event (an
+// unmarked look-alike, or an empty search too narrow for absence), what it saw is unknown. So is a hold with fewer than two matches.
+function seen(h){const all=[...(Array.isArray(h?.attempts)?h.attempts:[]),h].filter(plain),i=all.map(x=>x.status).lastIndexOf('pending');let e={...NONE,several:false};
+ for(const x of all.slice(Math.max(i,0)).filter(x=>x.status==='unverified')){
+  const sc=x.holdScope!=null?scopeOf(x.holdScope):!held(x)&&(x.conclusion==='unmarked'||/^No marked event in /.test(String(x.evidence)))?{...NONE}:{...NONE,unknown:true};
+  e=join(e,{...sc,several:held(x),...(held(x)&&sc.matches.length<2?{unknown:true}:{})});}
+ return e;}
+function uncovered(p,scope,search){if(scope.unknown||!scope.start||!scope.end)return ['resolve it with the human: the earlier hold scope is unknown ('+UNKNOWN+'), so no search can be shown to cover it'];
+ const from=Math.min(Date.parse(p.start)-ABSENCE_MARGIN_MS,Date.parse(scope.start)),to=Math.max(Date.parse(p.end)+ABSENCE_MARGIN_MS,Date.parse(scope.end)),read=names(search.reads.map(r=>r.calendarId)),out=[];
+ if(!(Date.parse(search.start)<=from&&Date.parse(search.end)>=to))out.push('read '+new Date(from).toISOString()+' to '+new Date(to).toISOString());
+ const missing=scope.calendars.filter(c=>!read.includes(c));if(missing.length)out.push('read '+missing.join(', '));return out;}
 // 5. Reconcile an unknown outcome from a fresh complete live re-read. Absence needs positive evidence: complete reads of every
 // queried calendar from at least 24 hours before to 24 hours after the action, and it holds only for that window (never global
-// absence). Ambiguity, unmarked look-alikes and markers on another calendar stay unverified. Calendar provenance always comes
-// from the read, never the target.
+// absence); once this claim has seen a marked event it is never concluded. Ambiguity, unmarked look-alikes and markers on
+// another calendar stay unverified. Calendar provenance always comes from the read, never the target.
 function reconcile(s,ref,id,search,now=new Date()){const {p,k,d,h}=action(s,ref,id),st=h?.status;if(!['pending','unverified'].includes(st))throw Error('Nothing to reconcile (current: '+(st||'none')+').');
- const r=live(p,k,search,d,now),at=new Date(now).toISOString(),note=(x,extra={})=>({reference:ref,id,recordedAt:at,...x,...extra}),hold=held(h);
- const stay=(conclusion,evidenceText,extra={})=>{const keep=hold||conclusion==='ambiguous';A.record(s,note({status:'unverified',conclusion,...(keep?{hold:'ambiguous'}:{}),evidence:evidenceText+(hold&&conclusion!=='ambiguous'?' Several marked events were found earlier; only a complete reconcile that finds exactly one clears that.':'')}),{bridge:A.BRIDGE});return {id,status:'unverified',conclusion,...(keep?{hold:'ambiguous'}:{}),...extra};};
- if(r.errors.length)return stay('unknown','Outcome unknown; the search cannot decide: '+r.errors.join(' '),{errors:r.errors});
+ const r=live(p,k,search,d,now),at=new Date(now).toISOString(),note=(x,extra={})=>({reference:ref,id,recordedAt:at,...x,...extra});
+ // Marked events this search saw, on the destination or another calendar, even if it was incomplete or had errors: they exist.
+ // They join every marked event this claim saw before; two or more distinct ones start or keep the hold.
+ const found=[...r.target,...r.foreign],ids=found.map(x=>x.calendarId+'/'+x.event.id),prior=seen(h),scope=join(prior,observe(found,search,p.timezone)),hold=many(prior),keep=many(scope);
+ const stay=(conclusion,evidenceText,extra={})=>{A.record(s,note({status:'unverified',conclusion,...(keep?{hold:'ambiguous'}:{}),holdScope:bare(scope),evidence:evidenceText+(keep&&!hold?' Several marked events have been seen for this action ('+scope.matches.join(', ')+'); the action is held until a complete reconcile covering where they were found finds exactly one.':'')+(hold&&conclusion!=='ambiguous'?' Several marked events were found earlier; only a complete reconcile that finds exactly one clears that.':'')}),{bridge:A.BRIDGE});return {id,status:'unverified',conclusion,...(keep?{hold:'ambiguous'}:{}),...extra};};
+ if(r.errors.length)return stay('unknown','Outcome unknown; the search cannot decide: '+r.errors.join(' '),{errors:r.errors,...(ids.length?{matches:ids}:{})});
  if(r.foreign.length)return stay('other-calendar','This action\'s marker was found on another calendar ('+r.foreign.map(x=>x.calendarId+'/'+x.event.id).join(', ')+'); the write may have landed on the wrong calendar. Human resolution required; do not delete or retry automatically.',{matches:r.foreign.map(x=>x.calendarId+'/'+x.event.id)});
  if(r.target.length>1)return stay('ambiguous','Multiple matching events ('+r.target.map(x=>x.event.id).join(', ')+'); human resolution required. Do not delete or retry automatically.',{matches:r.target.map(x=>x.event.id)});
  if(!r.target.length&&r.possible.length)return stay('unmarked','An event with the same title and times but no action marker exists on the destination ('+r.possible.map(x=>x.event.id).join(', ')+'); human resolution required.',{matches:r.possible.map(x=>x.event.id)});
  if(!r.target.length){
   if(hold)return stay('ambiguous','A complete re-read now finds no marked event, but several were found earlier; human resolution required. Do not retry automatically.');
+  if(prior.matches.length||prior.unknown)return stay('unknown','A complete re-read now finds no marked event, but '+(prior.matches.length?'marked event '+prior.matches.join(', ')+' was seen earlier':'an earlier outcome may have seen one it did not record')+', so the write may exist. Human resolution required; do not retry automatically.');
   if(!(Date.parse(search.start)<=Date.parse(p.start)-ABSENCE_MARGIN_MS&&Date.parse(search.end)>=Date.parse(p.end)+ABSENCE_MARGIN_MS))return stay('unknown','No marked event in '+search.start+' to '+search.end+', but absence needs complete reads from at least 24 hours before to 24 hours after the action; read the wider window.');
   A.record(s,note({status:'not_created',evidence:'Complete live re-read at '+search.checkedAt+' of '+search.reads.length+' calendars ('+search.reads.map(x=>x.calendarId).join(', ')+') from '+search.start+' to '+search.end+' found no event with this action marker in that window.'}),{bridge:A.BRIDGE});return {id,status:'not_created',conclusion:'absent in the searched window; a retry needs a newly prepared and approved version'};}
- const one=r.target[0];return {...readback(s,ref,id,{calendarId:one.calendarId,account:search.account,event:one.event},now,{fromReconcile:true}),conclusion:'one match read back'};}
+ // One marked event: read back as before, unless this claim also saw another one (a hold) or something it could not record.
+ const one=r.target[0],gap=keep||scope.unknown?uncovered(p,scope.unknown?scope:prior,search):[];
+ if(gap.length)return stay(keep?'ambiguous':'unknown','One marked event ('+one.event.id+') was found, but '+(scope.unknown?'a marked event seen for this action was not fully recorded':(hold?'several were':'another one was')+' found earlier between '+prior.start+' and '+prior.end+' on '+prior.calendars.join(', '))+'; this search does not rule out another one. To clear '+(keep?'the hold':'it')+', '+gap.join(' and ')+(scope.unknown?'.':' completely.'),{matches:[one.calendarId+'/'+one.event.id],needs:gap});
+ return {...readback(s,ref,id,{calendarId:one.calendarId,account:search.account,event:one.event},now,{fromReconcile:true}),conclusion:'one match read back'};}
 module.exports={LIVE_MAX_AGE_MS,ABSENCE_MARGIN_MS,PROFILE,key,marker,description,required,toConnector,actionErrors,evidence,times,live,compare,verify,recheck,pending,readback,reconcile};

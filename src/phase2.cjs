@@ -94,7 +94,9 @@ function record(history,r){
  if(r.status!=='pending'&&!previous)throw Error('Record the pending action before its outcome.');
  if(r.status==='executed'&&(!valid(r.verifiedAt)||!r.remoteRef||!r.evidence))throw Error('Verified outcome requires timestamp, remote reference and read-back evidence.');
  if(r.status==='not_created'&&!r.evidence)throw Error('A retry requires evidence that no event was created.');
- return [...history.filter(x=>x.id!==r.id),{...r,attempts:[...(previous?.attempts||[]),...(previous?[{status:previous.status,recordedAt:previous.recordedAt,evidence:previous.evidence||null}]:[])]}];
+ // Earlier states keep the version they were recorded under, so a not_created version stays refused after later attempts.
+ const earlier=x=>({status:x.status,recordedAt:x.recordedAt,evidence:x.evidence||null,...Object.fromEntries(['reference','conclusion','hold','holdScope'].filter(k=>x[k]!=null).map(k=>[k,x[k]]))});
+ return [...history.filter(x=>x.id!==r.id),{...r,attempts:[...(previous?.attempts||[]),...(previous?[earlier(previous)]:[])]}];
 }
 const api={providerName,spec,fingerprint,occurrences,errors,request,helpRequest,record};
 if(typeof module!=='undefined')module.exports=api;else window.PlannerPhase2=api;

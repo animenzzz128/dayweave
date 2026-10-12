@@ -15,9 +15,15 @@ function record(s,receipt,{bridge=null,legacy=false}={}){const q=read(s,receipt.
 // proposal (never from the receipt file): exact target, times, source task refs, minutes, store and idempotency key. Later
 // states copy those frozen values from the pending receipt instead of recomputing them, and must be recorded in the same store.
 const FROZEN=['reference','fingerprint','provider','account','calendarId','calendar','title','start','end','sourceRefs','minutes','idempotencyKey','store','connector','humanApproval'];
+// Whether an action was ever recorded not_created under version q, in its current or any earlier state. Earlier states from
+// before versions were kept in history have no reference; they refuse every version prepared at or before them, and every
+// version when their own time cannot be read (no time is invented).
+function notCreatedUnder(h,q){return !!h&&[h,...(h.attempts||[])].some(x=>x?.status==='not_created'&&(x.reference?x.reference===q.reference:!(Date.parse(q.at)>Date.parse(x.recordedAt))));}
 function google(s,q,p,receipt){const G=require('./google.cjs'),d=s.snapshot(),prev=d.actionHistory.find(h=>h.id===p.id);
- // A not-created action is retried only under a newly prepared and approved version, even while another action of this one is pending.
- if(prev?.status==='not_created'&&prev.reference===q.reference)throw Error('This action was not created under '+q.reference+'; a retry needs a newly prepared and approved version.');
+ // A not-created action is retried only under a newly prepared and approved version, even while another action of this one is
+ // pending and after later versions also attempted it. This refuses new pending claims only: the outcome of a claim that already
+ // started is recorded under that claim's own version (checked below), even when older history would refuse a new claim.
+ if(receipt.status==='pending'&&notCreatedUnder(prev,q))throw Error('This action was not created under '+q.reference+'; a retry needs a newly prepared and approved version.');
  if(receipt.status==='pending'){const bad=[...G.evidence(receipt.humanApproval,q.reference,q.at),...G.actionErrors(p,d)];if(bad.length)throw Error('Approval is no longer executable: '+bad.join('; '));const store=s.storeId();
   Object.assign(receipt,{reference:q.reference,fingerprint:P.fingerprint(p),provider:'google',account:p.account,calendarId:p.calendarId,calendar:p.calendar,title:p.title,start:p.start,end:p.end,sourceRefs:p.sourceRefs||[],minutes:Math.round((Date.parse(p.end)-Date.parse(p.start))/60000),idempotencyKey:G.key(store,p),store,connector:G.PROFILE.name});return;}
  if(!prev?.idempotencyKey||prev.provider!=='google')throw Error('Record the Google pending receipt before its outcome.');
@@ -25,4 +31,4 @@ function google(s,q,p,receipt){const G=require('./google.cjs'),d=s.snapshot(),pr
  if(prev.store!==s.storeId())throw Error('The pending receipt was recorded in another database (store '+String(prev.store).slice(0,8)+'); record its outcome there.');
  for(const k of FROZEN)receipt[k]=prev[k]??null;}
 function attach(server){server.actionRoute=async({req,u,body,store,send})=>{if(req.method==='GET'&&u.pathname==='/api/approvals'){send(200,list(store));return true;}if(req.method==='POST'&&u.pathname==='/api/proposals/invalidate'){for(const r of list(store).filter(r=>r.status==='prepared'&&r.value.some(p=>p.id===body.id)))store.db.prepare("UPDATE approvals SET status='invalidated' WHERE id=?").run(r.id);send(200,{ok:true});return true;}if(req.method==='POST'&&u.pathname==='/api/proposals/edit'){send(200,edit(store,body.id,body.changes||{}));return true;}if(req.method==='POST'&&u.pathname==='/api/approvals/prepare'){send(200,prepare(store,body.ids));return true;}return false;};return server;}
-module.exports={list,edit,prepare,read,record,attach,BRIDGE};
+module.exports={list,edit,prepare,read,record,attach,notCreatedUnder,BRIDGE};

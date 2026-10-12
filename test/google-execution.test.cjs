@@ -94,14 +94,18 @@ test('read-back compares the raw connector shape and the queried calendar; any d
   [{start:offset(new Date(Date.parse(p.start)+60000).toISOString())},/start time/],[{transparency:'transparent'},/busy state/],[{summary:'Other'},/summary/],[{status:'cancelled'},/cancelled/],[{id:''},/remote event ID/],[{location:'Elsewhere'},/location/]])
   a.match(mism(x),re,JSON.stringify(x));
  a.equal(mism({attendees:null,recurrence:null,hangout_link:null,transparency:undefined}),'','null attendees/recurrence/meeting and default transparency are fine');
- const wrongCal=G.readback(s,q.reference,p.id,back(p,saved(p,k),{calendarId:'course-schedule@example.com'}));a.equal(wrongCal.status,'unverified');a.match(wrongCal.mismatches.join(' '),/read from calendar course-schedule/);
- a.equal(s.snapshot().actionHistory[0].remoteRef,'course-schedule@example.com/'+saved(p,k).id,'the remote reference names the calendar actually read, never the target');
  a.match(G.readback(s,q.reference,p.id,back(p,saved(p,k),{account:'other@example.com'})).mismatches.join(' '),/different or unknown account/);
  const bad=G.readback(s,q.reference,p.id,back(p,saved(p,k,{location:'Somewhere else'})));a.equal(bad.status,'unverified');a.match(s.snapshot().actionHistory[0].evidence,/location differs.*Human resolution required/);a.equal(A.read(s,q.reference).status,'unverified');
  const good=G.readback(s,q.reference,p.id,back(p,saved(p,k)));a.equal(good.status,'executed',JSON.stringify(good));const h=s.snapshot().actionHistory[0];
- a.equal(h.remoteRef,p.calendarId+'/'+saved(p,k).id);a.ok(h.verifiedAt);a.match(h.evidence,/the compared approved fields matched.*Other returned fields were not compared/);a.deepEqual(h.attempts.map(x=>x.status),['pending','unverified','unverified','unverified']);
+ a.equal(h.remoteRef,p.calendarId+'/'+saved(p,k).id);a.ok(h.verifiedAt);a.match(h.evidence,/the compared approved fields matched.*Other returned fields were not compared/);a.deepEqual(h.attempts.map(x=>x.status),['pending','unverified','unverified']);
  a.equal(h.humanApproval.text,'Approve '+q.reference,'approval evidence survives later states');a.equal(h.idempotencyKey,k);a.deepEqual(h.sourceRefs,p.sourceRefs);
  a.equal(A.read(s,q.reference).status,'executed');a.throws(()=>G.readback(s,q.reference,p.id,back(p,saved(p,k))),/current: executed/);
+ // A marked event read from another calendar keeps that calendar in its reference and is a different event (calendar and ID)
+ // from the destination copy with the same ID, so the destination copy can no longer be read back directly.
+ withStore(s2=>{const {d,p,q,k}=setup(s2);G.pending(s2,q.reference,p.id,ok(q),ARGS,liveRead(d,p));
+  const wrongCal=G.readback(s2,q.reference,p.id,back(p,saved(p,k),{calendarId:'course-schedule@example.com'}));a.equal(wrongCal.status,'unverified');a.match(wrongCal.mismatches.join(' '),/read from calendar course-schedule/);
+  const h=s2.snapshot().actionHistory[0];a.equal(h.remoteRef,'course-schedule@example.com/'+saved(p,k).id,'the remote reference names the calendar actually read, never the target');a.deepEqual(h.holdScope.matches,['course-schedule@example.com/'+saved(p,k).id]);
+  a.throws(()=>G.readback(s2,q.reference,p.id,back(p,saved(p,k))),/was seen earlier for this action/);a.equal(s2.snapshot().actionHistory[0].status,'unverified');});
 }));
 
 // A search wide enough to conclude absence: at least 24 hours on each side of the action.
@@ -109,8 +113,6 @@ const wide=(d,p,extra={})=>liveRead(d,p,{start:new Date(Date.parse(p.start)-25*3
 test('reconciliation never invents provenance: unknown, other-calendar and unmarked outcomes stay unverified; absence needs a complete search 24 hours either side',()=>withStore(s=>{
  const {d,p,q,k}=setup(s),dest=p.calendarId,other='course-schedule@example.com';G.pending(s,q.reference,p.id,ok(q),ARGS,liveRead(d,p));
  let r=G.reconcile(s,q.reference,p.id,liveRead(d,p,{reads:[{calendarId:dest,complete:false,events:[]},{calendarId:other,complete:true,events:[]}]}));a.equal(r.conclusion,'unknown');a.equal(s.snapshot().actionHistory[0].status,'unverified');
- r=G.reconcile(s,q.reference,p.id,liveRead(d,p,{events:{[other]:[saved(p,k,{id:'wrong'})]}}));a.equal(r.status,'unverified');a.equal(r.conclusion,'other-calendar');a.deepEqual(r.matches,[other+'/wrong']);
- a.equal(s.snapshot().actionHistory[0].remoteRef,undefined,'no target reference is invented for an event on another calendar');
  r=G.reconcile(s,q.reference,p.id,liveRead(d,p,{events:{[dest]:[saved(p,k,{id:'look',description:p.body})]}}));a.equal(r.conclusion,'unmarked');
  // A complete read of only the action interval says nothing about the rest of the day: no absence, no retry.
  r=G.reconcile(s,q.reference,p.id,liveRead(d,p));a.equal(r.status,'unverified');a.equal(r.conclusion,'unknown');a.match(s.snapshot().actionHistory[0].evidence,/at least 24 hours before to 24 hours after/);
@@ -118,7 +120,12 @@ test('reconciliation never invents provenance: unknown, other-calendar and unmar
  a.match(s.snapshot().actionHistory[0].evidence,/found no event with this action marker in that window/);a.equal(A.read(s,q.reference).status,'failed');
  a.throws(()=>G.pending(s,q.reference,p.id,ok(q),ARGS,liveRead(d,p)),/failed and cannot be executed/,'a retry needs a new approved version');
  const q2=A.prepare(s,[p.id]);a.notEqual(q2.reference,q.reference);G.pending(s,q2.reference,p.id,ok(q2),ARGS,liveRead(d,p));
- r=G.reconcile(s,q2.reference,p.id,liveRead(d,p,{events:{[dest]:[saved(p,k)]}}));a.equal(r.status,'executed');a.equal(r.conclusion,'one match read back');a.equal(s.snapshot().actionHistory[0].remoteRef,dest+'/'+saved(p,k).id);
+ r=G.reconcile(s,q2.reference,p.id,liveRead(d,p,{events:{[other]:[saved(p,k,{id:'wrong'})]}}));a.equal(r.status,'unverified');a.equal(r.conclusion,'other-calendar');a.deepEqual(r.matches,[other+'/wrong']);
+ a.equal(s.snapshot().actionHistory[0].remoteRef,undefined,'no target reference is invented for an event on another calendar');
+ // The marker seen on another calendar exists: a later empty search, even 24 hours either side, is not absence.
+ r=G.reconcile(s,q2.reference,p.id,wide(d,p));a.equal(r.status,'unverified');a.equal(r.conclusion,'unknown');a.match(s.snapshot().actionHistory[0].evidence,/course-schedule@example\.com\/wrong was seen earlier/);
+ r=G.reconcile(s,q2.reference,p.id,liveRead(d,p,{events:{[dest]:[saved(p,k)]}}));a.equal(r.status,'unverified','a narrow single match does not clear the earlier other-calendar marker');a.equal(r.hold,'ambiguous');
+ r=G.reconcile(s,q2.reference,p.id,wide(d,p,{events:{[dest]:[saved(p,k)]}}));a.equal(r.status,'executed');a.equal(r.conclusion,'one match read back');a.equal(s.snapshot().actionHistory[0].remoteRef,dest+'/'+saved(p,k).id);
 }));
 
 test('an ambiguous outcome stays held until a complete reconcile finds exactly one marked event; unknown, unmarked or empty reads never clear it',()=>withStore(s=>{
@@ -131,7 +138,8 @@ test('an ambiguous outcome stays held until a complete reconcile finds exactly o
  r=G.reconcile(s,q.reference,p.id,liveRead(d,p,{events:{[dest]:[saved(p,k,{id:'look',description:p.body})]}}));a.equal(r.conclusion,'unmarked');a.equal(h().hold,'ambiguous');
  r=G.reconcile(s,q.reference,p.id,wide(d,p));a.equal(r.status,'unverified','a later empty read does not turn earlier duplicates into not_created');a.equal(r.conclusion,'ambiguous');
  a.equal(A.read(s,q.reference).status,'unverified');a.throws(()=>G.readback(s,q.reference,p.id,back(p,saved(p,k,{id:'a1'}))),/Several matching events/);
- r=G.reconcile(s,q.reference,p.id,liveRead(d,p,{events:{[dest]:[saved(p,k,{id:'a1'})]}}));a.equal(r.status,'executed');a.equal(r.conclusion,'one match read back');a.equal(h().remoteRef,dest+'/a1');a.equal(h().hold,undefined);
+ r=G.reconcile(s,q.reference,p.id,liveRead(d,p,{events:{[dest]:[saved(p,k,{id:'a1'})]}}));a.equal(r.status,'unverified','a narrow single match does not clear the hold');a.equal(h().hold,'ambiguous');
+ r=G.reconcile(s,q.reference,p.id,wide(d,p,{events:{[dest]:[saved(p,k,{id:'a1'})]}}));a.equal(r.status,'executed');a.equal(r.conclusion,'one match read back');a.equal(h().remoteRef,dest+'/a1');a.equal(h().hold,undefined);
 }));
 
 test('a not-created action in a multi-action version needs a newly approved version, even while another action of it is pending',()=>withStore(s=>{
