@@ -27,7 +27,9 @@ const fresh=m=>{const {retained,...x}=m;return x;};
 // Validates and normalizes an email record. Missing stays null (unknown); a disabled record stays disabled.
 function normalize(e){
  if(e==null)return null;if(!plain(e))throw Error('Invalid email record');
- if(e.enabled!==true)return {enabled:false,...(e.note?{note:text(e.note,500,'note')}:{})};
+ // Only an explicit boolean decides: a truthy string or number is ambiguous and rejected rather than read as disabled.
+ if(typeof e.enabled!=='boolean')throw Error('Email enabled must be true or false');
+ if(!e.enabled)return {enabled:false,...(e.note?{note:text(e.note,500,'note')}:{})};
  if(!PROVIDERS.includes(e.provider))throw Error('Email provider must be google');
  if(typeof e.account!=='string'||!e.account.trim()||e.account.length>320)throw Error('Email account is required');
  if(!stableId(e.sourceId))throw Error('Email sourceId is required');
@@ -60,10 +62,14 @@ function normalize(e){
 }
 // Merges a newly collected record into the previous one. A failed read keeps prior messages (labelled retained) and the
 // last complete read time; a partial read keeps prior in-window messages it did not return. Account/provider changes keep nothing.
-function merge(old,incoming,sources){
- const next=normalize(incoming);let prior=null;try{prior=normalize(old);}catch{prior=null;}
- if(!next)return prior;if(!next.enabled)return next;
- const src=(sources||[]).find(s=>s&&s.id===next.sourceId),failed=next.coverage.status==='failed'||DOWN.includes(src?.status);
+// An import without an email record whose email source is not ok did not collect mail: the prior record becomes failed and
+// retained (attempt time `at`), never a still-complete read. With an ok source the prior record is kept with its own time.
+function merge(old,incoming,sources,at){
+ let next=normalize(incoming),prior=null;try{prior=normalize(old);}catch{prior=null;}
+ if(!next){const src=prior?.enabled&&(sources||[]).find(s=>s&&s.id===prior.sourceId);if(!src||src.status==='ok')return prior;
+  next={...prior,checkedAt:instant(at)&&Date.parse(at)>=Date.parse(prior.checkedAt)?at:prior.checkedAt,coverage:{...prior.coverage,status:'failed',morePages:null,note:'',errors:[text('Gmail source '+src.status+'; no email record in this import'+(src.note?': '+src.note:''),500,'error')]},messages:[]};}
+ if(!next.enabled)return next;
+ const src=(sources||[]).find(s=>s&&s.id===next.sourceId),failed=incoming==null||next.coverage.status==='failed'||DOWN.includes(src?.status);
  const same=!!prior?.enabled&&prior.provider===next.provider&&prior.account===next.account,kept=same?prior.messages:[],since=kept.length?(prior.retainedFrom||prior.checkedAt):null;
  if(failed){const errors=next.coverage.errors.length?next.coverage.errors:[text(src?.note||'Collection failed',500,'error')];
   return {...next,coverage:{...next.coverage,status:'failed',complete:false,truncated:false,returned:0,errors},lastSuccess:same?prior.lastSuccess:null,retained:kept.length>0,retainedFrom:since,messages:kept.map(m=>({...m,retained:true}))};}

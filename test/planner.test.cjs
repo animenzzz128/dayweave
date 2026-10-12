@@ -10,7 +10,7 @@ function snap(date,now,edit=x=>x){C.configure(TZ);const d=C.mergeSnapshot(null,s
  d.assignments=[asg('big',{estimateMinutes:150,dueAt:C.zonedISO(next,'18:00')}),asg('soon',{estimateMinutes:45,dueAt:at('20:00')}),asg('undated',{dueAt:null,estimateMinutes:30}),
   asg('choice',{requirement:'choice'}),asg('uncertain',{requirement:'uncertain'}),asg('unknown',{status:'unknown'}),asg('failed',{sourceId:'course-b'}),asg('noest',{estimateMinutes:undefined}),
   asg('done',{status:'submitted'}),asg('local',{}),asg('late',{dueAt:at('08:00')}),asg('removed',{archivedFromSource:true})];
- d.sources=d.sources.map(s=>s.id==='course-b'?{...s,status:'failed'}:s);return edit(d);}
+ d.sources=d.sources.map(s=>({...(s.id==='course-b'?{...s,status:'failed'}:s),lastSuccess:new Date(now).toISOString()}));return edit(d);}
 const todo=(id,minutes,dueAt=null,extra={})=>({id,title:'Todo '+id,dueAt,durationMinutes:minutes,status:'open',version:1,...extra});
 const overlaps=(x,y)=>Date.parse(x.start)<Date.parse(y.end)&&Date.parse(y.start)<Date.parse(x.end);
 const reasons=r=>Object.fromEntries(r.unscheduled.map(u=>[u.id,u.reason]));

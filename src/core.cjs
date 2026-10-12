@@ -28,7 +28,13 @@ function safeURL(s){try{const u=new URL(s);return ['https:','http:'].includes(u.
 const CAL_DOWN=['failed','unavailable'];
 function calendarSource(cov){return typeof cov?.sourceId==='string'&&cov.sourceId?cov.sourceId:'outlook';}
 function calendarProvider(x){return x?.provider||'outlook';}
+function sameCalendar(a,b){const p=calendarProvider(a);return p===calendarProvider(b)&&calendarSource(a)===calendarSource(b)&&(a?.account??null)===(b?.account??null)&&(p!=='google'||a?.calendarId===b?.calendarId);}
+const startedIds=d=>new Set((d.actionHistory||[]).filter(h=>['pending','unverified','executed'].includes(h.status)).map(h=>h.id));
+// The active calendar source of a snapshot is failed or unavailable.
+function calendarDown(d){const id=calendarSource(d.calendarCoverage);return d.sources.some(s=>s.id===id&&CAL_DOWN.includes(s.status));}
 function validateCoverage(cov,sources){
+  // Legacy-shaped coverage (no provider) means Outlook: it cannot describe a Google-only snapshot that lists no Outlook source.
+  if(cov&&cov.provider===undefined&&sources.some(s=>s.id==='google-calendar')&&!sources.some(s=>s.id==='outlook'))throw Error('Coverage without a provider is Outlook coverage; Google calendar coverage needs provider "google"');
   if(!cov||cov.provider===undefined)return;
   if(!['google','outlook'].includes(cov.provider))throw Error('Calendar provider must be google or outlook');
   if(cov.provider!=='google')return;
@@ -67,28 +73,37 @@ function proposalErrors(p,data,now=new Date()){
 }
 function mergeSnapshot(old,incoming){
   const M=emailModule();
-  if(!old){const d=validate(incoming);return M&&d.email!=null?validate({...d,email:M.merge(null,d.email,d.sources)}):d;}
+  // A first import gets the same active-calendar failure invalidation as later ones.
+  if(!old){let d=validate(incoming);if(calendarDown(d))d={...d,...(d.calendarCoverage?{calendarCoverage:{...d.calendarCoverage,complete:false}}:{}),proposals:d.proposals.filter(p=>startedIds(d).has(p.id))};return M&&d.email!=null?validate({...d,email:M.merge(null,d.email,d.sources,d.generatedAt)}):d;}
   const result={...old,...incoming};
   for(const key of ['actionHistory','candidateHistory'])result[key]=[...new Map([...(old[key]||[]),...(incoming[key]||[])].map(x=>[x.id,x])).values()];
   // Preserve the newer user-reported career state when merging an older snapshot.
   const careerStates=new Map();for(const h of [...(old.candidateHistory||[]),...(incoming.candidateHistory||[])]){const previous=careerStates.get(h.id);if(!previous||Date.parse(h.updatedAt)>Date.parse(previous.updatedAt))careerStates.set(h.id,h);}result.candidateHistory=[...careerStates.values()];
   // Collection snapshots cannot rewind an existing local execution journal.
   result.actionHistory=[...new Map([...(incoming.actionHistory||[]),...(old.actionHistory||[])].map(x=>[x.id,x])).values()];
-  const failed=new Set(incoming.sources.filter(s=>s.status==='failed').map(s=>s.id));
-  if(failed.has('career'))result.career={...old.career,note:'Research refresh failed; retained recommendations may be stale.'};
-  for(const key of ['assignments','events']){
-    result[key]=[...incoming[key].filter(x=>!failed.has(x.sourceId)),...old[key].filter(x=>failed.has(x.sourceId))];
-  }
-  result.sources=incoming.sources.map(s=>s.status==='failed'?{...s,lastSuccess:old.sources.find(x=>x.id===s.id)?.lastSuccess||null}:s);
-  // Only the active calendar source (legacy: outlook) invalidates coverage; an email or other source failure does not.
+  // A failed or unavailable source keeps its earlier records and last success time.
   const down=new Set(incoming.sources.filter(s=>CAL_DOWN.includes(s.status)).map(s=>s.id));
-  if(down.has(calendarSource(incoming.calendarCoverage||old.calendarCoverage))){result.calendarCoverage={...old.calendarCoverage,complete:false};result.proposals=[];}
+  if(down.has('career'))result.career={...old.career,note:'Research refresh failed; retained recommendations may be stale.'};
+  // When the calendar identity changed, the previous account's events and success time are not evidence for the new one.
+  const cov=incoming.calendarCoverage||old.calendarCoverage,moved=!!old.calendarCoverage&&!sameCalendar(cov,old.calendarCoverage),oldCal=calendarSource(old.calendarCoverage);
+  const keep=(x,key)=>down.has(x.sourceId)&&!(key==='events'&&moved&&x.sourceId===oldCal);
+  for(const key of ['assignments','events']){
+    result[key]=[...incoming[key].filter(x=>!down.has(x.sourceId)),...old[key].filter(x=>keep(x,key))];
+  }
+  result.sources=incoming.sources.map(s=>down.has(s.id)?{...s,lastSuccess:moved&&s.id===oldCal?null:old.sources.find(x=>x.id===s.id)?.lastSuccess||null}:s);
+  // Only the active calendar source (legacy: outlook) invalidates coverage; an email or other source failure does not.
+  // After an identity change the incomplete coverage shows the identity this import reported, never the previous one.
+  // Started actions (pending, unverified, executed) are not actionable and stay as protections: a calendar failure keeps them, and a
+  // collector copy with the same ID never replaces their reviewed fields.
+  const started=startedIds(result);
+  if(down.has(calendarSource(cov))){result.calendarCoverage={...(moved?cov:old.calendarCoverage),complete:false};result.proposals=old.proposals.filter(p=>started.has(p.id));}
   // Local planner blocks are not part of a source snapshot; keep those whose identity and evidence still hold.
-  else if(typeof module!=='undefined')result.proposals=[...incoming.proposals,...require('./planner.cjs').keep(old,result,down)];
-  if(M&&(old.email!=null||incoming.email!=null))result.email=M.merge(old.email,incoming.email,incoming.sources);
+  else if(typeof module!=='undefined')result.proposals=[...incoming.proposals,...require('./planner.cjs').keep(old,result)];
+  result.proposals=result.proposals.map(p=>started.has(p.id)&&old.proposals.find(o=>o.id===p.id)||p);
+  if(M&&(old.email!=null||incoming.email!=null))result.email=M.merge(old.email,incoming.email,incoming.sources,incoming.generatedAt);
   return validate(result);
 }
-const api={get TZ(){return TZ;},configure,stamp,dayKey,classify,overlap,zonedISO,fingerprint,safeURL,safeJSON,calendarSource,calendarProvider,validateCoverage,validate,proposalErrors,mergeSnapshot};
+const api={get TZ(){return TZ;},configure,stamp,dayKey,classify,overlap,zonedISO,fingerprint,safeURL,safeJSON,calendarSource,calendarProvider,sameCalendar,calendarDown,validateCoverage,validate,proposalErrors,mergeSnapshot};
 if(typeof module!=='undefined')module.exports=api;else window.PlannerCore=api;
 
 })();

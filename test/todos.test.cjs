@@ -4,7 +4,7 @@ const TZ='America/New_York';
 // Fresh fictional Google snapshot relative to the real clock: complete coverage from today through three days ahead.
 function fresh(){C.configure(TZ);const real=Date.now(),today=C.dayKey(real),tomorrow=PL.nextDay(today),d=structuredClone(require('../examples/google-snapshot.json'));
  d.generatedAt=new Date(real-60000).toISOString();d.calendarCoverage={...d.calendarCoverage,start:C.zonedISO(today,'00:00'),end:C.zonedISO(PL.nextDay(PL.nextDay(PL.nextDay(tomorrow))),'00:00'),checkedAt:d.generatedAt};
- d.events=[{...d.events[0],start:C.zonedISO(tomorrow,'13:00'),end:C.zonedISO(tomorrow,'14:00')}];d.proposals=[];
+ d.events=[{...d.events[0],start:C.zonedISO(tomorrow,'13:00'),end:C.zonedISO(tomorrow,'14:00')}];d.proposals=[];for(const s of d.sources)s.lastSuccess=d.generatedAt;
  d.assignments=d.assignments.map(x=>({...x,dueAt:x.dueAt?C.zonedISO(PL.nextDay(PL.nextDay(tomorrow)),'17:00'):null}));
  d.email={...d.email,checkedAt:d.generatedAt,request:{...d.email.request,from:new Date(real-7*86400000).toISOString(),to:d.generatedAt},messages:d.email.messages.map((m,i)=>({...m,receivedAt:new Date(real-(i+1)*3600000).toISOString()}))};
  return {d,today,tomorrow};}
