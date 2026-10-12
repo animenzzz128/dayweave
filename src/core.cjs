@@ -57,7 +57,8 @@ function proposalErrors(p,data,now=new Date()){
  if(!Number.isFinite(stamp(p.start))||!Number.isFinite(stamp(p.end))||stamp(p.end)<=stamp(p.start))errors.push('End must follow start.');
  if(stamp(p.start)<stamp(now))errors.push('This proposed time has passed.');
  const parts=t=>Object.fromEntries(new Intl.DateTimeFormat('en-CA',{timeZone:TZ,hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).formatToParts(new Date(t)).map(x=>[x.type,x.value]));
- if(Number.isFinite(stamp(p.start))&&Number.isFinite(stamp(p.end))){const s=parts(p.start),e=parts(p.end);if(+s.hour<9||dayKey(p.start)!==dayKey(p.end)||(+e.hour===0))errors.push('Keep the midnight–9 AM sleep window free.');}
+ // A block may end exactly at local midnight (the 09:00–24:00 day) but never start before 09:00 or run past midnight.
+ if(Number.isFinite(stamp(p.start))&&Number.isFinite(stamp(p.end))){const s=parts(p.start),e=parts(p.end),midnight=e.hour==='00'&&e.minute==='00'&&dayKey(p.end)===new Date(Date.parse(dayKey(p.start)+'T12:00:00Z')+86400000).toISOString().slice(0,10);if(+s.hour<9||dayKey(p.start)!==dayKey(p.end)&&!midnight||(+e.hour===0&&!midnight))errors.push('Keep the midnight–9 AM sleep window free.');}
  if(data.events.some(e=>e.busy!==false&&overlap(p,e)))errors.push('Overlaps a known calendar commitment.');
  if(data.actionHistory?.some(e=>e.id===p.id&&e.status==='executed'))errors.push('This action is already recorded as executed.');
  if(!data.calendarCoverage?.complete)errors.push('Calendar coverage is incomplete; refresh it before requesting changes.');
@@ -82,6 +83,8 @@ function mergeSnapshot(old,incoming){
   // Only the active calendar source (legacy: outlook) invalidates coverage; an email or other source failure does not.
   const down=new Set(incoming.sources.filter(s=>CAL_DOWN.includes(s.status)).map(s=>s.id));
   if(down.has(calendarSource(incoming.calendarCoverage||old.calendarCoverage))){result.calendarCoverage={...old.calendarCoverage,complete:false};result.proposals=[];}
+  // Local planner blocks are not part of a source snapshot; keep those whose identity and evidence still hold.
+  else if(typeof module!=='undefined')result.proposals=[...incoming.proposals,...require('./planner.cjs').keep(old,result,down)];
   if(M&&(old.email!=null||incoming.email!=null))result.email=M.merge(old.email,incoming.email,incoming.sources);
   return validate(result);
 }

@@ -4,6 +4,8 @@
 
 - Email shows the last collected read-only Gmail snapshot: inbox, last seven days, at most 50 messages, metadata and snippets, no attachments. Collection time, coverage, errors and stale/retained labels are explicit; unknown, disabled, failed and partial reads never read as an empty inbox. Send, delete and label capabilities are rejected. Home shows an inbox summary.
 - Google Calendar coverage carries provider, source, account, destination calendar ID and the bounded list of calendars read. Only the active calendar source invalidates coverage, so a Gmail failure does not. Provider identity joins new proposal fingerprints; identity changes invalidate prepared versions. Legacy Outlook snapshots stay readable.
+- Coursework → Todos: explicit local todos (title, explicit due date or none, duration). Email → "Adopt as todo…" creates one only with user-confirmed fields; nothing is extracted from mail.
+- Timetable → "Generate recommendations": deterministic daily focus blocks inside fresh complete Google coverage, 09:00–24:00, ≤90 minutes, 15-minute rest gaps, ≥20% free, no past or past-deadline blocks, no double scheduling. Reasons, unscheduled work, gaps and assumptions are shown. Blocks are proposals; regeneration and todo edits invalidate prepared versions. Requests may now end exactly at local midnight.
 - Synthetic Google-only example (`examples/google-snapshot.json`) and the [collection procedure](docs/google.md). No OAuth client, token store or new dependency.
 
 ## 1.5.5 — 2026-10-11

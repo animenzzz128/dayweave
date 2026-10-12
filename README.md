@@ -15,6 +15,8 @@ The repository contains reusable application code and fictional examples only. P
 - Prepares an immutable Q-number for explicit confirmation in assistant chat. **The dashboard itself never writes to a calendar or learning platform.**
 - Rejects proposals that overlap known commitments, fall outside verified coverage, occur in the past, or reuse an executed action ID.
 - Retains source records on collection failure, marks stale snapshots, and keeps 30 days of local snapshots.
+- Recommends daily focus blocks from your todos and required coursework on request: deterministic, inside fresh complete Google Calendar coverage, 09:00–24:00, at most 90 minutes each with rest gaps and at least 20% left free. Recommendations are proposals; nothing is written without an approved Q version.
+- Keeps explicit local todos; an email becomes a todo only when you adopt it and confirm its title, due date and duration.
 - Shows the last collected read-only Gmail snapshot (inbox, last seven days, at most 50 messages) with its collection time and coverage. Nothing is sent, deleted or labelled.
 - Includes a reusable operating prompt for an assistant-driven refresh workflow.
 
