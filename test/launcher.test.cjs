@@ -361,6 +361,16 @@ test('unverifiable holders fail closed (exit 21): squatter with a wrong proof, h
   const env=await makeEnv(t);fs.mkdirSync(env.state,{recursive:true});fs.writeFileSync(lockPath(env),'{"instanceId":');
   a.equal((await run(env,'start')).code,21);a.equal(fs.readFileSync(lockPath(env),'utf8'),'{"instanceId":');
 });
+// POSIX: a missing socket file is absent, but a live listener whose socket file denies access (EACCES) is not.
+test('a live owner channel that denies access is unknown, never absent (exit 21)',{skip:process.platform==='win32'?'socket-file permissions are POSIX-only':process.getuid?.()===0&&'root bypasses socket-file permissions'},async t=>{
+  const env=await makeEnv(t,{config:{identityTimeoutMs:800}});const lock=forgeLock(env);const before=fs.readFileSync(lockPath(env));
+  const name=L.channelPath(env.state,lock.instanceId,'ctl'),sq=squatter(name,'silent');await sq.ready;
+  fs.chmodSync(name,0);t.after(()=>{try{fs.chmodSync(name,0o600);}catch{}});
+  const r=await run(env,'start');
+  a.equal(r.code,21);a.match(logEvents(env).find(e=>e.event==='launcher.owner-unknown').fields.reason,/owner channel unreachable EACCES/);
+  a.ok(fs.readFileSync(lockPath(env)).equals(before),'lock unchanged');a.ok(sq.alive(),'listener not signalled');a.ok(!fs.existsSync(env.data));
+  sq.proc.kill();await new Promise(r=>sq.proc.once('exit',r));
+});
 test('a stale owner whose recorded child may still live, or a leftover recovery marker, blocks recovery (exit 21)',async t=>{
   const env=await makeEnv(t,{config:{identityTimeoutMs:800}});const lock=forgeLock(env);
   fs.writeFileSync(path.join(env.state,'state.json'),JSON.stringify({schemaVersion:1,instanceId:lock.instanceId,child:{attempt:1,state:'running',pid:1},history:[]}));
@@ -400,7 +410,8 @@ test('clean stop and relaunch; status is read-only',async t=>{
 });
 test('a hard-killed supervisor: its child stops itself, the stale lock is recovered on relaunch',async t=>{
   const env=await makeEnv(t);const owner=await startOwner(env);const s=stateOf(env);
-  owner.proc.kill();await owner.exited;
+  // SIGKILL: on POSIX a plain kill() sends SIGTERM, which the supervisor handles as a clean stop.
+  owner.proc.kill('SIGKILL');await owner.exited;
   await waitFor(async()=>await channelAbsent(L.channelPath(env.state,s.instanceId,'child1'))&&(await L.probePort(env.port)).free,'orphaned child to exit');
   a.ok(fs.existsSync(lockPath(env)),'lock left behind by the killed supervisor');
   const st=await run(env,'status');a.equal(st.code,3);a.equal(st.json.owner,'stale-lock');

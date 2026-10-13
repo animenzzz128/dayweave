@@ -131,14 +131,16 @@ function channelPath(stateDir,instanceId,kind){
   const local=path.join(stateDir,`${kind}-${instanceId}.sock`);
   return Buffer.byteLength(local)<100?local:path.join(os.tmpdir(),`dwl-${tag}-${kind}-${instanceId}.sock`);
 }
-// "absent" is definitive: no listener can exist (Windows: no pipe; POSIX: socket file without listener).
+// "absent" is definitive: no listener can exist (Windows: no pipe; POSIX: no socket file, or one without a listener).
+// Any other error (EACCES, ENOTDIR, ...) is unreachable and fails closed.
+const ABSENT_CODES=process.platform==='win32'?['ENOENT']:['ENOENT','ECONNREFUSED'];
 function connectChannel(channel,timeoutMs){
   return new Promise(resolve=>{
     let done=false;const s=net.connect(channel);
     const fin=r=>{if(done)return;done=true;clearTimeout(t);resolve(r);};
     const t=setTimeout(()=>{s.destroy();fin({status:'timeout'});},timeoutMs);
     s.once('connect',()=>fin({status:'connected',socket:s}));
-    s.once('error',e=>{const c=errCode(e),absent=process.platform==='win32'?c==='ENOENT':c==='ECONNREFUSED';fin({status:absent?'absent':'unreachable',code:c});});
+    s.once('error',e=>{const c=errCode(e);fin({status:ABSENT_CODES.includes(c)?'absent':'unreachable',code:c});});
   });
 }
 function exchange(socket,first,timeoutMs,onMessage){
