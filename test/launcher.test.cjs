@@ -122,7 +122,7 @@ test('launcher config validation rejects unknown keys, bad types and unsafe path
     const write=(name,v)=>{const f=path.join(dir,name);fs.writeFileSync(f,typeof v==='string'?v:JSON.stringify(v));return f;};
     const base={schemaVersion:1,manifestPath:'m.json',port:40001,stateDir:'state',logPath:'logs/l.log'};
     write('m.json',{revision:'1'.repeat(40),codePath:'code',dataPath:'data',port:40001});
-    const cfg=L.loadConfig(write('ok.json','﻿'+JSON.stringify(base)));
+    const cfg=L.loadConfig(write('ok.json','\uFEFF'+JSON.stringify(base)));
     a.equal(cfg.stateDir,path.join(dir,'state'));a.equal(cfg.restart.maxRestarts,3);a.equal(cfg.heartbeat.missLimit,4);
     const man=L.loadManifest(cfg);a.equal(man.codePath,path.join(dir,'code'));
     const code=(v,fn=L.loadConfig)=>{try{fn(v);return 'ok';}catch(e){return e.exit+':'+e.event;}};
@@ -198,7 +198,7 @@ test('source case 2 (config-malformed): recorded before any handler-dependent st
   const r=await run(env,'start',['--fallback-log',fb]);
   a.equal(r.code,10);a.ok(events(fb).some(e=>e.event==='launcher.config-malformed'&&e.fields.exit===10));
   a.ok(!fs.existsSync(env.state)&&!fs.existsSync(env.data));
-  fs.writeFileSync(env.configPath,'﻿'+good);
+  fs.writeFileSync(env.configPath,'\uFEFF'+good);
   const owner=await startOwner(env);
   a.equal((await run(env,'stop')).code,0);a.equal((await owner.exited).code,0);
 });

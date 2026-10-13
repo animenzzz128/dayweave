@@ -62,7 +62,7 @@ const tempSinkPath=configPath=>path.join(os.tmpdir(),`dayweave-launcher-${sha256
 // ---- Configuration and manifest ----
 function readJson(file,label){
   let buf;try{buf=fs.readFileSync(file);}catch(e){throw new LauncherError(EXIT.CONFIG,`launcher.${label}-unreadable`,`The ${label} file cannot be read`,{code:errCode(e)});}
-  let value;try{value=JSON.parse(buf.toString('utf8').replace(/^﻿/,''));}catch{throw new LauncherError(EXIT.CONFIG,`launcher.${label}-malformed`,`The ${label} file is not valid JSON`,{bytes:buf.length});}
+  let value;try{value=JSON.parse(buf.toString('utf8').replace(/^\uFEFF/,''));}catch{throw new LauncherError(EXIT.CONFIG,`launcher.${label}-malformed`,`The ${label} file is not valid JSON`,{bytes:buf.length});}
   return {value,sha256:sha256(buf)};
 }
 function loadConfig(configPath){
