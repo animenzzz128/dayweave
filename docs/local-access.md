@@ -14,6 +14,7 @@ A loaded page does not prove fresh data. A refused connection does not prove dat
 ## Stable app recovery
 - Start stable only from the external pinned manifest (accepted revision, checkout and private data path). Do not switch branches in the stable checkout, run a worktree on the stable port, or point development at the private database to restore access. Branch switches are not deployments.
 - Stop only the known service; never kill arbitrary Node processes.
+- Where an operator setup uses the [supervising launcher](launcher.md), run its read-only `status` first and act on its exit code; never delete its lock or end processes to clear an "unknown" result.
 - Verify the actual page in a browser: Home and affected routes, reload, console and visible content. A started process or HTTP 200 alone is not acceptance.
 - If access is not restored, report the blocker: symptom, checks run with results, last known good state and what remains unknown. Do not claim recovery or a cause without evidence.
 

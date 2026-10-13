@@ -13,6 +13,7 @@ The external steps are an assistant workflow, not a server provider adapter. Dai
 - server.cjs / web/: loopback-only app, session/Origin/CSRF checks, escaped content and independent routes.
 - routine.cjs: deterministic categories and bounded policy. Assistant orchestration supplies reads/metrics; code does not enforce browser read counts or dynamically switch models.
 - db.cjs / approval.cjs / export-html.cjs: local operator interfaces and read-only fallback.
+- app-server.cjs / serve.cjs / launcher.cjs: one app assembly point; plain start, or a supervising launcher that proves ownership, reserves the port before the Store opens and restarts only its own app process within a bounded budget ([launcher](launcher.md)).
 
 Development uses separate synthetic data and port8768. Production uses an independent accepted checkout at8767 and external private data. Never copy ignored private files into task worktrees. Avoid simultaneous collection/execution of the same proposals; recheck current state before every approved action.
 
