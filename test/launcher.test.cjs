@@ -19,11 +19,16 @@ exports.build=dir=>{
   fs.appendFileSync(journal,'open '+process.pid+' portHeld='+held+'\\n');
   if(step==='throw-on-build')throw new Error('synthetic store open failure');
   if(step==='hang-on-build'){const end=Date.now()+30000;while(Date.now()<end);}
-  const s=http.createServer((q,r)=>{r.writeHead(200,{'Content-Type':'text/plain'});r.end('synthetic '+process.pid);});
   const ms=Number(step.split(':')[1]||50);
+  if(step.startsWith('slow-build')){const end=Date.now()+ms;while(Date.now()<end);if(step.startsWith('slow-build-throw'))throw new Error('synthetic slow store open failure');}
+  process.on('exit',()=>fs.appendFileSync(journal,'exit '+process.pid+'\\n'));
+  const s=http.createServer((q,r)=>{r.writeHead(200,{'Content-Type':'text/plain'});r.end('synthetic '+process.pid);});
+  // slow-close: the port is released at once, but the process stays alive (as while the Store is still closing).
+  if(step.includes('slow-close')){const close=s.close.bind(s);s.close=cb=>{fs.appendFileSync(journal,'closing '+process.pid+'\\n');close();setTimeout(()=>cb&&cb(),30000);return s;};}
   s.on('listening',()=>{
     if(step.startsWith('crash-after-listen'))setTimeout(()=>{throw new Error('synthetic runtime fault');},ms);
     if(step.startsWith('hang-after-listen'))setTimeout(()=>{const end=Date.now()+30000;while(Date.now()<end);},ms);
+    if(step.startsWith('disconnect-slow-close'))setTimeout(()=>process.disconnect(),ms);
   });
   s.on('close',()=>fs.appendFileSync(journal,'close '+process.pid+'\\n'));
   return s;
@@ -403,6 +408,68 @@ test('a hard-killed supervisor: its child stops itself, the stale lock is recove
   a.equal(stateOf(env).history.find(h=>h.event==='owner-acquired'&&h.instanceId!==s.instanceId).recoveredStaleLock,s.instanceId);
   a.equal((await run(env,'stop')).code,0);await owner2.exited;
 });
+// On Windows a hard-killed supervisor's app process is ended together with it, so this window is driven directly: the test
+// plays a supervisor that vanished (its lock's owner channel is gone, IPC disconnected) while its child is still closing.
+test('a child still closing after its supervisor vanished keeps its beacon: no recovery and no second Store open until it exits',async t=>{
+  const env=await makeEnv(t,{plan:['slow-close','ok'],config:{identityTimeoutMs:800}});
+  const lock=forgeLock(env),beacon=L.channelPath(env.state,lock.instanceId,'child1');
+  const spec={codePath:env.code,dataPath:env.data,port:env.port,beacon,graceMs:6000};
+  const child=cp.fork(LAUNCHER,['child'],{cwd:env.code,env:{...env.procEnv,DAYWEAVE_DATA_DIR:env.data,PORT:String(env.port),DAYWEAVE_LAUNCHER_CHILD:JSON.stringify(spec)},stdio:['ignore','ignore','ignore','ipc'],windowsHide:true});
+  owned.add(child);const exited=new Promise(r=>child.on('exit',()=>{owned.delete(child);r();}));
+  t.after(async()=>{if(child.exitCode===null&&child.signalCode===null)child.kill();await exited;});
+  await new Promise(r=>child.on('message',m=>m&&m.type==='listening'&&r()));
+  fs.writeFileSync(path.join(env.state,'state.json'),JSON.stringify({schemaVersion:1,instanceId:lock.instanceId,child:{attempt:1,state:'running',pid:child.pid},history:[]}));
+  child.disconnect();
+  await waitFor(async()=>journal(env).includes('closing '+child.pid)&&(await L.probePort(env.port)).free,'child to release the port');
+  const early=launch(env,'start');
+  await waitFor(()=>early.result||(stateOf(env)?.instanceId!==lock.instanceId&&stateOf(env)?.child?.state==='running'),'relaunch to settle');
+  a.ok(!journal(env).includes('exit '+child.pid),'the relaunch ran while the old child was alive');
+  a.equal(early.result?.code,21,'relaunch fails closed instead of recovering the lock');
+  a.match(logEvents(env).find(e=>e.event==='launcher.owner-unknown').fields.reason,/child of stale owner may be running/);
+  a.equal(opens(env),1);a.equal(readJsonFile(lockPath(env)).instanceId,lock.instanceId);
+  await exited;a.ok(journal(env).includes('exit '+child.pid));a.ok(await channelAbsent(beacon),'beacon gone with the process');
+  const owner2=await startOwner(env,lock.instanceId);
+  const j=journal(env);a.equal(opens(env),2);a.ok(j.indexOf('exit '+child.pid)<j.findLastIndex(l=>l.startsWith('open ')),'second open only after the old child exited');
+  a.equal(stateOf(env).history.find(h=>h.event==='owner-acquired').recoveredStaleLock,lock.instanceId);
+  a.equal((await run(env,'stop')).code,0);await owner2.exited;
+});
+test('repeated asynchronous errors of the child handle (sends on a closed channel) are handled once each, not fatal',async t=>{
+  const env=await makeEnv(t,{plan:['disconnect-slow-close:200','ok'],config:{shutdownGraceMs:3000,heartbeat:{intervalMs:100,missLimit:100}}});
+  const owner=launch(env,'start');
+  const s=await waitFor(()=>{if(owner.result)throw new Error('supervisor exited '+JSON.stringify(owner.result)+': '+logEvents(env).filter(e=>e.level!=='INFO').map(e=>e.event+' '+JSON.stringify(e.fields)).join('; '));const st=stateOf(env);return st?.child?.attempt===2&&st.child.state==='running'?st:null;},'child attempt 2 running');
+  a.equal(owner.proc.exitCode,null,'supervisor survived');
+  const ev=logEvents(env);
+  a.ok(!ev.some(e=>e.event==='launcher.internal-error'));
+  a.equal(ev.filter(e=>e.event==='child.error').length,1,'first error logged once');
+  const rep=ev.find(e=>e.event==='child.error-repeats');a.equal(rep?.fields.code,'ERR_IPC_CHANNEL_CLOSED');a.ok(rep.fields.count>=1,'later errors were raised and handled');
+  const fails=s.history.filter(h=>h.event==='child-failure');a.equal(fails.length,1,'one failure record');a.deepEqual([fails[0].attempt,fails[0].phase],[1,'runtime']);
+  a.equal((await run(env,'stop')).code,0);a.equal((await owner.exited).code,0);
+});
+test('connections arriving while the Store opens are served after the hand-over; on a failed open they are closed, not left hanging',async t=>{
+  const request=port=>new Promise(res=>{
+    let data='',fin=r=>{clearTimeout(timer);sock.destroy();res({...r,data});};const sock=net.connect(port,'127.0.0.1');
+    const timer=setTimeout(()=>fin({end:'hang'}),15000);
+    sock.on('connect',()=>sock.write('GET /home HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n'));
+    sock.on('data',d=>data+=d);sock.on('error',e=>fin({end:e.code}));sock.on('close',()=>fin({end:'closed'}));
+  });
+  const connectWhileOpening=async env=>{
+    await waitFor(()=>journal(env).some(l=>l.startsWith('open ')),'Store open to begin');
+    const pending=request(env.port);await sleep(100);
+    a.notEqual(stateOf(env).child.state,'running','connected before the app listened');
+    return pending;
+  };
+  const env=await makeEnv(t,{plan:['slow-build:1500']});
+  const owner=launch(env,'start');
+  const r=await connectWhileOpening(env);
+  a.match(r.data,/^HTTP\/1\.1 200/);a.match(r.data,new RegExp('synthetic '+stateOf(env).child.pid));
+  a.equal((await run(env,'stop')).code,0);await owner.exited;
+  const env2=await makeEnv(t,{plan:['slow-build-throw:1500','ok']});
+  const owner2=launch(env2,'start');
+  const r2=await connectWhileOpening(env2);
+  a.notEqual(r2.end,'hang');a.equal(r2.data,'');
+  const s2=await waitRunning(env2,2);a.equal(s2.history.find(h=>h.event==='child-failure').reason,'load-failed');
+  a.equal((await run(env2,'stop')).code,0);await owner2.exited;
+});
 test('checkout trust: dirty checkout or HEAD differing from the manifest exits 11 before any lock or data',async t=>{
   const env=await makeEnv(t);fs.writeFileSync(path.join(env.code,'stray.txt'),'x');
   const r=await run(env,'start');a.equal(r.code,11);a.ok(logEvents(env).some(e=>e.event==='launcher.checkout-dirty'));
@@ -411,7 +478,7 @@ test('checkout trust: dirty checkout or HEAD differing from the manifest exits 1
   const r2=await run(env,'start');a.equal(r2.code,11);a.ok(logEvents(env).some(e=>e.event==='launcher.checkout-mismatch'));
   a.ok(!fs.existsSync(env.state)&&!fs.existsSync(env.data));
 });
-test('older revisions without src/app-server.cjs are assembled like their scripts/serve.cjs',async t=>{
+test('a revision without src/app-server.cjs falls back to attach(createServer()), the legacy serve.cjs assembly',async t=>{
   const env=await makeEnv(t,{app:'legacy'});const owner=await startOwner(env);
   a.equal((await httpGet(env.port)).body,'legacy assembly');
   a.ok(logEvents(env).some(e=>e.event==='child.loaded'&&e.fields.assembly==='legacy-serve'));

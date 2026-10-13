@@ -314,13 +314,14 @@ function runChild(ctx){
       child=cp.fork(__filename,['child'],{cwd:man.codePath,execPath:process.execPath,execArgv:[],windowsHide:true,stdio:['ignore','pipe','pipe','ipc'],
         env:{...process.env,DAYWEAVE_DATA_DIR:man.dataPath,PORT:String(man.port),DAYWEAVE_LAUNCHER_CHILD:JSON.stringify({codePath:man.codePath,dataPath:man.dataPath,port:man.port,beacon,graceMs:cfg.shutdownGraceMs})}});
     }catch(e){return resolve({phase:'startup',reason:'spawn-failed',message:errText(e)});}
-    let phase='startup',reason=null,report=null,listeningAt=null,missed=0,hb=null,settled=false;
+    let phase='startup',reason=null,report=null,listeningAt=null,missed=0,hb=null,settled=false;const errors=new Map();
     // Only this ChildProcess handle is ever signalled, and only before its exit was observed (the PID cannot be reused yet).
     const kill=why=>{if(child.exitCode===null&&child.signalCode===null&&!child.killed){reason=reason||why;ctx.diag.write('WARN','child.terminate-owned',{pid:child.pid,attempt,reason:why});try{child.kill();}catch{}}};
     ctx.child=child;ctx.killChild=kill;
     const startupTimer=setTimeout(()=>kill('startup-timeout'),cfg.startupTimeoutMs);
     const done=r=>{
       if(settled)return;settled=true;clearTimeout(startupTimer);clearInterval(hb);clearTimeout(ctx.graceTimer);ctx.child=null;ctx.killChild=null;
+      for(const [code,n] of errors)if(n>1)ctx.diag.write('INFO','child.error-repeats',{pid:child.pid,attempt,code,count:n-1});
       ctx.state.child={...ctx.state.child,state:'exited',exit:{code:r.code??null,signal:r.signal??null},endedAt:now()};saveState(ctx);resolve(r);
     };
     if(child.stdout)pipeLines(child.stdout,ctx,'child.stdout');
@@ -339,7 +340,12 @@ function runChild(ctx){
       }
       if(['beacon','reserved','loaded'].includes(m.type)){ctx.state.child={...ctx.state.child,phase:m.type};ctx.diag.write('INFO','child.'+m.type,{pid:child.pid,attempt,...(m.assembly?{assembly:clip(m.assembly)}:{})});}
     });
-    child.once('error',e=>{if(child.pid===undefined)done({phase:'startup',reason:'spawn-failed',message:errText(e)});else ctx.diag.write('WARN','child.error',{code:errCode(e)});});
+    // Sends and kills on a closing channel can each emit an error later; every one is handled, each code logged once.
+    child.on('error',e=>{
+      if(child.pid===undefined)return done({phase:'startup',reason:'spawn-failed',message:errText(e)});
+      const code=errCode(e),n=(errors.get(code)||0)+1;errors.set(code,n);
+      if(n===1)ctx.diag.write('WARN','child.error',{pid:child.pid,attempt,code});
+    });
     child.once('exit',(code,signal)=>done({phase,code,signal,reason:reason||(report&&report.reason)||(code===CHILD_EXIT.PORT_OCCUPIED?'port-occupied':'exited'),message:report&&report.message,uptimeMs:listeningAt?Date.now()-listeningAt:null}));
     if(child.pid!==undefined){ctx.state.child={...ctx.state.child,pid:child.pid,state:'starting'};saveState(ctx);ctx.diag.write('INFO','child.spawned',{pid:child.pid,attempt});}
   });
@@ -507,10 +513,10 @@ function childMain(){
   if(typeof process.send!=='function'){try{fs.writeSync(2,'The child mode is internal; use start.\n');}catch{}return process.exit(EXIT.USAGE);}
   let spec;try{spec=JSON.parse(process.env.DAYWEAVE_LAUNCHER_CHILD||'');}catch{return die(CHILD_EXIT.LOAD_FAILED,'bad-spec','Missing child specification');}
   if(!isObj(spec)||!Number.isInteger(spec.port)||typeof spec.beacon!=='string'||typeof spec.codePath!=='string'||typeof spec.dataPath!=='string')return die(CHILD_EXIT.LOAD_FAILED,'bad-spec','Invalid child specification');
+  // The beacon is never closed here: it must stay visible until the process (which may still hold the Store) has exited.
   const shutdown=()=>{
     if(closing)return;closing=true;
     setTimeout(()=>process.exit(0),Number(spec.graceMs)||5000).unref();
-    try{beacon&&beacon.close();}catch{}
     if(!app)return process.exit(0);
     try{app.close(()=>process.exit(0));if(app.closeAllConnections)app.closeAllConnections();}catch{process.exit(0);}
   };
@@ -524,7 +530,9 @@ function childMain(){
     phase='reserve';
     const p=await probePort(spec.port);
     if(!p.free)return die(CHILD_EXIT.PORT_OCCUPIED,'port-occupied',p.detail);
-    const reserve=net.createServer();
+    // Connections are handed to the app with the socket. One accepted before that (only possible while a failed start
+    // is exiting) is closed, never left open without an owner.
+    const reserve=net.createServer(s=>s.destroy());
     try{await listenAsync(reserve,{host:'127.0.0.1',port:spec.port,exclusive:true});}catch(e){return die(CHILD_EXIT.PORT_OCCUPIED,'port-occupied','reserve '+errCode(e));}
     send({type:'reserved',port:spec.port});
     if(closing)return;
