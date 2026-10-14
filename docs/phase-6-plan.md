@@ -1,6 +1,12 @@
 # Phase 6 plan
 
-Status: **acceptance approved; initial completion released as v1.5.5 (2026-10-11).** Epic #20 under milestone 1. The user approved the concrete acceptance of #26–#29 with the defaults under [Approved acceptance](#approved-acceptance). Implementation is delivered as stacked dependent PRs (#26→#27→#28→#29), each merged only on user request. As of 2026-10-11, #26–#29 are merged into main (PR33, PR34 and PR36; #28 reached the #27 branch through PR35) and their issues are closed, while the version and documentation PR37 remains open; this revision and the v1.5.5 release contain all four. None is deployed or adopted. Manual checks are in the [acceptance guide](phase-6-acceptance.md). Implemented behavior and limits are in [project-state.md](project-state.md) and [data-contract.md](data-contract.md); the task table and 6A steps below are the original proposal. Broad permission to continue is not approval.
+Status: **initial completion implemented, merged, released as v1.5.5 and in the stable deployment.** Epic #20 under milestone 1. The user approved the concrete acceptance of #26–#29 with the defaults under [Approved acceptance](#approved-acceptance). The features were delivered as stacked dependent PRs (#26→#27→#28→#29), each merged on user request:
+- #26–#29 are in main through PR33, PR34 and PR36 (#28 reached the #27 branch through PR35), and their issues are closed.
+- The version and documentation PR37 merged on 2026-10-11.
+- The fixed v1.5.5 tag (2ab5e0b) has the same code.
+- As of 2026-10-13, the stable runtime's pinned revision contains them, verified read-only. Functional acceptance on the private stable database was not performed.
+
+The epic's original closure conditions are met: separate focused task PRs, synthetic tests, real-browser route, reload and console acceptance (headless only), and acceptance defined before implementation. Workflow adoption (#21) is not met, and neither are the separate gates in [Limits](#limits). Status details, implemented behavior and limits are in [project-state.md](project-state.md) and [data-contract.md](data-contract.md). Manual checks and known limits are in the [acceptance guide](phase-6-acceptance.md). The task table and 6A steps below are the original proposal. Broad permission to continue is not approval.
 
 ## Approved acceptance
 The open product choices in the task table were decided as follows:
