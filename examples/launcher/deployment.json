@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "revision": "0123456789abcdef0123456789abcdef01234567",
+  "codePath": "../fictional-stable-checkout",
+  "dataPath": "../fictional-private-data",
+  "port": 8767,
+  "previousRevision": "89abcdef0123456789abcdef0123456789abcdef"
+}

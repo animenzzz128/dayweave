@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "manifestPath": "deployment.json",
+  "port": 8767,
+  "stateDir": "launcher-state",
+  "logPath": "launcher-state/launcher.log",
+  "fallbackLogPath": "launcher-fallback.log",
+  "gitExe": "git",
+  "requireCleanCheckout": true,
+  "logMaxBytes": 1048576,
+  "startupTimeoutMs": 120000,
+  "identityTimeoutMs": 5000,
+  "shutdownGraceMs": 10000,
+  "heartbeat": { "intervalMs": 30000, "missLimit": 4 },
+  "restart": { "maxRestarts": 3, "windowMs": 3600000, "backoffMs": [5000, 30000, 120000] }
+}
