@@ -159,3 +159,12 @@ Open `/settings` and click the **Weekly trends** tab (`/settings?tab=trends`).
 - After each action, reload and use Back/Forward; the result should persist.
 - In the browser developer console, expect no errors from the app (a missing favicon is harmless).
 - Expect nothing outside the app to change: no calendar event, message, approval or submission.
+
+## Known limits
+
+These limits were observed when all four feature sections above were last re-run, on 2026-10-13 against main's application code. Of the setup commands, only the Windows PowerShell 5.1 blocks for step 3 and the optional failed source were re-run then. The POSIX shell and PowerShell 7 variants were not. Their last run, 31 of 31 checks across Windows PowerShell 5.1, PowerShell 7 and a POSIX shell, was on the v1.5.5 commit 2ab5e0b, and the setup commands have not changed since. The limits are separate and none is a failed check.
+
+- **Headless browser only.** The scripted runs use real headless Edge with the page scripts loaded in `index.html` order, real clicks, reload, Back/Forward and console capture. No one has walked through these steps by hand in a visible browser. Those runs prove neither manual usability nor other browsers.
+- **Narrow Comparison header.** At a 390px-wide window, the Comparison table on Weekly trends is cramped: its week columns wrap onto several lines and the "Change" header breaks mid-word. The page does not scroll sideways, and every value stays readable. This is cosmetic and not fixed.
+- **Bounded trends reads.** Counts are point-in-time values from the latest observation read in each week, not activity totals. The page reads at most 500 snapshot rows and checks the 1,000 most recent imports, and snapshots are kept for 30 days. An empty week is therefore missing data, not zero. The 500-row truncation, unread retained imports and the 30-day horizon are each exercised in the browser. More than 1,000 retained imports is covered only by the store's limit validation, not by a browser scenario.
+- **Synthetic and development only.** Results come from synthetic data on a development port. The stable deployment includes these features, but they were not functionally checked against its private database.
