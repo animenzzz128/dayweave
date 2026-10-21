@@ -66,7 +66,7 @@ const en: CaseStudyText = {
       ['Plans acted on', 'Share of days where at least one proposal is approved or deliberately skipped.', 'Defined'],
       ['Silent failures', 'Failed sources shown as empty or as free time. The target is zero.', 'Guarded by tests'],
       ['Edit before approve', 'How often a proposal is changed before approval: a signal of suggestion quality.', 'Derivable from approval history'],
-      ['Demo engagement', 'Visits, case-study reads and outage toggles, with no cookies or personal data.', 'Next release'],
+      ['Demo engagement', 'Visits, case-study reads and outage toggles, with no cookies or personal data.', 'Live, cookie-free'],
     ],
   },
   roadmap: {
@@ -133,7 +133,7 @@ const zh: CaseStudyText = {
       ['计划被采纳', '至少有一条提议被批准或被主动跳过的天数占比。', '已定义'],
       ['静默失败', '失败的数据源被显示成空或空闲时间。目标是 0。', '由测试保障'],
       ['批准前修改', '提议在批准前被修改的频率，反映建议质量。', '可从审批记录计算'],
-      ['演示互动', '访问量、案例页阅读和故障开关使用次数，不用 cookie，不收集个人数据。', '下一版上线'],
+      ['演示互动', '访问量、案例页阅读和故障开关使用次数，不用 cookie，不收集个人数据。', '已上线，无 cookie'],
     ],
   },
   roadmap: {

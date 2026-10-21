@@ -7,7 +7,7 @@ import tailwindcss from '@tailwindcss/vite';
 const LOCAL_SERVER = 'http://127.0.0.1:8768';
 // Cookie-free page counts for the public demo (src/lib/analytics.ts). Empty turns counting off; the variable lets tests
 // point it elsewhere.
-const GOATCOUNTER_URL = '';
+const GOATCOUNTER_URL = 'https://dayweave.goatcounter.com/count';
 
 export default defineConfig(({ mode }) => ({
   base: './',
