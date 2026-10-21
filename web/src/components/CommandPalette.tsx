@@ -3,6 +3,7 @@ import { useApp } from '../data/AppData';
 import { useI18n } from '../i18n/I18n';
 import { href, NAV, type Route } from '../lib/router';
 import { THEMES, useTheme } from '../lib/theme';
+import { trackEvent } from '../lib/analytics';
 
 interface Command { id: string; group: string; label: string; hint?: string; keywords?: string; run: () => void }
 
@@ -31,6 +32,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
   useEffect(() => {
     if (open) {
       restore.current = document.activeElement as HTMLElement | null;
+      trackEvent('palette-open');
       setQuery(''); setActive(0);
     } else restore.current?.focus?.();
   }, [open]);

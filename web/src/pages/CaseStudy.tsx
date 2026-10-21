@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { useApp } from '../data/AppData';
 import { useI18n } from '../i18n/I18n';
 import { href } from '../lib/router';
+import { trackEvent } from '../lib/analytics';
 import { caseStudy } from './caseStudyContent';
 
 const REPO = 'https://github.com/animenzzz128/dayweave';
@@ -13,6 +14,7 @@ export default function CaseStudy() {
   const c = caseStudy[lang];
   const sections: [string, string][] = [['problem', c.problem.title], ['users', c.users.title], ['principles', c.principles.title], ['decisions', c.decisions.title], ['evals', c.evals.title], ['roadmap', c.roadmap.title]];
   const startOutage = async () => {
+    trackEvent('case-study-cta');
     if (source.setOutage && !outage) await run(() => source.setOutage!(true));
     window.location.hash = href('today');
   };
