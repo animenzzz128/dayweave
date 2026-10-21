@@ -1,9 +1,10 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useApp } from '../data/AppData';
 import { useI18n } from '../i18n/I18n';
-import { href, ROUTES, type Route } from '../lib/router';
+import { href, NAV, type Route } from '../lib/router';
 import { THEMES, useTheme, type ThemePref } from '../lib/theme';
 import { ErrorBoundary, ErrorState } from './ui';
+import { CommandPalette, shortcutLabel } from './CommandPalette';
 
 const THEME_ICONS: Record<ThemePref, ReactNode> = {
   system: <><rect x="2.5" y="3.5" width="11" height="7.5" rx="1.5" /><path d="M6 13.5h4" /></>,
@@ -16,11 +17,13 @@ export function Layout({ route, children }: { route: Route; children: ReactNode 
   const { pref, setPref } = useTheme();
   const { source, waiting, run, notice, dismissNotice, outage } = useApp();
   const demo = source.mode === 'demo';
+  const [palette, setPalette] = useState(false);
   return (
     <div className="min-h-screen bg-surface">
-      <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-2 focus:z-50 focus:rounded-lg focus:bg-surface focus:px-3 focus:py-2">Skip to content</a>
+      <a href="#main" onClick={(e) => { e.preventDefault(); document.getElementById('main')?.focus(); }} className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-2 focus:z-50 focus:rounded-lg focus:bg-surface focus:px-3 focus:py-2">Skip to content</a>
       <div className={`flex flex-wrap items-center justify-center gap-x-4 gap-y-2 border-b px-4 py-2 text-[13px] ${demo ? 'border-warn-line bg-warn-soft text-warn' : 'border-accent-line bg-accent-soft text-accent-ink'}`}>
         <span>{demo ? t.demo.banner : t.local.banner}</span>
+        {demo && route !== 'case-study' && <a href={href('case-study')} className="font-medium text-warn underline underline-offset-2 hover:text-ink">{t.demo.about} →</a>}
         {demo && source.setOutage && (
           <button type="button" aria-pressed={!!outage} className="min-h-8 rounded-lg border border-warn-edge bg-raised px-3 text-warn transition-colors hover:bg-warn-soft"
             onClick={() => run(() => source.setOutage!(!outage), outage ? t.demo.outageEnded : t.demo.outageStarted)}>{outage ? t.demo.outageOff : t.demo.outageOn}</button>
@@ -37,15 +40,24 @@ export function Layout({ route, children }: { route: Route; children: ReactNode 
               {t.brand}
             </a>
             <nav aria-label="Main" className="-mx-1 flex max-w-full gap-0.5 overflow-x-auto">
-              {ROUTES.map((r) => (
+              {NAV.map((r) => (
                 <a key={r} href={href(r)} aria-current={r === route ? 'page' : undefined}
                   className={`whitespace-nowrap rounded-lg px-3 py-2 text-sm no-underline transition-colors ${r === route ? 'bg-selected font-medium text-ink' : 'text-sub hover:bg-soft hover:text-ink'}`}>
                   {t.nav[r]}{r === 'review' && waiting.length > 0 && <span className="ml-1.5 rounded-full bg-accent px-1.5 font-mono text-[11px] text-on-accent">{waiting.length}</span>}
                 </a>
               ))}
+              <span aria-hidden="true" className="mx-1 my-2 w-px shrink-0 bg-line" />
+              <a href={href('case-study')} aria-current={route === 'case-study' ? 'page' : undefined}
+                className={`whitespace-nowrap rounded-lg px-3 py-2 text-sm no-underline transition-colors ${route === 'case-study' ? 'bg-selected font-medium text-ink' : 'text-accent hover:bg-soft'}`}>{t.nav['case-study']}</a>
             </nav>
           </div>
           <div className="flex items-center gap-2">
+            <button type="button" onClick={() => setPalette(true)} aria-keyshortcuts="Control+K Meta+K" aria-haspopup="dialog"
+              className="flex min-h-9 items-center gap-2 rounded-lg border border-line px-2.5 text-[13px] text-muted transition-colors hover:bg-soft hover:text-ink">
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" aria-hidden="true"><circle cx="7" cy="7" r="4.5" /><path d="m10.5 10.5 3 3" /></svg>
+              <span className="max-sm:sr-only">{t.palette.open}</span>
+              <kbd className="rounded border border-line px-1 font-mono text-[11px]">{shortcutLabel}</kbd>
+            </button>
             <div role="group" aria-label={t.theme.label} className="flex rounded-lg border border-line p-0.5">
               {THEMES.map((p) => (
                 <button key={p} type="button" aria-pressed={pref === p} aria-label={t.theme[p]} title={t.theme[p]} onClick={() => setPref(p)}
@@ -69,11 +81,12 @@ export function Layout({ route, children }: { route: Route; children: ReactNode 
           <button type="button" className="shrink-0 underline" onClick={dismissNotice}>{t.common.close}</button>
         </div></div>
       )}
-      <main id="main" className="mx-auto max-w-[1360px] px-4 pb-16 pt-7 sm:px-8">
+      <main id="main" tabIndex={-1} className="mx-auto max-w-[1360px] outline-none px-4 pb-16 pt-7 sm:px-8">
         <ErrorBoundary key={route} fallback={(e, reset) => <ErrorState title={t.common.pageError} message={e.message} hint={t.common.errorHint} onRetry={reset} retry={t.common.retry} />}>
           <div className="animate-rise">{children}</div>
         </ErrorBoundary>
       </main>
+      <CommandPalette open={palette} onOpenChange={setPalette} />
     </div>
   );
 }

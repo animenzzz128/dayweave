@@ -80,6 +80,10 @@ export function Skeleton({ className = '' }: { className?: string }) {
   return <div aria-hidden="true" className={`skeleton ${className}`} />;
 }
 
+export function PageSkeleton() {
+  return <div className="space-y-4" role="status"><Skeleton className="h-9 w-64" /><Skeleton className="h-5 w-full max-w-2xl" /><Skeleton className="h-64 w-full" /></div>;
+}
+
 /** A failure is shown with what happened and a way out, never as an empty page. */
 export function ErrorState({ title, message, hint, onRetry, retry }: { title: string; message?: string; hint?: string; onRetry?: () => void; retry?: string }) {
   return (
