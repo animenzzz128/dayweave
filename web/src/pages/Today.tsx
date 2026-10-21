@@ -119,7 +119,7 @@ export function Today() {
             ))}
           </div>
           {failing.filter((s) => s.status !== 'partial').map((s) => <p key={s.id} className="mt-2.5 text-[13px] text-danger">{t.today.failedSource(s.name)}</p>)}
-          {'shown' in inbox && <p className="mt-2.5 text-[13px] text-muted"><a href={href('email')}>{t.today.inbox}</a>: {t.today.inboxLine(inbox.shown as number, inbox.unread as number)}</p>}
+          {'shown' in inbox && <p className="mt-2.5 text-[13px] text-muted"><a href={href('email')} className="underline underline-offset-2">{t.today.inbox}</a>: {t.today.inboxLine(inbox.shown as number, inbox.unread as number)}</p>}
         </Section>
       </div>
     </div>

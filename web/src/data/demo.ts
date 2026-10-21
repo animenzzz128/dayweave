@@ -1,5 +1,6 @@
 import template from '../../../examples/luna-demo.json';
 import { Core, Demo, Phase2, Planner, Todos } from '../lib/shared';
+import { trackEvent } from '../lib/analytics';
 import type { Approval, DataSource, Loaded, PlanResult, Progress, Proposal, Receipt, Snapshot, Todo } from './types';
 
 // The public demo keeps everything in this browser. Nothing is sent anywhere, and Reset returns to the original Luna data.
@@ -179,6 +180,7 @@ export class DemoSource implements DataSource {
     const { s } = this.build();
     s.outage = on;
     this.save();
+    trackEvent(on ? 'outage-on' : 'outage-off');
   }
 
   async reset() {

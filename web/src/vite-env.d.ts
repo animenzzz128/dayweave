@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 
+declare const __GOATCOUNTER_URL__: string;
 declare const __DAYWEAVE_MODE__: 'demo' | 'local';
 
 declare module '*.cjs?raw' {
