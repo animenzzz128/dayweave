@@ -48,7 +48,7 @@ function Message({ m, adopted }: { m: EmailMessage; adopted: boolean }) {
           <span className="font-mono text-xs text-muted">{f.ago(m.receivedAt, now)}</span>
         </div>
       </div>
-      {m.snippet && <p className="mt-2 text-sm text-[#374151]">{m.snippet}</p>}
+      {m.snippet && <p className="mt-2 text-sm text-body">{m.snippet}</p>}
       <div className="mt-3 flex flex-wrap items-center gap-3">
         {adopted
           ? <Tag tone="ok">{t.email.adopted}</Tag>

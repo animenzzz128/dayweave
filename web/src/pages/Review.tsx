@@ -36,7 +36,7 @@ export function Review({ params }: { params: URLSearchParams }) {
             </ul>
             {current && <Detail key={current.id + current.start + current.end + current.title} p={current} />}
           </div>
-        ) : <Empty>{t.review.empty}</Empty>
+        ) : <Empty action={<a href={href('week')} className="btn no-underline">{t.review.emptyAction} →</a>}>{t.review.empty}</Empty>
       ) : <History approvals={approvals} skipped={skipped} />}
     </>
   );

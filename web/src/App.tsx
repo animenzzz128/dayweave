@@ -1,5 +1,6 @@
 import { AppDataProvider } from './data/AppData';
 import { I18nProvider } from './i18n/I18n';
+import { ThemeProvider } from './lib/theme';
 import { Layout } from './components/Layout';
 import { useLocation } from './lib/router';
 import { Today } from './pages/Today';
@@ -26,10 +27,12 @@ function Routed() {
 
 export function App() {
   return (
-    <I18nProvider>
-      <AppDataProvider>
-        <Routed />
-      </AppDataProvider>
-    </I18nProvider>
+    <ThemeProvider>
+      <I18nProvider>
+        <AppDataProvider>
+          <Routed />
+        </AppDataProvider>
+      </I18nProvider>
+    </ThemeProvider>
   );
 }

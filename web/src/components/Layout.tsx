@@ -2,18 +2,31 @@ import type { ReactNode } from 'react';
 import { useApp } from '../data/AppData';
 import { useI18n } from '../i18n/I18n';
 import { href, ROUTES, type Route } from '../lib/router';
+import { THEMES, useTheme, type ThemePref } from '../lib/theme';
+import { ErrorBoundary, ErrorState } from './ui';
+
+const THEME_ICONS: Record<ThemePref, ReactNode> = {
+  system: <><rect x="2.5" y="3.5" width="11" height="7.5" rx="1.5" /><path d="M6 13.5h4" /></>,
+  light: <><circle cx="8" cy="8" r="3" /><path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1 1M11.6 11.6l1 1M3.4 12.6l1-1M11.6 4.4l1-1" /></>,
+  dark: <path d="M13 9.5A5.5 5.5 0 0 1 6.5 3a5.5 5.5 0 1 0 6.5 6.5Z" />,
+};
 
 export function Layout({ route, children }: { route: Route; children: ReactNode }) {
   const { t, lang, setLang } = useI18n();
-  const { source, waiting, run, notice, dismissNotice } = useApp();
+  const { pref, setPref } = useTheme();
+  const { source, waiting, run, notice, dismissNotice, outage } = useApp();
   const demo = source.mode === 'demo';
   return (
-    <div className="min-h-screen bg-white">
-      <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-2 focus:z-50 focus:rounded-lg focus:bg-white focus:px-3 focus:py-2">Skip to content</a>
-      <div className={`flex flex-wrap items-center justify-center gap-x-4 gap-y-2 border-b px-4 py-2 text-[13px] ${demo ? 'border-[#f3e2bf] bg-warn-soft text-warn' : 'border-accent-line bg-accent-soft text-accent-ink'}`}>
+    <div className="min-h-screen bg-surface">
+      <a href="#main" className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-2 focus:z-50 focus:rounded-lg focus:bg-surface focus:px-3 focus:py-2">Skip to content</a>
+      <div className={`flex flex-wrap items-center justify-center gap-x-4 gap-y-2 border-b px-4 py-2 text-[13px] ${demo ? 'border-warn-line bg-warn-soft text-warn' : 'border-accent-line bg-accent-soft text-accent-ink'}`}>
         <span>{demo ? t.demo.banner : t.local.banner}</span>
+        {demo && source.setOutage && (
+          <button type="button" aria-pressed={!!outage} className="min-h-8 rounded-lg border border-warn-edge bg-raised px-3 text-warn transition-colors hover:bg-warn-soft"
+            onClick={() => run(() => source.setOutage!(!outage), outage ? t.demo.outageEnded : t.demo.outageStarted)}>{outage ? t.demo.outageOff : t.demo.outageOn}</button>
+        )}
         {demo && source.reset && (
-          <button type="button" className="min-h-8 rounded-lg border border-[#e6cf9f] bg-white px-3 text-warn" onClick={() => run(() => source.reset!(), t.demo.resetDone)}>{t.demo.reset}</button>
+          <button type="button" className="min-h-8 rounded-lg border border-warn-edge bg-raised px-3 text-warn transition-colors hover:bg-warn-soft" onClick={() => run(() => source.reset!(), t.demo.resetDone)}>{t.demo.reset}</button>
         )}
       </div>
       <header className="border-b border-line">
@@ -26,27 +39,41 @@ export function Layout({ route, children }: { route: Route; children: ReactNode 
             <nav aria-label="Main" className="-mx-1 flex max-w-full gap-0.5 overflow-x-auto">
               {ROUTES.map((r) => (
                 <a key={r} href={href(r)} aria-current={r === route ? 'page' : undefined}
-                  className={`whitespace-nowrap rounded-lg px-3 py-2 text-sm no-underline ${r === route ? 'bg-[#f1f4fa] font-medium text-ink' : 'text-[#4b5563] hover:bg-soft hover:text-ink'}`}>
-                  {t.nav[r]}{r === 'review' && waiting.length > 0 && <span className="ml-1.5 rounded-full bg-accent px-1.5 font-mono text-[11px] text-white">{waiting.length}</span>}
+                  className={`whitespace-nowrap rounded-lg px-3 py-2 text-sm no-underline transition-colors ${r === route ? 'bg-selected font-medium text-ink' : 'text-sub hover:bg-soft hover:text-ink'}`}>
+                  {t.nav[r]}{r === 'review' && waiting.length > 0 && <span className="ml-1.5 rounded-full bg-accent px-1.5 font-mono text-[11px] text-on-accent">{waiting.length}</span>}
                 </a>
               ))}
             </nav>
           </div>
-          <div role="group" aria-label={t.lang.label} className="flex rounded-lg border border-line p-0.5">
-            {(['en', 'zh'] as const).map((l) => (
-              <button key={l} type="button" aria-pressed={lang === l} onClick={() => setLang(l)}
-                className={`min-h-8 rounded-md px-2.5 text-[13px] ${lang === l ? 'bg-ink text-white' : 'text-[#4b5563] hover:bg-soft'}`}>{t.lang[l]}</button>
-            ))}
+          <div className="flex items-center gap-2">
+            <div role="group" aria-label={t.theme.label} className="flex rounded-lg border border-line p-0.5">
+              {THEMES.map((p) => (
+                <button key={p} type="button" aria-pressed={pref === p} aria-label={t.theme[p]} title={t.theme[p]} onClick={() => setPref(p)}
+                  className={`grid min-h-8 min-w-8 place-items-center rounded-md transition-colors ${pref === p ? 'bg-ink text-on-ink' : 'text-sub hover:bg-soft'}`}>
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{THEME_ICONS[p]}</svg>
+                </button>
+              ))}
+            </div>
+            <div role="group" aria-label={t.lang.label} className="flex rounded-lg border border-line p-0.5">
+              {(['en', 'zh'] as const).map((l) => (
+                <button key={l} type="button" aria-pressed={lang === l} onClick={() => setLang(l)}
+                  className={`min-h-8 rounded-md px-2.5 text-[13px] transition-colors ${lang === l ? 'bg-ink text-on-ink' : 'text-sub hover:bg-soft'}`}>{t.lang[l]}</button>
+              ))}
+            </div>
           </div>
         </div>
       </header>
       {notice && (
-        <div className="mx-auto max-w-[1360px] px-4 pt-4 sm:px-8"><div role={notice.kind === 'error' ? 'alert' : 'status'} className={`flex items-start justify-between gap-3 rounded-xl border px-4 py-3 text-sm ${notice.kind === 'error' ? 'border-[#f6d3c4] bg-danger-soft text-danger' : 'border-[#bbf7d0] bg-ok-soft text-ok'}`}>
+        <div className="mx-auto max-w-[1360px] px-4 pt-4 sm:px-8"><div role={notice.kind === 'error' ? 'alert' : 'status'} className={`animate-rise flex items-start justify-between gap-3 rounded-xl border px-4 py-3 text-sm ${notice.kind === 'error' ? 'border-danger-line bg-danger-soft text-danger' : 'border-ok-line bg-ok-soft text-ok'}`}>
           <span className="whitespace-pre-line">{notice.text}</span>
           <button type="button" className="shrink-0 underline" onClick={dismissNotice}>{t.common.close}</button>
         </div></div>
       )}
-      <main id="main" className="mx-auto max-w-[1360px] px-4 pb-16 pt-7 sm:px-8">{children}</main>
+      <main id="main" className="mx-auto max-w-[1360px] px-4 pb-16 pt-7 sm:px-8">
+        <ErrorBoundary key={route} fallback={(e, reset) => <ErrorState title={t.common.pageError} message={e.message} hint={t.common.errorHint} onRetry={reset} retry={t.common.retry} />}>
+          <div className="animate-rise">{children}</div>
+        </ErrorBoundary>
+      </main>
     </div>
   );
 }
