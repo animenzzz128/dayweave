@@ -1,7 +1,9 @@
 name: Publish demo
-# Publishes the public Luna demo (web/dist) to GitHub Pages. Manual only until the repository is public and
-# Pages is enabled; switch to `push: branches: [main]` once the owner approves automatic publishing.
+# Publishes the public Luna demo (web/dist) to https://animenzzz128.github.io/dayweave/ on every merge to main
+# (owner approved automatic publishing on 2026-10-21). It can also be started by hand.
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read

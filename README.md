@@ -34,6 +34,8 @@ npm run dev:server   # the same UI against a Dayweave server on port 8768 (synth
 npm run build        # static output in web/dist, ready for GitHub Pages
 ```
 
+Every merge to `main` publishes the demo to https://animenzzz128.github.io/dayweave/ (`.github/workflows/pages.yml`).
+
 The planning rules are the shared `src/*.cjs` modules, evaluated by the web build. The root package keeps zero runtime dependencies; the web app's dependencies live in `web/package.json`.
 
 ## Start the web app
