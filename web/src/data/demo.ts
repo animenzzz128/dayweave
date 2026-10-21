@@ -13,6 +13,7 @@ interface DemoState {
   approvals: Approval[];
   receipts: Receipt[];
   nextQ: number;
+  outage?: boolean;
 }
 
 const fresh = (day: string): DemoState => ({ v: 1, day, progress: {}, proposals: null, approvals: [], receipts: [], nextQ: 12 });
@@ -24,10 +25,28 @@ function read(day: string): DemoState {
     const s = raw ? (JSON.parse(raw) as DemoState) : null;
     if (!s || s.v !== 1) return fresh(day);
     // Dated work (plans, approvals, simulated receipts) belongs to the day it was made; checklists and todos carry over.
-    return s.day === day ? s : { ...fresh(day), progress: s.progress, nextQ: s.nextQ };
+    return s.day === day ? s : { ...fresh(day), progress: s.progress, nextQ: s.nextQ, outage: s.outage };
   } catch {
     return fresh(day);
   }
+}
+
+// The calendar and Gmail fail to read. Their last good records are kept, but blank calendar time is no longer known
+// to be free, so the planner refuses to plan and every page says what it cannot know.
+function simulateOutage(d: Snapshot, now: Date) {
+  const lastGood = new Date(+now - 26 * 3600000).toISOString();
+  const attempt = new Date(+now - 2 * 60000).toISOString();
+  for (const id of ['google-calendar', 'gmail']) {
+    const src = d.sources.find((x) => x.id === id);
+    if (src) Object.assign(src, { status: 'failed', lastSuccess: lastGood, lastAttempt: attempt, note: 'Simulated outage: the read timed out. Records from the last good read are kept.' });
+  }
+  if (d.calendarCoverage) d.calendarCoverage = { ...d.calendarCoverage, complete: false, checkedAt: lastGood, note: 'Simulated outage: the calendar could not be read, so blank time is unknown.' };
+  // Same shape as a failed read merged by the server: earlier messages stay, labelled as retained.
+  if (d.email) d.email = {
+    ...d.email, checkedAt: lastGood, lastSuccess: lastGood, retained: true, retainedFrom: lastGood,
+    coverage: { ...d.email.coverage, status: 'failed', complete: false, morePages: null, returned: 0, errors: ['Simulated outage: the Gmail read timed out.'], note: '' },
+    messages: (d.email.messages || []).map((m) => ({ ...m, retained: true })),
+  };
 }
 
 export class DemoSource implements DataSource {
@@ -40,6 +59,7 @@ export class DemoSource implements DataSource {
     Core.configure(base.timezone);
     const s = read(Core.dayKey(now));
     const d: Snapshot = { ...base, proposals: s.proposals ? clone(s.proposals) : base.proposals, actionHistory: clone(s.receipts) };
+    if (s.outage) simulateOutage(d, now);
     this.state = s;
     this.snapshot = d;
     return { d, s };
@@ -55,7 +75,7 @@ export class DemoSource implements DataSource {
 
   async load(): Promise<Loaded> {
     const { d, s } = this.build();
-    return { snapshot: d, progress: clone(s.progress), approvals: clone(s.approvals).reverse() };
+    return { snapshot: d, progress: clone(s.progress), approvals: clone(s.approvals).reverse(), outage: !!s.outage };
   }
 
   async saveProgress(kind: string, id: string, value: unknown) {
@@ -152,6 +172,12 @@ export class DemoSource implements DataSource {
     const at = new Date().toISOString();
     for (const p of a.value) s.receipts.push({ id: p.id, status: 'executed', fingerprint: a.fingerprints[p.id], reference: a.reference, at, note: 'simulated' });
     a.status = 'executed';
+    this.save();
+  }
+
+  async setOutage(on: boolean) {
+    const { s } = this.build();
+    s.outage = on;
     this.save();
   }
 

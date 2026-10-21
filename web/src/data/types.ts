@@ -50,7 +50,7 @@ export interface Snapshot {
   courses: Course[]; assignments: Assignment[]; events: CalendarEvent[]; proposals: Proposal[];
   sources: Source[]; priorities: Priority[]; actionHistory: Receipt[];
   calendarCoverage?: { complete?: boolean; start?: string; end?: string; checkedAt?: string; note?: string; provider?: string; account?: string; calendar?: string };
-  career?: Career; email?: { enabled?: boolean; account?: string; messages?: EmailMessage[]; checkedAt?: string; coverage?: { status?: string; note?: string } } | null;
+  career?: Career; email?: { enabled?: boolean; account?: string; messages?: EmailMessage[]; checkedAt?: string; coverage?: { status?: string; note?: string; [key: string]: unknown }; [key: string]: unknown } | null;
   [key: string]: unknown;
 }
 
@@ -80,7 +80,7 @@ export interface PlanResult {
   gaps: string[]; assumptions: string[]; usable: { minutes: number; budget: number; allocated: number };
 }
 
-export interface Loaded { snapshot: Snapshot; progress: Progress; approvals: Approval[] }
+export interface Loaded { snapshot: Snapshot; progress: Progress; approvals: Approval[]; outage?: boolean }
 
 export interface DataSource {
   readonly mode: 'demo' | 'local';
@@ -94,5 +94,7 @@ export interface DataSource {
   prepare(ids: string[]): Promise<Approval>;
   /** Demo only: stands in for the assistant's approved execution and read-back. */
   simulateApproval?(approval: Approval): Promise<void>;
+  /** Demo only: makes the calendar and Gmail fail, to show how failures stay visible. */
+  setOutage?(on: boolean): Promise<void>;
   reset?(): Promise<void>;
 }

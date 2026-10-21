@@ -97,7 +97,7 @@ function AssignmentCard({ a, initiallyOpen }: { a: Assignment; initiallyOpen: bo
                     const key = `${a.id}:${i}`, id = `chk-${key}`;
                     return (
                       <li key={key} className="flex items-start gap-2.5">
-                        <input id={id} type="checkbox" className="mt-1 h-4 w-4 accent-[#2558d9]" checked={checked(key)} onChange={(e) => toggle(key, e.target.checked)} />
+                        <input id={id} type="checkbox" className="mt-1 h-4 w-4 accent-accent" checked={checked(key)} onChange={(e) => toggle(key, e.target.checked)} />
                         <label htmlFor={id} className="text-sm">{item}</label>
                       </li>
                     );

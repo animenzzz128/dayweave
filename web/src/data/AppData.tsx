@@ -5,6 +5,7 @@ import { useI18n } from '../i18n/I18n';
 import { ApiSource } from './api';
 import { DemoSource } from './demo';
 import type { Assignment, DataSource, Loaded, Proposal } from './types';
+import { ErrorState, Skeleton } from '../components/ui';
 
 const DONE = ['submitted', 'graded', 'excused'];
 const STARTED = ['executed', 'pending', 'unverified'];
@@ -78,18 +79,22 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     };
   }, [data, source, now, locale, t, run, reload, notice]);
 
-  if (error && !data) return <Failure message={error} onRetry={reload} />;
-  if (!value) return <div className="p-10 text-muted" role="status">{t.common.loading}</div>;
+  if (error && !data) return <div className="p-6 sm:p-10"><ErrorState title={t.common.error} message={error} hint={t.common.errorHint} onRetry={reload} retry={t.common.retry} /></div>;
+  if (!value) return <LoadingShell label={t.common.loading} />;
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
-function Failure({ message, onRetry }: { message: string; onRetry: () => void }) {
-  const { t } = useI18n();
+/** Shaped like the Today page, so the layout does not jump when the data arrives. */
+function LoadingShell({ label }: { label: string }) {
   return (
-    <div className="mx-auto max-w-xl p-10" role="alert">
-      <h1 className="text-xl font-semibold">{t.common.error}</h1>
-      <p className="mt-2 text-muted">{message}</p>
-      <button type="button" className="btn mt-4" onClick={onRetry}>{t.common.retry}</button>
+    <div className="min-h-screen bg-surface" role="status" aria-live="polite">
+      <span className="sr-only">{label}</span>
+      <div className="h-9 border-b border-line bg-soft" />
+      <div className="mx-auto flex max-w-[1360px] items-center gap-6 border-b border-line px-4 py-4 sm:px-8"><Skeleton className="h-6 w-28" /><Skeleton className="h-5 w-72 max-w-full" /></div>
+      <div className="mx-auto flex max-w-[1360px] flex-wrap gap-8 px-4 pt-7 sm:px-8">
+        <div className="flex-[1_1_360px] space-y-3"><Skeleton className="h-8 w-56" /><Skeleton className="h-[480px] w-full" /></div>
+        <div className="flex-[999_1_520px] space-y-4"><Skeleton className="h-36 w-full" /><div className="grid grid-cols-3 gap-3"><Skeleton className="h-28" /><Skeleton className="h-28" /><Skeleton className="h-28" /></div><Skeleton className="h-40 w-full" /></div>
+      </div>
     </div>
   );
 }

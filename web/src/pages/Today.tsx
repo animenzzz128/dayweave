@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useApp } from '../data/AppData';
 import { useI18n } from '../i18n/I18n';
 import { DayTimeline } from '../components/DayTimeline';
-import { Dot, External, Section, Tag, sourceTone } from '../components/ui';
+import { Dot, Empty, External, Section, Tag, sourceTone } from '../components/ui';
 import { Demo, Email, Workload } from '../lib/shared';
 import { href } from '../lib/router';
 import type { Assignment, Priority } from '../data/types';
@@ -38,8 +38,8 @@ export function Today() {
         <div role="group" aria-label={t.today.showDay} className="mb-3 inline-flex rounded-lg border border-line p-0.5">
           {([[today, t.today.todayTab], [tomorrow, t.today.tomorrowTab]] as const).map(([day, label]) => (
             <button key={day} type="button" aria-pressed={shown === day} onClick={() => setShown(day)}
-              className={`min-h-8 rounded-md px-3 text-[13px] ${shown === day ? 'bg-ink text-white' : 'text-[#4b5563] hover:bg-soft'}`}>
-              {label}{proposalsOn(day) > 0 && <span className={`ml-1.5 font-mono text-[11px] ${shown === day ? 'text-white/80' : 'text-accent'}`}>{proposalsOn(day)}</span>}
+              className={`min-h-8 rounded-md px-3 text-[13px] ${shown === day ? 'bg-ink text-on-ink' : 'text-sub hover:bg-soft'}`}>
+              {label}{proposalsOn(day) > 0 && <span className={`ml-1.5 font-mono text-[11px] ${shown === day ? 'text-on-ink/80' : 'text-accent'}`}>{proposalsOn(day)}</span>}
             </button>
           ))}
         </div>
@@ -82,7 +82,7 @@ export function Today() {
             <div role="group" aria-label={t.today.mode} className="flex rounded-lg border border-line p-0.5">
               {(['standard', 'reduced'] as const).map((m) => (
                 <button key={m} type="button" aria-pressed={mode === m} onClick={() => run(() => source.setWorkloadMode(m))}
-                  className={`min-h-8 rounded-md px-3 text-[13px] ${mode === m ? 'bg-ink text-white' : 'text-[#4b5563] hover:bg-soft'}`}>{t.today[m]}</button>
+                  className={`min-h-8 rounded-md px-3 text-[13px] ${mode === m ? 'bg-ink text-on-ink' : 'text-sub hover:bg-soft'}`}>{t.today[m]}</button>
               ))}
             </div>
             <span className="text-xs text-muted">{t.today.modeHint[mode as 'standard' | 'reduced']}</span>
@@ -106,7 +106,7 @@ export function Today() {
                   </li>
                 ))}
               </ul>
-            : <p className="text-sm text-muted">{t.today.verificationEmpty}</p>}
+            : <Empty compact>{t.today.verificationEmpty}</Empty>}
         </Section>
 
         <Section title={t.today.sources} aside={<a href={href('health')}>{t.nav.health} →</a>}>
@@ -137,7 +137,7 @@ function chipLabel(p: Priority, a: Assignment | undefined, i: number) {
 export function WorkList({ items, empty }: { items: Assignment[]; empty?: string }) {
   const { f, now, classify } = useApp();
   const { t } = useI18n();
-  if (!items.length) return <p className="text-sm text-muted">{empty ?? t.common.none}</p>;
+  if (!items.length) return <Empty compact>{empty ?? t.common.none}</Empty>;
   return (
     <ul className="divide-y divide-line rounded-xl border border-line">
       {items.map((a) => {
