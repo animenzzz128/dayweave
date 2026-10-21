@@ -2,9 +2,14 @@
 const en = {
   brand: 'dayweave',
   tagline: 'Plans you can verify',
-  nav: { today: 'Today', coursework: 'Coursework', week: 'Week', review: 'Review', career: 'Career', email: 'Email', health: 'Data health' },
+  nav: { today: 'Today', coursework: 'Coursework', week: 'Week', review: 'Review', career: 'Career', email: 'Email', health: 'Data health', 'case-study': 'Case study' },
   lang: { label: 'Language', en: 'EN', zh: '中文' },
   theme: { label: 'Theme', system: 'Match system', light: 'Light', dark: 'Dark' },
+  palette: {
+    label: 'Command menu', open: 'Search or jump to…', placeholder: 'Search pages, coursework, proposals or commands',
+    pages: 'Pages', work: 'Coursework and todos', proposals: 'Proposals waiting', actions: 'Commands', todo: 'Todo',
+    empty: 'No matches. Try a course code or a page name.', move: 'to move', choose: 'to open',
+  },
   demo: {
     banner: 'Demo with fictional data for Luna, a made-up grad student. Try anything; nothing leaves this browser.',
     reset: 'Reset demo',
@@ -160,9 +165,14 @@ type Messages = typeof en;
 const zh: Messages = {
   brand: 'dayweave',
   tagline: '可验证的每日计划',
-  nav: { today: '今天', coursework: '课业', week: '本周', review: '审批', career: '求职', email: '邮件', health: '数据健康' },
+  nav: { today: '今天', coursework: '课业', week: '本周', review: '审批', career: '求职', email: '邮件', health: '数据健康', 'case-study': '案例研究' },
   lang: { label: '语言', en: 'EN', zh: '中文' },
   theme: { label: '主题', system: '跟随系统', light: '浅色', dark: '深色' },
+  palette: {
+    label: '命令菜单', open: '搜索或跳转…', placeholder: '搜索页面、作业、提议或命令',
+    pages: '页面', work: '作业与待办', proposals: '待审批的提议', actions: '命令', todo: '待办',
+    empty: '没有匹配结果。试试课程代码或页面名称。', move: '移动', choose: '打开',
+  },
   demo: {
     banner: '演示模式：数据来自虚构的研究生 Luna。随便试，数据不会离开这个浏览器。',
     reset: '重置演示',
