@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — Web demo (DW-1011)
+
+- New `web/` front end (React, Vite, TypeScript, Tailwind) in the "timeline first" design: Today, Coursework, Week, Review, Career, Email and Data health, with an EN / 中文 switch (English default, remembered per browser).
+- Demo mode runs entirely in the browser on a fictional student, Luna (`examples/luna-demo.json`). `src/demo.cjs` dates the template around today in its timezone, so the demo never looks stale. Checklists, todos, focus mode, plans and approvals are stored in browser storage; Reset restores the original data; approving simulates the assistant's write and read-back.
+- Server mode (`npm run dev:server` in `web/`) uses the existing server API on the development port; the server still enforces sessions, CSRF, validation and approvals.
+- The web build evaluates the shared `src/*.cjs` rules (classification, workload focus, planner, approvals guards, email health) instead of reimplementing them.
+- CI builds and type-checks the web app and scans the build for secrets, personal paths and non-example email addresses (`node scripts/privacy-check.cjs --dir web/dist`). A manual GitHub Pages workflow is ready for when the repository is public.
+
 ## Unreleased — Google providers (DW-GOOGLE-01)
 
 - Email shows the last collected read-only Gmail snapshot: inbox, last seven days, at most 50 messages, metadata and snippets, no attachments. Collection time, coverage, errors and stale/retained labels are explicit; unknown, disabled, failed and partial reads never read as an empty inbox. Send, delete and label capabilities are rejected. Home shows an inbox summary.

@@ -1,0 +1,352 @@
+{
+  "schemaVersion": 1,
+  "generatedAt": "@now-20",
+  "timezone": "America/New_York",
+  "summary": "Problem Set 4 is the only hard deadline in the next 36 hours and two questions are still open. The PRD draft is due the morning after, so the next free evening is the last one for it. A recruiter asked for coffee-chat times this week.",
+  "coverageNote": "DEMO — Luna is a fictional graduate student. Every course, message, event, person and role is invented. No account is connected and nothing leaves this browser.",
+  "courses": [
+    {
+      "id": "stat610",
+      "code": "STAT 610",
+      "name": "Causal Inference",
+      "category": "academic",
+      "note": "Weekly problem sets; late work loses 10% per day.",
+      "source": "https://example.com/lms/stat610"
+    },
+    {
+      "id": "prod540",
+      "code": "PROD 540",
+      "name": "Product Management",
+      "category": "academic",
+      "note": "Team project plus individual PRD; group submissions show one receipt for the team.",
+      "source": "https://example.com/lms/prod540"
+    },
+    {
+      "id": "econ512",
+      "code": "ECON 512",
+      "name": "Platform Economics",
+      "category": "academic",
+      "note": "Readings and responses are posted on the course website, not the LMS.",
+      "source": "https://example.com/econ512"
+    }
+  ],
+  "assignments": [
+    {
+      "id": "stat610-ps4",
+      "courseId": "stat610",
+      "course": "STAT 610",
+      "title": "Problem Set 4",
+      "dueAt": "@+1T23:59",
+      "status": "not_submitted",
+      "requirement": "required",
+      "sourceId": "lms-stat610",
+      "source": "https://example.com/lms/stat610/ps4",
+      "estimateMinutes": 150,
+      "evidence": "Assignment page lists the deadline and five questions; no submission yet.",
+      "description": "Difference-in-differences and synthetic control on the provided panel. Questions 1–3 are short; 4 and 5 need code and a written interpretation.",
+      "materials": "Panel dataset, lecture 7 slides, starter notebook.",
+      "aiPolicy": "AI may explain concepts; submitted code and writing must be your own.",
+      "checklist": [
+        "Q1–Q3 short answers",
+        "Q4 parallel-trends check and plot",
+        "Q5 synthetic control and interpretation",
+        "Knit to PDF and check figure labels",
+        "Upload PDF and notebook"
+      ]
+    },
+    {
+      "id": "prod540-prd",
+      "courseId": "prod540",
+      "course": "PROD 540",
+      "title": "Campus Eats PRD draft",
+      "dueAt": "@+2T09:00",
+      "status": "not_submitted",
+      "requirement": "required",
+      "sourceId": "lms-prod540",
+      "source": "https://example.com/lms/prod540/prd",
+      "estimateMinutes": 120,
+      "evidence": "Syllabus and assignment page agree on the deadline; peer review happens in class.",
+      "description": "Two-page PRD for a fictional campus food-ordering app: problem, users, goals and non-goals, success metrics, risks.",
+      "materials": "PRD template, interview notes from week 3.",
+      "aiPolicy": "AI brainstorming is allowed if disclosed; the draft must be your own words.",
+      "checklist": [
+        "Problem statement and target users",
+        "Goals, non-goals and success metrics",
+        "Risks and open questions",
+        "Proofread against the template"
+      ]
+    },
+    {
+      "id": "prod540-memo",
+      "courseId": "prod540",
+      "course": "PROD 540",
+      "title": "Group memo: market sizing",
+      "dueAt": "@+3T12:00",
+      "status": "unknown",
+      "requirement": "required",
+      "sourceId": "lms-prod540",
+      "source": "https://example.com/lms/prod540/memo",
+      "estimateMinutes": 60,
+      "evidence": "Group assignment: a teammate may already have submitted, but no receipt is visible to Luna.",
+      "description": "Team memo estimating the serviceable market for Campus Eats.",
+      "checklist": [
+        "Ask the team who submits",
+        "Confirm the receipt appears for the group"
+      ]
+    },
+    {
+      "id": "prod540-peer",
+      "courseId": "prod540",
+      "course": "PROD 540",
+      "title": "Peer feedback on team charter",
+      "dueAt": "@-1T23:59",
+      "status": "not_submitted",
+      "requirement": "required",
+      "sourceId": "lms-prod540",
+      "source": "https://example.com/lms/prod540/peer",
+      "estimateMinutes": 20,
+      "evidence": "Deadline passed yesterday; late submissions are accepted for half credit.",
+      "description": "Short structured feedback on two teammates' charters.",
+      "checklist": [
+        "Feedback for teammate A",
+        "Feedback for teammate B"
+      ]
+    },
+    {
+      "id": "prod540-interviews",
+      "courseId": "prod540",
+      "course": "PROD 540",
+      "title": "User interview synthesis",
+      "dueAt": "@+8T23:59",
+      "status": "not_submitted",
+      "requirement": "required",
+      "sourceId": "lms-prod540",
+      "source": "https://example.com/lms/prod540/synthesis",
+      "estimateMinutes": 120,
+      "evidence": "Posted on the LMS with rubric.",
+      "description": "Affinity-map five interviews and present three insights with quotes.",
+      "checklist": [
+        "Transcribe key quotes",
+        "Affinity map",
+        "Write three insights"
+      ]
+    },
+    {
+      "id": "stat610-ps3",
+      "courseId": "stat610",
+      "course": "STAT 610",
+      "title": "Problem Set 3",
+      "dueAt": "@-6T23:59",
+      "status": "graded",
+      "requirement": "required",
+      "sourceId": "lms-stat610",
+      "source": "https://example.com/lms/stat610/ps3",
+      "estimateMinutes": 150,
+      "evidence": "Graded: 46/50.",
+      "description": "Instrumental variables.",
+      "checklist": []
+    },
+    {
+      "id": "stat610-review",
+      "courseId": "stat610",
+      "course": "STAT 610",
+      "title": "Midterm review sheet",
+      "dueAt": "@+6T10:00",
+      "status": "not_submitted",
+      "requirement": "required",
+      "sourceId": "lms-stat610",
+      "source": "https://example.com/lms/stat610/review",
+      "estimateMinutes": 90,
+      "evidence": "One-page formula sheet, submitted for a completion grade.",
+      "description": "Summarize identification strategies covered so far.",
+      "checklist": [
+        "Draft one-page sheet",
+        "Upload"
+      ]
+    },
+    {
+      "id": "econ512-response",
+      "courseId": "econ512",
+      "course": "ECON 512",
+      "title": "Reading response: platform pricing",
+      "dueAt": "@+1T17:00",
+      "status": "not_submitted",
+      "requirement": "choice",
+      "sourceId": "econ512-site",
+      "source": "https://example.com/econ512/responses",
+      "estimateMinutes": 45,
+      "evidence": "Pick any three of six responses this term; Luna has submitted two.",
+      "description": "500 words on two-sided pricing. Optional if three are already done.",
+      "checklist": [
+        "Read the two assigned papers",
+        "Write and upload 500 words"
+      ]
+    },
+    {
+      "id": "econ512-exercise",
+      "courseId": "econ512",
+      "course": "ECON 512",
+      "title": "Pricing exercise",
+      "dueAt": "@+4T23:59",
+      "status": "not_submitted",
+      "requirement": "required",
+      "sourceId": "econ512-site",
+      "source": "https://example.com/econ512/exercise",
+      "estimateMinutes": 60,
+      "evidence": "Last read from the course website yesterday; this morning's read timed out.",
+      "description": "Spreadsheet exercise on network effects.",
+      "checklist": [
+        "Complete spreadsheet",
+        "Answer two discussion questions"
+      ]
+    },
+    {
+      "id": "econ512-response2",
+      "courseId": "econ512",
+      "course": "ECON 512",
+      "title": "Reading response: marketplace trust",
+      "dueAt": "@-8T17:00",
+      "status": "submitted",
+      "requirement": "choice",
+      "sourceId": "econ512-site",
+      "source": "https://example.com/econ512/responses",
+      "evidence": "Submitted; counts toward the three required responses.",
+      "description": "Second of three responses.",
+      "checklist": []
+    }
+  ],
+  "events": [
+    { "id": "ev-econ-0", "title": "ECON 512 lecture", "start": "@0T09:00", "end": "@0T10:15", "busy": true, "sourceId": "google-calendar", "source": "https://example.com/calendar", "location": "Hall B", "provider": "google", "account": "luna@example.com", "calendarId": "classes@example.com", "calendar": "Classes" },
+    { "id": "ev-prod-0", "title": "PROD 540 class", "start": "@0T13:30", "end": "@0T15:00", "busy": true, "sourceId": "google-calendar", "source": "https://example.com/calendar", "location": "Room 210", "provider": "google", "account": "luna@example.com", "calendarId": "classes@example.com", "calendar": "Classes" },
+    { "id": "ev-dinner-0", "title": "Dinner with roommates", "start": "@0T19:00", "end": "@0T20:00", "busy": true, "sourceId": "google-calendar", "source": "https://example.com/calendar", "location": "", "provider": "google", "account": "luna@example.com", "calendarId": "luna@example.com", "calendar": "Luna" },
+    { "id": "ev-econ-1", "title": "ECON 512 lecture", "start": "@+1T09:00", "end": "@+1T10:15", "busy": true, "sourceId": "google-calendar", "source": "https://example.com/calendar", "location": "Hall B", "provider": "google", "account": "luna@example.com", "calendarId": "classes@example.com", "calendar": "Classes" },
+    { "id": "ev-stat-lab-1", "title": "STAT 610 lab", "start": "@+1T13:30", "end": "@+1T15:00", "busy": true, "sourceId": "google-calendar", "source": "https://example.com/calendar", "location": "Lab 3", "provider": "google", "account": "luna@example.com", "calendarId": "classes@example.com", "calendar": "Classes" },
+    { "id": "ev-oh-1", "title": "STAT 610 office hours", "start": "@+1T17:00", "end": "@+1T17:30", "busy": true, "sourceId": "google-calendar", "source": "https://example.com/calendar", "location": "Room 404", "provider": "google", "account": "luna@example.com", "calendarId": "luna@example.com", "calendar": "Luna" },
+    { "id": "ev-prod-2", "title": "PROD 540 class · PRD peer review", "start": "@+2T09:00", "end": "@+2T10:30", "busy": true, "sourceId": "google-calendar", "source": "https://example.com/calendar", "location": "Room 210", "provider": "google", "account": "luna@example.com", "calendarId": "classes@example.com", "calendar": "Classes" },
+    { "id": "ev-career-2", "title": "Career fair prep session", "start": "@+2T15:00", "end": "@+2T16:00", "busy": true, "sourceId": "google-calendar", "source": "https://example.com/calendar", "location": "Career center", "provider": "google", "account": "luna@example.com", "calendarId": "luna@example.com", "calendar": "Luna" },
+    { "id": "ev-stat-3", "title": "STAT 610 lecture", "start": "@+3T10:00", "end": "@+3T11:15", "busy": true, "sourceId": "google-calendar", "source": "https://example.com/calendar", "location": "Hall A", "provider": "google", "account": "luna@example.com", "calendarId": "classes@example.com", "calendar": "Classes" },
+    { "id": "ev-team-3", "title": "Campus Eats team sync", "start": "@+3T16:00", "end": "@+3T17:00", "busy": true, "sourceId": "google-calendar", "source": "https://example.com/calendar", "location": "Library 2F", "provider": "google", "account": "luna@example.com", "calendarId": "luna@example.com", "calendar": "Luna" },
+    { "id": "ev-lunch-4", "title": "Product club lunch", "start": "@+4T12:00", "end": "@+4T13:00", "busy": true, "sourceId": "google-calendar", "source": "https://example.com/calendar", "location": "Student center", "provider": "google", "account": "luna@example.com", "calendarId": "luna@example.com", "calendar": "Luna" },
+    { "id": "ev-gym-5", "title": "Gym", "start": "@+5T11:00", "end": "@+5T12:00", "busy": true, "sourceId": "google-calendar", "source": "https://example.com/calendar", "location": "", "provider": "google", "account": "luna@example.com", "calendarId": "luna@example.com", "calendar": "Luna" },
+    { "id": "ev-call-6", "title": "Call home", "start": "@+6T20:00", "end": "@+6T21:00", "busy": true, "sourceId": "google-calendar", "source": "https://example.com/calendar", "location": "", "provider": "google", "account": "luna@example.com", "calendarId": "luna@example.com", "calendar": "Luna" }
+  ],
+  "proposals": [
+    {
+      "id": "proposal-ps4",
+      "title": "Focus: Problem Set 4 (Q4–Q5)",
+      "start": "@+1T10:30",
+      "end": "@+1T12:00",
+      "calendar": "Luna",
+      "recurrence": "One time",
+      "status": "proposed",
+      "source": "https://example.com/lms/stat610/ps4",
+      "reason": "Ninety minutes right after the lecture while the morning is clear; two questions remain.",
+      "action": "create",
+      "account": "luna@example.com",
+      "timezone": "America/New_York",
+      "attendees": [],
+      "location": "",
+      "body": "Personal focus time.",
+      "busy": true,
+      "reminderMinutes": 10,
+      "provider": "google",
+      "calendarId": "luna@example.com"
+    },
+    {
+      "id": "proposal-prd",
+      "title": "Focus: PRD outline",
+      "start": "@+1T15:15",
+      "end": "@+1T16:30",
+      "calendar": "Luna",
+      "recurrence": "One time",
+      "status": "proposed",
+      "source": "https://example.com/lms/prod540/prd",
+      "reason": "The last free afternoon before the PRD is due; leaves the evening free.",
+      "action": "create",
+      "account": "luna@example.com",
+      "timezone": "America/New_York",
+      "attendees": [],
+      "location": "",
+      "body": "Personal focus time.",
+      "busy": true,
+      "reminderMinutes": 10,
+      "provider": "google",
+      "calendarId": "luna@example.com"
+    }
+  ],
+  "calendarCoverage": {
+    "complete": true,
+    "start": "@0",
+    "end": "@+7",
+    "note": "Fictional seven-day Google Calendar window across two read calendars. Proposals still need explicit approval and a live recheck.",
+    "provider": "google",
+    "sourceId": "google-calendar",
+    "account": "luna@example.com",
+    "calendar": "Luna",
+    "calendarId": "luna@example.com",
+    "calendars": [
+      { "id": "luna@example.com", "name": "Luna", "role": "destination", "accessRole": "owner" },
+      { "id": "classes@example.com", "name": "Classes", "role": "busy", "accessRole": "reader" }
+    ],
+    "checkedAt": "@now-20"
+  },
+  "priorities": [
+    { "title": "Finish Problem Set 4", "detail": "Questions 4 and 5 remain; due tomorrow night.", "source": "https://example.com/lms/stat610/ps4" },
+    { "title": "Outline the Campus Eats PRD", "detail": "Due before class in two days; peer review happens in class.", "source": "https://example.com/lms/prod540/prd" },
+    { "title": "Send coffee-chat times", "detail": "A recruiter asked for three 30-minute slots next week.", "source": "https://example.com/mail/recruiter" }
+  ],
+  "sources": [
+    { "id": "lms-stat610", "name": "LMS · STAT 610", "status": "ok", "lastSuccess": "@now-20", "source": "https://example.com/lms/stat610", "note": "All assignments and submissions read." },
+    { "id": "lms-prod540", "name": "LMS · PROD 540", "status": "ok", "lastSuccess": "@now-20", "source": "https://example.com/lms/prod540", "note": "All assignments read; group receipts are only visible to the submitter." },
+    { "id": "econ512-site", "name": "ECON 512 course website", "status": "failed", "lastSuccess": "@-1T08:05", "lastAttempt": "@now-20", "source": "https://example.com/econ512", "note": "Timed out this morning. Records from yesterday are kept and marked for verification." },
+    { "id": "google-calendar", "name": "Google Calendar", "status": "ok", "lastSuccess": "@now-20", "source": "https://example.com/calendar", "note": "Two calendars read for the next seven days." },
+    { "id": "gmail", "name": "Gmail (read-only)", "status": "ok", "lastSuccess": "@now-20", "source": "https://example.com/mail", "note": "Inbox, last seven days, metadata and snippets only." }
+  ],
+  "career": {
+    "enabled": true,
+    "source": "https://example.com/profile/luna",
+    "tracks": [
+      { "title": "Associate product manager, 2027", "reason": "Matches the PROD 540 coursework and two prior internships." },
+      { "title": "Product analyst", "reason": "Uses the causal-inference coursework directly." }
+    ],
+    "unknowns": [
+      "Preferred cities beyond New York and San Francisco.",
+      "Whether Luna wants roles that start before graduation."
+    ],
+    "candidates": [
+      { "id": "person-maya", "name": "Maya Rivera (fictional)", "market": "US", "source": "https://example.com/people/maya", "evidence": "PM at a fictional fintech; same graduate program, class of 2023.", "checkedAt": "@now-20", "relationship": "unknown", "reason": "Alumna in the APM track Luna is targeting.", "scores": { "role": 5, "shared": 4, "market": 4, "reason": 4 } },
+      { "id": "person-omar", "name": "Omar Haddad (fictional)", "market": "US", "source": "https://example.com/people/omar", "evidence": "Data scientist turned PM at a fictional marketplace.", "checkedAt": "@now-20", "relationship": "unknown", "reason": "Made the analyst-to-PM move Luna is considering.", "scores": { "role": 4, "shared": 3, "market": 4, "reason": 4 } }
+    ],
+    "roles": [
+      { "id": "role-apm-fintech", "title": "Associate Product Manager, 2027 (fictional fintech)", "market": "US", "source": "https://example.com/jobs/apm-fintech", "evidence": "Posting lists a 2027 start and sponsorship available.", "checkedAt": "@now-20", "startYear": 2027, "sponsorship": "yes", "fit": "Strong match for the PRD and analytics coursework." },
+      { "id": "role-analyst-marketplace", "title": "Product Analyst (fictional marketplace)", "market": "US", "source": "https://example.com/jobs/analyst", "evidence": "Posting does not mention sponsorship.", "checkedAt": "@now-20", "startYear": 2027, "sponsorship": "unknown", "fit": "Uses causal inference directly; sponsorship needs checking." },
+      { "id": "role-pm-intern", "title": "PM Intern, Summer (fictional health-tech)", "market": "US", "source": "https://example.com/jobs/pm-intern", "evidence": "Internship; start year not stated.", "checkedAt": "@now-20", "sponsorship": "unknown", "fit": "Good stepping stone if a summer role is still useful." }
+    ],
+    "note": "Fictional people and roles for the demo.",
+    "profile": { "summary": "Fictional second-year graduate student targeting product roles", "startYear": 2027, "usSponsorshipRequired": true, "workEligibility": {} }
+  },
+  "questions": [
+    "Everything in this demo is fictional. No real people, schools, accounts or credentials are involved."
+  ],
+  "actionHistory": [],
+  "candidateHistory": [],
+  "weeklyReview": "Demo: weekly trends need retained history, which the public demo does not keep.",
+  "email": {
+    "enabled": true,
+    "provider": "google",
+    "account": "luna@example.com",
+    "sourceId": "gmail",
+    "capabilities": { "read": true, "send": false, "delete": false, "labels": false },
+    "checkedAt": "@now-20",
+    "lastSuccess": "@now-20",
+    "request": { "query": "in:inbox newer_than:7d", "windowDays": 7, "limit": 50, "from": "@now-10100", "to": "@now-20" },
+    "coverage": { "status": "complete", "morePages": false, "errors": [], "note": "Fictional single page; no further pages reported." },
+    "messages": [
+      { "id": "msg-recruiter", "threadId": "thr-recruiter", "receivedAt": "@-1T16:20", "from": "Priya at Fictional Fintech <recruiting@example.com>", "subject": "Coffee chat next week?", "snippet": "Thanks for stopping by our booth! Could you send three 30-minute windows next week that work for you?", "labels": ["INBOX"], "unread": true, "hasAttachments": false, "attachmentCount": null },
+      { "id": "msg-team", "threadId": "thr-team", "receivedAt": "@-1T21:05", "from": "Campus Eats Team <team@example.com>", "subject": "Who is submitting the memo?", "snippet": "I can submit the market sizing memo Thursday unless someone already did. Luna, can you check the numbers in section 2?", "labels": ["INBOX"], "unread": true, "hasAttachments": false, "attachmentCount": null },
+      { "id": "msg-ta", "threadId": "thr-ta", "receivedAt": "@-2T11:40", "from": "STAT 610 TA <ta@example.com>", "subject": "PS4 hint for Q5", "snippet": "Several of you asked about Q5: start from the donor-pool weights in the starter notebook.", "labels": ["INBOX"], "unread": false, "hasAttachments": false, "attachmentCount": null },
+      { "id": "msg-library", "threadId": "thr-library", "receivedAt": "@-3T09:15", "from": "Library Desk <library@example.com>", "subject": "Study room confirmed", "snippet": "Your study room is booked. No action needed if the time still works.", "labels": ["INBOX"], "unread": false, "hasAttachments": false, "attachmentCount": null },
+      { "id": "msg-career", "threadId": "thr-career", "receivedAt": "@-4T14:00", "from": "Career Center <careers@example.com>", "subject": "Career fair prep session", "snippet": "Bring two copies of your resume. Mock interviews run in 20-minute slots.", "labels": ["INBOX"], "unread": false, "hasAttachments": true, "attachmentCount": 1 }
+    ]
+  }
+}

@@ -22,6 +22,20 @@ The repository contains reusable application code and fictional examples only. P
 
 Career cards now support source-backed roles and networking candidates, eligibility gaps, local save/dismiss/status tracking, draft requests, progress import and a seven-day activity summary. Research is supplied by the assistant, not by a background scraper. Drafts are never sent. See [Phase 3](docs/phase-3.md).
 
+## Web demo (new front end)
+
+The `web/` folder holds the new bilingual front end. Its public demo runs entirely in the browser on a fictional student, Luna; nothing connects to an account and visitor changes stay in that browser.
+
+```sh
+cd web
+npm ci
+npm run dev          # demo mode, http://127.0.0.1:5173
+npm run dev:server   # the same UI against a Dayweave server on port 8768 (synthetic data)
+npm run build        # static output in web/dist, ready for GitHub Pages
+```
+
+The planning rules are the shared `src/*.cjs` modules, evaluated by the web build. The root package keeps zero runtime dependencies; the web app's dependencies live in `web/package.json`.
+
 ## Start the web app
 
 ```sh
