@@ -3,7 +3,7 @@
   "version": "1.5.5",
   "private": true,
   "description": "A local daily planning dashboard with evidence-backed coursework and review-before-write calendar proposals.",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "engines": {
     "node": ">=24"
   },
