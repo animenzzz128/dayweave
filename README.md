@@ -125,7 +125,7 @@ Use a short branch per change and one focused pull request. Create an issue for 
 
 ## License and public release
 
-No open-source license has been selected yet; this package is marked `UNLICENSED` and private. Before changing repository visibility, choose a license and complete the [publication checklist](SECURITY.md#before-making-the-repository-public). The repository is structured for that transition without including a personal-data history.
+Dayweave is released under the [MIT License](LICENSE). Before changing repository visibility, complete the [publication checklist](SECURITY.md#before-making-the-repository-public). The repository is structured for that transition without including a personal-data history.
 
 ## Phase 4 workbench
 The primary interface is now a local multi-page Node 24 + SQLite application. Start with `node scripts/db.cjs migrate /private/data.json`, then `npm run serve`. See [Phase 4 migration, approvals and backups](docs/phase-4.md). Existing static render/preview commands remain legacy compatibility tools; `export:html` produces a read-only database export. Email shows a read-only Gmail snapshot.
