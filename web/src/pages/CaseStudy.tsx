@@ -4,6 +4,7 @@ import { useI18n } from '../i18n/I18n';
 import { href } from '../lib/router';
 import { trackEvent } from '../lib/analytics';
 import { caseStudy } from './caseStudyContent';
+import { AiEvals } from './AiEvals';
 
 const REPO = 'https://github.com/animenzzz128/dayweave';
 
@@ -12,7 +13,7 @@ export default function CaseStudy() {
   const { lang } = useI18n();
   const { source, run, outage } = useApp();
   const c = caseStudy[lang];
-  const sections: [string, string][] = [['problem', c.problem.title], ['users', c.users.title], ['principles', c.principles.title], ['decisions', c.decisions.title], ['evals', c.evals.title], ['roadmap', c.roadmap.title]];
+  const sections: [string, string][] = [['problem', c.problem.title], ['users', c.users.title], ['principles', c.principles.title], ['decisions', c.decisions.title], ['ai', c.ai.title], ['evals', c.evals.title], ['roadmap', c.roadmap.title]];
   const startOutage = async () => {
     trackEvent('case-study-cta');
     if (source.setOutage && !outage) await run(() => source.setOutage!(true));
@@ -81,6 +82,8 @@ export default function CaseStudy() {
             ))}
           </div>
         </Block>
+
+        <Block id="ai" title={c.ai.title}><AiEvals c={c.ai} /></Block>
 
         <Block id="evals" title={c.evals.title}>
           {c.evals.body.map((p) => <p key={p}>{p}</p>)}

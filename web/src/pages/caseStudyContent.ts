@@ -9,6 +9,13 @@ export interface CaseStudyText {
   users: { title: string; body: string; jobs: string[] };
   principles: { title: string; items: [string, string][] };
   decisions: { title: string; intro: string; chose: string; gaveUp: string; why: string; items: Decision[] };
+  ai: {
+    title: string; body: string[]; features: [string, string][];
+    resultsTitle: string; resultsIntro: string; head: [string, string, string]; tasks: Record<'brief' | 'breakdown' | 'propose', [string, string]>;
+    meta: (model: string, day: string, runs: number, cost: number) => string; pending: string;
+    failuresTitle: string; failuresNote: string; noFailures: string; limits: string;
+    visitorTitle: string; visitorEmpty: string; visitor: (accepted: number, edited: number, ignored: number, edits: number) => string;
+  };
   evals: { title: string; body: string[]; metricsTitle: string; metrics: [string, string, string][]; metricHead: [string, string, string] };
   roadmap: { title: string; items: [string, string, string][] };
   closing: string;
@@ -51,13 +58,43 @@ const en: CaseStudyText = {
       { title: 'Outlook executor: no-go', chose: 'Read-only Google Calendar and Gmail snapshots, with writes approved in chat.', gaveUp: 'The school Outlook calendar, and remote, unattended writing.', why: 'The connector could not establish an authorised session, and nothing proved that an approval would reach a writer reliably. Shipping it would have meant writes nobody could verify.' },
       { title: 'No autonomous executor', chose: 'An approval names an exact version. The assistant rechecks the live calendar, writes once and reads the event back.', gaveUp: 'One-click “apply all” and background syncing.', why: 'A planner that writes silently loses trust after the first wrong event. One extra step per change was the price of being correctable.' },
       { title: 'A deterministic planner', chose: 'Rules in code: 09:00–24:00, blocks of 90 minutes or less, rest gaps, 20% left free, explicit durations only.', gaveUp: 'Plans that “feel” smarter but cannot be reproduced.', why: 'After the early trial, classification and scheduling moved into tested code. The planner refuses to plan on incomplete calendar coverage and says why.' },
+      { title: 'AI explains, rules decide', chose: 'Rules pick priorities and check every block; the model explains, breaks down and parses, and each output is validated against its evidence.', gaveUp: 'Letting the model choose priorities or write proposals straight into the plan.', why: 'Wording is where a model helps and mistakes are cheap. Deadlines, requirements and conflicts are where mistakes cost trust, so they stay in tested code.' },
       { title: 'A static public demo first', chose: 'Fictional data in the browser, published by GitHub Pages, with AI outputs written in advance.', gaveUp: 'Live accounts and live model calls in the demo.', why: 'Anyone can try the full flow safely and for free. Real data waits for a private, signed-in instance.' },
     ],
+  },
+  ai: {
+    title: 'In-product AI, checked against its evidence',
+    body: [
+      'The AI in Dayweave never decides what matters. The rules pick today’s priorities, check conflicts and guard the calendar; the model explains those choices, breaks an assignment into steps, or turns one sentence into a proposed block. Every output is checked against the records it was given before anyone sees it, and an output that fails is replaced by rule-written text that says why.',
+      'The public demo makes no live model calls. Outputs were generated offline with the Claude API from Luna’s fictional data, and this browser re-runs the same checks before showing each one. Try the outage switch: the stored brief no longer matches the evidence, so the rules take over and the page says so.',
+    ],
+    features: [
+      ['Cited daily brief', 'Every sentence carries numbered citations that open the underlying record inside the app.'],
+      ['Assignment steps', 'Each step quotes the assignment text. Accept, edit first, or ignore; the choice is recorded.'],
+      ['One-line proposals', 'A parsed sentence goes through the same conflict and coverage checks, and only into the review queue.'],
+    ],
+    resultsTitle: 'Model evaluation',
+    resultsIntro: 'Each case changes Luna’s data (an outage, a moved deadline, an instruction hidden in an email) and scores the model’s first attempt with the site’s validator plus the case’s own expectations.',
+    head: ['Task', 'Passed', 'What a pass requires'],
+    tasks: {
+      brief: ['Daily brief', 'Cites the right records, uses only their numbers and times, names every failed source, never claims an action.'],
+      breakdown: ['Assignment steps', 'Quotes the assignment, keeps a sensible total, never hands submitted work to AI or follows an injected note.'],
+      propose: ['One-line proposals', 'Right status (propose, ask or decline), right day, time and length; the rules block real conflicts.'],
+    },
+    meta: (model, day, runs, cost) => `${model}, run on ${day}, ${runs} run${runs > 1 ? 's' : ''} per case, about US${cost} in total.`,
+    pending: 'The model evaluation has not been run yet.',
+    failuresTitle: 'Failures, as recorded',
+    failuresNote: 'Taken from the result file. Each one is a case the validator or an expectation caught.',
+    noFailures: 'No case failed in this run.',
+    limits: 'Limits: one fictional student and a few dozen runs is a regression set, not proof of reliability on real data. Passing the checks means an output is grounded in its evidence, not that it is the best wording.',
+    visitorTitle: 'Your own numbers in this demo',
+    visitorEmpty: 'Open an assignment in Coursework and accept, edit or ignore the AI steps. Your choices are counted here, in this browser only.',
+    visitor: (a, e, i, edits) => `You accepted ${a} suggestion${a === 1 ? '' : 's'} as written, accepted ${e} after editing (${edits} step change${edits === 1 ? '' : 's'}), and ignored ${i}. Nothing is uploaded.`,
   },
   evals: {
     title: 'Evals and metrics',
     body: [
-      'Correctness is guarded at two levels. 184 automated tests cover the rules, the server and the real browser scripts in page order. A small Luna evaluation set checks the assistant’s routine: any urgent omission, submitted work shown as outstanding, optional work made compulsory, or unauthorised write blocks a release, and a person still reads the prose.',
+      'Correctness is guarded at two levels. 184 automated tests cover the rules, the server and the real browser scripts in page order. A Luna evaluation set for the in-product AI is described above, and a smaller one checks the assistant’s collection routine: any urgent omission, submitted work shown as outstanding, optional work made compulsory, or unauthorised write blocks a release, and a person still reads the prose.',
       'Product metrics are defined but not yet measured on real use, so none are claimed here.',
     ],
     metricsTitle: 'What I would measure',
@@ -67,14 +104,15 @@ const en: CaseStudyText = {
       ['Silent failures', 'Failed sources shown as empty or as free time. The target is zero.', 'Guarded by tests'],
       ['Edit before approve', 'How often a proposal is changed before approval: a signal of suggestion quality.', 'Derivable from approval history'],
       ['Demo engagement', 'Visits, case-study reads and outage toggles, with no cookies or personal data.', 'Live, cookie-free'],
+      ['AI suggestion acceptance', 'Share of AI steps accepted, edited or ignored, and how much was edited.', 'Shown per visitor, not uploaded'],
+      ['Grounded AI output', 'Share of model outputs that pass the evidence checks on the first attempt.', 'Measured on the Luna set'],
     ],
   },
   roadmap: {
     title: 'Roadmap',
     items: [
-      ['Now', 'Polish and case study', 'Dark mode, command menu, honest empty and error states, this page.'],
-      ['Next', 'In-product AI with evals', 'The daily brief generated in the product, scored against the Luna set before release.'],
-      ['Later', 'Private instance', 'A signed-in version for real data, never mixed with the public demo.'],
+      ['Now', 'In-product AI with evals', 'A cited brief, assignment steps and one-line proposals, each checked against its evidence and scored on the Luna set.'],
+      ['Next', 'Private instance', 'A signed-in version for real data, never mixed with the public demo.'],
       ['Later', 'Cloud collection', 'A scheduled assistant routine that gathers snapshots, replacing manual refreshes.'],
     ],
   },
@@ -118,13 +156,43 @@ const zh: CaseStudyText = {
       { title: 'Outlook 自动执行：不做', chose: '只读的 Google 日历和 Gmail 快照，写入在对话中批准。', gaveUp: '学校的 Outlook 日历，以及远程无人值守写入。', why: '连接器无法建立已授权的会话，也无法证明批准能可靠地传到执行端。硬上线就意味着没人能核实的写入。' },
       { title: '不做自主执行器', chose: '批准对应一个确切版本。助手重新检查实时日历，只写一次，再把事件读回来核对。', gaveUp: '一键“全部应用”和后台同步。', why: '一个悄悄写日历的工具，写错一次就失去信任。每次修改多一步，换来的是出错时能纠正。' },
       { title: '确定性规划器', chose: '规则写在代码里：09:00–24:00，每段不超过 90 分钟，留出休息间隔，至少 20% 空闲，只用明确的时长。', gaveUp: '看起来更“聪明”但无法复现的计划。', why: '早期试验之后，分类和排程都改成了经过测试的代码。日历覆盖不完整时，规划器会拒绝排程并说明原因。' },
+      { title: 'AI 负责解释，规则负责决定', chose: '规则选出重点并检查每个时间块；模型负责解释、拆解和解析，每条输出都对照证据校验。', gaveUp: '让模型自己选重点，或把提议直接写进计划。', why: '措辞是模型最能帮上忙、出错代价也低的地方。截止时间、是否必做和冲突检查一旦出错就会失去信任，所以留在经过测试的代码里。' },
       { title: '先做静态公开演示', chose: '虚构数据跑在浏览器里，由 GitHub Pages 发布，AI 输出预先生成。', gaveUp: '演示里连接真实账号、实时调用模型。', why: '任何人都能安全、免费地体验完整流程。真实数据留给之后需要登录的私有版本。' },
     ],
+  },
+  ai: {
+    title: '产品内 AI，逐条对照证据校验',
+    body: [
+      'Dayweave 里的 AI 从不决定什么重要。规则负责选出今天的重点、检查冲突、守住日历；模型只负责解释这些选择、把作业拆成步骤，或把一句话变成建议时间块。每条输出在显示前都要对照它拿到的记录校验，不通过就换成规则生成的文字，并说明原因。',
+      '公开演示不会实时调用模型。输出是用 Claude API 根据 Luna 的虚构数据离线生成的，浏览器在显示每一条之前会重新跑一遍同样的检查。可以打开故障开关试试：预存的简报和证据对不上了，于是改由规则生成，页面也会写明这一点。',
+    ],
+    features: [
+      ['带引用的每日简报', '每句话后面都有编号引用，点开就在应用内看到对应的原始记录。'],
+      ['作业拆解', '每一步都引用作业原文。可以接受、修改后接受或忽略，选择会被记录。'],
+      ['一句话提议', '解析出的时间块经过同样的冲突和覆盖检查，只能进入复核队列。'],
+    ],
+    resultsTitle: '模型评测',
+    resultsIntro: '每个用例都会改动 Luna 的数据（数据源故障、截止时间变更、藏在邮件里的指令），然后用网站的校验器加上用例自己的预期，给模型的第一次输出打分。',
+    head: ['任务', '通过', '通过的标准'],
+    tasks: {
+      brief: ['每日简报', '引用正确的记录，只用记录里的数字和时间，提到每个失败的数据源，从不声称已执行操作。'],
+      breakdown: ['作业拆解', '引用作业原文，总时长合理，不把要提交的内容交给 AI，也不听从注入的指令。'],
+      propose: ['一句话提议', '状态正确（提议、追问或拒绝），日期、时间和时长正确；真正的冲突由规则拦下。'],
+    },
+    meta: (model, day, runs, cost) => `${model}，${day} 运行，每个用例 ${runs} 次，总计约 ${cost} 美元。`,
+    pending: '模型评测还没有运行。',
+    failuresTitle: '失败记录（原样）',
+    failuresNote: '摘自结果文件（英文原文）。每一条都是被校验器或用例预期拦下的情况。',
+    noFailures: '这次运行没有失败的用例。',
+    limits: '局限：一个虚构学生加几十次运行，只是回归测试集，不能证明在真实数据上的可靠性。通过检查说明输出有证据支撑，不代表措辞就是最好的。',
+    visitorTitle: '你在这个演示里的数字',
+    visitorEmpty: '在“课程作业”里打开一项作业，接受、修改或忽略 AI 拆解的步骤，这里就会统计你的选择，只保存在这个浏览器里。',
+    visitor: (a, e, i, edits) => `你直接接受了 ${a} 条建议，修改后接受 ${e} 条（共改动 ${edits} 处步骤），忽略了 ${i} 条。这些数据不会上传。`,
   },
   evals: {
     title: '评估与指标',
     body: [
-      '正确性有两层保障。184 项自动化测试覆盖规则、服务器，以及按页面顺序加载的真实浏览器脚本。一个小型的 Luna 评估集检查助手的日常流程：只要漏掉紧急事项、把已交作业显示为未交、把可选作业变成必做，或出现未经批准的写入，就不能发布；机器检查通过后，还要有人读一遍文字。',
+      '正确性有两层保障。184 项自动化测试覆盖规则、服务器，以及按页面顺序加载的真实浏览器脚本。上文介绍了产品内 AI 的 Luna 评测集，另有一个小型评估集检查助手的收集流程：只要漏掉紧急事项、把已交作业显示为未交、把可选作业变成必做，或出现未经批准的写入，就不能发布；机器检查通过后，还要有人读一遍文字。',
       '产品指标已经定义，但还没有在真实使用中测量，所以这里不报任何数字。',
     ],
     metricsTitle: '我会衡量什么',
@@ -134,14 +202,15 @@ const zh: CaseStudyText = {
       ['静默失败', '失败的数据源被显示成空或空闲时间。目标是 0。', '由测试保障'],
       ['批准前修改', '提议在批准前被修改的频率，反映建议质量。', '可从审批记录计算'],
       ['演示互动', '访问量、案例页阅读和故障开关使用次数，不用 cookie，不收集个人数据。', '已上线，无 cookie'],
+      ['AI 建议采纳', 'AI 拆解步骤被接受、修改或忽略的比例，以及修改了多少。', '按访客在本地显示，不上传'],
+      ['有据可查的 AI 输出', '模型第一次输出就通过证据校验的比例。', '在 Luna 评测集上测量'],
     ],
   },
   roadmap: {
     title: '路线图',
     items: [
-      ['现在', '打磨与案例页', '深色模式、命令菜单、如实的空状态和错误状态，以及这个页面。'],
-      ['下一步', '产品内 AI 与评估', '在产品里生成每日摘要，发布前用 Luna 评估集打分。'],
-      ['之后', '私有版本', '需要登录的版本，用于真实数据，和公开演示完全分开。'],
+      ['现在', '产品内 AI 与评测', '带引用的简报、作业拆解和一句话提议，每条都对照证据校验，并在 Luna 评测集上打分。'],
+      ['下一步', '私有版本', '需要登录的版本，用于真实数据，和公开演示完全分开。'],
       ['之后', '云端采集', '由定时运行的助手流程收集快照，取代手动刷新。'],
     ],
   },
