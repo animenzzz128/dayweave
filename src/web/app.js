@@ -4,7 +4,7 @@ const esc=x=>String(x??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 const link=(url,label='Source')=>`<a href="${esc(C.safeURL(url))}" target="_blank" rel="noopener noreferrer">${esc(label)} ↗</a>`;
 let D,S,csrf,revision=0;
 const opened=new Set();
-async function api(url,body){const r=await fetch('/api/'+url,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json','x-dayweave-token':csrf},body:body===undefined?undefined:JSON.stringify(body)});const value=await r.json();if(!r.ok)throw Error(value.error||'Request failed');return value;}
+async function api(url,body){const r=await fetch('/api/'+url,{method:body===undefined?'GET':'POST',headers:{'Content-Type':'application/json','x-dayweave-token':csrf},body:body===undefined?undefined:JSON.stringify(body)});const value=await r.json();if(r.status===401&&value.signIn){location.assign(value.signIn);throw Error('Signing in again…');}if(!r.ok)throw Error(value.error||'Request failed');return value;}
 const fmt=x=>x?new Intl.DateTimeFormat('en-US',{timeZone:D.timezone,month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(x)):'Unknown';
 const title=(name,sub='')=>`<h1>${name}</h1><p class="subtitle">${esc(sub)}</p>`;
 const route=(path)=>{history.pushState({},'',path);render();};
@@ -138,4 +138,4 @@ document.addEventListener('input',async e=>{const form=e.target.closest('.propos
 document.addEventListener('toggle',e=>{const id=e.target.dataset?.open;if(id!==undefined)e.target.open?opened.add(id):opened.delete(id);},true);
 window.addEventListener('popstate',render);
 // Hosted instances replace the sidebar's local label with a sign-out form; the server checks its Origin.
-(async()=>{try{const session=await api('session');csrf=session.csrf;if(session.hosted)$('.sidebar-note').innerHTML='Private instance<br>Review before external changes<form method="post" action="/auth/logout" data-native><button type="submit">Sign out</button></form>';await render();}catch(e){$('#notice').textContent=e.message;}})();
+(async()=>{try{const session=await api('session');csrf=session.csrf;if(session.hosted){$('#saved').textContent='Private database';$('.sidebar-note').innerHTML='Private instance<br>Review before external changes<form method="post" action="/auth/logout" data-native><button type="submit">Sign out</button></form>';}await render();}catch(e){$('#notice').textContent=e.message;}})();

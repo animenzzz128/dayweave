@@ -38,7 +38,10 @@ function createAuth(config,{fetch:doFetch=globalThis.fetch}={}){
    const ok=GOOGLE_ISSUERS.includes(claims.iss)&&claims.aud===config.clientId&&claims.exp*1000>Date.now()&&same(claims.nonce||'',pending.nonce)&&claims.email_verified===true&&String(claims.email).toLowerCase()===config.email;
    if(!ok)return deny(res,'This account cannot use this Dayweave instance',[clear]),true;
    return redirect('/',[clear,cookie(SESSION_COOKIE,s.seal({email:config.email,csrf:crypto.randomBytes(24).toString('hex'),exp:Date.now()+SESSION_MS}),SESSION_MS/1000)]),true;}
-  if(req.method==='POST'&&u.pathname==='/auth/logout'){if(req.headers.origin!==config.origin)return deny(res,'Invalid origin'),true;return redirect('/auth/login',[cookie(SESSION_COOKIE,'',0)]),true;}
+  if(req.method==='POST'&&u.pathname==='/auth/logout'){if(req.headers.origin!==config.origin)return deny(res,'Invalid origin'),true;return redirect('/auth/signed-out',[cookie(SESSION_COOKIE,'',0)]),true;}
+  // Sign-out lands on a same-origin page: the app's CSP form-action 'self' also covers redirects after a form post, so
+  // redirecting the sign-out form straight on to Google would be blocked and leave the old page in place.
+  if(req.method==='GET'&&u.pathname==='/auth/signed-out'){res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','Content-Security-Policy':"default-src 'none'; frame-ancestors 'none'; base-uri 'none'"});res.end('<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Signed out · Dayweave</title></head><body><p>You are signed out of Dayweave.</p><p><a href="/auth/login">Sign in again</a></p></body></html>');return true;}
   return false;}
  return {handle,session};}
 function deny(res,message,setCookies=[]){res.writeHead(403,{'Content-Type':'text/plain; charset=utf-8','Cache-Control':'no-store','Set-Cookie':setCookies});res.end(message);}
