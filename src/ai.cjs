@@ -74,10 +74,11 @@ function prompt(pack){return {system:SYSTEM,user:TASKS[pack.task]+'\n\nEvidence 
 const NUM=/\d+(?::\d\d)?(?:\.\d+)?/g;
 const numbers=s=>new Set(String(s).match(NUM)||[]);
 const URL_RE=/https?:\/\/|www\.|\.com\b/i;
+// Negated forms are removed (every one: the g flag) before looking for a positive claim.
 // Claims that Dayweave or the assistant did something on the user's behalf.
 const EXECUTED=[/\b(?:I|we|Dayweave)\s+(?:have\s+|has\s+|just\s+)?(?:added|scheduled|booked|sent|submitted|created|moved|deleted)\b/i,/\b(?:added|booked|scheduled)\s+(?:it\s+)?(?:to|on|in)\s+your\s+calendar\b/i,/(?:我|我们|Dayweave)(?:已经?|已)(?:为你|帮你)?(?:添加|加入|安排|预订|发送|提交|创建|移动|删除)/,/已(?:为你|帮你)(?:添加|加入|安排|发送|提交|创建)/,/(?:添加|加入)到(?:了)?(?:你的)?日历/];
-const SUBMITTED_POS=/\bsubmitted\b|已提交|已经提交/i,SUBMITTED_NEG=/\b(?:not|never|un|no one has|nobody has)\s*(?:yet\s+)?submitted\b|\bno submission\b|未提交|没有提交|尚未提交|还没提交|是否.{0,6}提交|whether .{0,40}submitted/i;
-const REQUIRED_POS=/\b(?:required|must|compulsory|mandatory)\b|必做|必须|必交/i,REQUIRED_NEG=/\bnot\s+(?:required|compulsory|mandatory)\b|\boptional\b|非必做|不是必做|不必|可选|选做/i;
+const SUBMITTED_POS=/\bsubmitted\b|已提交|已经提交/i,SUBMITTED_NEG=/\b(?:not|never|un|no one has|nobody has)\s*(?:yet\s+)?submitted\b|\bno submission\b|未提交|没有提交|尚未提交|还没提交|是否.{0,20}提交|\b(?:whether|if)\b.{0,80}?submitted/gi;
+const REQUIRED_POS=/\b(?:required|must|compulsory|mandatory)\b|必做|必须|必交/i,REQUIRED_NEG=/\b(?:not|never|rather than|instead of|isn't|is not|aren't|are not)\s+(?:required|compulsory|mandatory)\b|(?:不是|并非|非|不)\s*(?:必做|必须|必交)|不必|可选|选做/gi;
 
 function checkSentences(list,pack,lang,errors){
  const refs=byRef(pack);

@@ -36,6 +36,12 @@ test('ai: the brief validator rejects invented sources, numbers, links, executed
  a.equal(run([{text:'Problem Set 4 is not submitted yet.',cites:['assignment:stat610-ps4']}]),'');
  a.match(run([{text:'The platform pricing response is required.',cites:['assignment:econ512-response']}]),/optional work required/);
  a.equal(run([{text:'The platform pricing response is optional.',cites:['assignment:econ512-response']}]),'');
+ // Negations from the first model evaluation run, which the validator wrongly rejected at the time.
+ a.equal(run([{text:'The platform pricing response is optional rather than required.',cites:['assignment:econ512-response']}]),'');
+ a.equal(run([{text:'Confirm whether Group memo: market sizing has already been submitted by a teammate.',cites:['assignment:prod540-memo']}]),'');
+ a.equal(AI.validate(p,{en:[ok],zh:[{text:'Reading response: platform pricing 属于选做作业，不是必须完成的；ECON 512 网站读取失败。',cites:['assignment:econ512-response','source:econ512-site']}]}).join(),'');
+ a.match(run([{text:'The platform pricing response is not optional; it is required.',cites:['assignment:econ512-response']}]),/optional work required/);
+ a.match(run([{text:'Problem Set 4 is not late, and it was submitted.',cites:['assignment:stat610-ps4']}]),/unsubmitted work submitted/);
  a.match(AI.validate(p,{en:[{text:'Problem Set 4 is due tomorrow.',cites:['assignment:stat610-ps4']}],zh:[{text:'Problem Set 4 明天截止。',cites:['assignment:stat610-ps4']}]}).join('\n'),/failed source source:econ512-site/);
  a.match(AI.validate(p,{en:[{text:'我已为你添加到日历。',cites:['source:econ512-site']}],zh:[{text:'我已经为你安排好了。',cites:['source:econ512-site']}]}).join('\n'),/carried out/);
  a.match(AI.validate(p,null).join('\n'),/1 to 5 sentences/);
