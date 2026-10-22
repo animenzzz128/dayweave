@@ -3,6 +3,7 @@ import { useApp } from '../data/AppData';
 import { useI18n } from '../i18n/I18n';
 import { Empty, External, PageHeader, Tabs, Tag } from '../components/ui';
 import { Core } from '../lib/shared';
+import { Breakdown } from '../components/Breakdown';
 import type { Assignment, Todo } from '../data/types';
 
 type Tab = 'required' | 'choice' | 'verify' | 'done' | 'todos';
@@ -89,6 +90,7 @@ function AssignmentCard({ a, initiallyOpen }: { a: Assignment; initiallyOpen: bo
             <External url={a.source} className="text-[13px]">{t.coursework.openSource}</External>
           </dl>
           <div className="space-y-4">
+            <Breakdown a={a} />
             {list.length > 0 && (
               <fieldset>
                 <legend className="label">{t.coursework.checklist}</legend>

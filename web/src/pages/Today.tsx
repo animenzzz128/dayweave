@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useApp } from '../data/AppData';
 import { useI18n } from '../i18n/I18n';
 import { DayTimeline } from '../components/DayTimeline';
+import { Brief } from '../components/Brief';
 import { Dot, Empty, External, Section, Tag, sourceTone } from '../components/ui';
 import { Demo, Email, Workload } from '../lib/shared';
 import { href } from '../lib/router';
@@ -52,11 +53,10 @@ export function Today() {
             <h2 id="brief" className="text-sm font-semibold text-accent">{t.today.brief}</h2>
             <span className="text-xs text-muted">{t.today.briefNote}</span>
           </div>
-          <p className="mt-2.5 text-[17px] leading-relaxed">{d.summary}</p>
-          <div className="mt-3 flex flex-wrap gap-1.5">
+          <Brief />
+          {source.mode === 'local' && <div className="mt-3 flex flex-wrap gap-1.5">
             {d.priorities.map((p, i) => <External key={i} url={p.source} className="chip">{chipLabel(p, byUrl.get(p.source), i)}</External>)}
-          </div>
-          {source.mode === 'demo' && <p className="mt-3 text-xs text-muted">{t.today.briefDemoNote}</p>}
+          </div>}
         </section>
 
         <Section title={t.today.priorities}>

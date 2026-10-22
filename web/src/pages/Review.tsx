@@ -4,13 +4,14 @@ import { useI18n } from '../i18n/I18n';
 import { Empty, External, PageHeader, Tabs, Tag } from '../components/ui';
 import { Core, Phase2 } from '../lib/shared';
 import { href } from '../lib/router';
+import { OneLine } from '../components/OneLine';
 import type { Approval, Proposal } from '../data/types';
 
 type Tab = 'waiting' | 'done';
 
 export function Review({ params }: { params: URLSearchParams }) {
   const { snapshot: d, waiting, approvals, progress, started } = useApp();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [tab, setTab] = useState<Tab>('waiting');
   const [selected, setSelected] = useState(params.get('id') || '');
   const current = waiting.find((p) => p.id === selected) || waiting[0];
@@ -19,6 +20,7 @@ export function Review({ params }: { params: URLSearchParams }) {
   return (
     <>
       <PageHeader title={t.review.title} subtitle={t.review.subtitle} />
+      <OneLine onAdded={(id) => { setTab('waiting'); setSelected(id); }} />
       <Tabs label={t.review.title} value={tab} onChange={setTab} items={[['waiting', t.review.waiting, waiting.length], ['done', t.review.done, approvals.length + skipped.length]]} />
       {tab === 'waiting' ? (
         waiting.length ? (
@@ -28,7 +30,7 @@ export function Review({ params }: { params: URLSearchParams }) {
                 <li key={p.id}>
                   <button type="button" aria-current={p.id === current?.id} onClick={() => setSelected(p.id)}
                     className={`w-full rounded-xl border px-4 py-3 text-left ${p.id === current?.id ? 'border-accent bg-accent-soft' : 'border-line hover:bg-soft'}`}>
-                    <span className="block font-medium">{p.title}</span>
+                    <span className="flex items-start justify-between gap-2 font-medium"><span>{titleOf(p, lang)}</span>{p.origin === 'ai' && <Tag tone="info">{t.ai.aiTag}</Tag>}</span>
                     <WhenLine p={p} />
                   </button>
                 </li>
@@ -49,7 +51,7 @@ function WhenLine({ p }: { p: Proposal }) {
 
 function Detail({ p }: { p: Proposal }) {
   const { snapshot: d, approvals, source, run, now, f, workStatus } = useApp();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const errors: string[] = Phase2.errors(p, d, now, []);
   const fingerprint: string = Phase2.fingerprint(p);
   const ready = approvals.find((a) => a.status === 'prepared' && a.fingerprints[p.id] === fingerprint);
@@ -73,7 +75,7 @@ function Detail({ p }: { p: Proposal }) {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <span className="font-mono text-xs text-muted">{ready ? t.review.version(ready.reference) : p.id}</span>
-          <h2 id="proposal-title" className="mt-1 text-2xl font-semibold leading-tight">{f.day(p.start)} {f.hm(p.start)}–{f.hm(p.end)} · {p.title}</h2>
+          <h2 id="proposal-title" className="mt-1 text-2xl font-semibold leading-tight">{f.day(p.start)} {f.hm(p.start)}–{f.hm(p.end)} · {titleOf(p, lang)}</h2>
         </div>
         <Tag tone={errors.length ? 'danger' : 'ok'}>{errors.length ? t.review.checksFailed(errors.length) : t.review.checksPassed(t.review.checkList.length)}</Tag>
       </div>
@@ -105,7 +107,8 @@ function Detail({ p }: { p: Proposal }) {
 
         <section className="rounded-[14px] border border-accent-line bg-accent-soft p-4" aria-labelledby="ai">
           <h3 id="ai" className="text-sm font-semibold text-accent">2 · {t.review.aiSuggests}</h3>
-          <p className="mt-2 text-sm">{p.reason || '—'}</p>
+          {p.aiSentence && <p className="mt-2 text-sm">{t.ai.fromSentence(p.aiSentence)}</p>}
+          <p className="mt-2 text-sm">{p.origin === 'ai' ? t.ai.aiReason : p.reason || '—'}</p>
           <h4 className="mt-4 text-xs font-semibold text-muted">{t.review.checks}</h4>
           {errors.length
             ? <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-danger">{errors.map((e, i) => <li key={i}>{e}</li>)}</ul>
@@ -196,4 +199,6 @@ function History({ approvals, skipped }: { approvals: Approval[]; skipped: Propo
   );
 }
 
+// AI proposals carry a Chinese title until someone edits the title.
+const titleOf = (p: Proposal, lang: string) => (lang === 'zh' && p.titleZh ? p.titleZh : p.title);
 const nextDay = (day: string) => new Date(Date.parse(day + 'T12:00:00Z') + 86400000).toISOString().slice(0, 10);

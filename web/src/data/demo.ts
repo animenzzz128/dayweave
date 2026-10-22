@@ -140,10 +140,22 @@ export class DemoSource implements DataSource {
     const p = d.proposals.find((x) => x.id === id);
     if (!p) throw new Error('Unknown proposal');
     if (d.actionHistory.some((h) => h.id === id && ['pending', 'executed', 'unverified'].includes(h.status))) throw new Error('This action was already carried out.');
+    // A retitled AI proposal keeps no stale Chinese title.
+    if (changes.title !== undefined && changes.title !== p.title) delete p.titleZh;
     for (const k of ['title', 'start', 'end'] as const) if (changes[k] !== undefined) p[k] = changes[k] as string;
     Core.validate(d);
     s.proposals = clone(d.proposals);
     this.invalidate([id]);
+    this.save();
+  }
+
+  async addProposal(p: Proposal) {
+    const { d, s } = this.build();
+    if (d.proposals.some((x) => x.id === p.id)) throw new Error('This proposal is already in the review queue.');
+    if (p.origin !== 'ai' || p.status !== 'proposed') throw new Error('Only new AI proposals can be added here.');
+    d.proposals = [...d.proposals, clone(p)];
+    Core.validate(d);
+    s.proposals = clone(d.proposals);
     this.save();
   }
 
