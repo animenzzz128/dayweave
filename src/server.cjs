@@ -4,7 +4,10 @@ const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),
 function createServer(dir,{hosted=null,ingestSecret='',fetch}={}){const store=new Store(dir),sessions=new Map(),auth=hosted&&H.createAuth(hosted,{fetch}),allow=H.limiter();const server=http.createServer(async(req,res)=>{
  const send=(status,value)=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(value));};
  try{const host=hosted?hosted.host:'127.0.0.1:'+server.address().port,origin=hosted?hosted.origin:'http://'+host;if(hosted)for(const [k,v] of Object.entries(H.securityHeaders))res.setHeader(k,v);
- if(req.headers.host!==host||['cross-site'].includes(req.headers['sec-fetch-site']))return send(403,{error:hosted?'Unknown host':'Local requests only'});
+ if(req.headers.host!==host)return send(403,{error:hosted?'Unknown host':'Local requests only'});
+ // A hosted instance is reached by top-level links from other sites, including Google's sign-in redirect back to
+ // /auth/callback, so cross-site GET page navigations are allowed there; any other cross-site request stays refused.
+ if(req.headers['sec-fetch-site']==='cross-site'&&!(hosted&&req.method==='GET'&&req.headers['sec-fetch-mode']==='navigate'&&!req.url.startsWith('/api/')))return send(403,{error:hosted?'Cross-site request refused':'Local requests only'});
  const ip=hosted?String(req.headers['fly-client-ip']||req.socket.remoteAddress):'local';if(hosted&&!allow('all:'+ip,600,60000))return send(429,{error:'Too many requests'});
  const u=new URL(req.url,origin),cookie=(req.headers.cookie||'').match(/(?:^|; )dw=([a-f0-9]+)/)?.[1];let session=hosted?auth.session(req):sessions.get(cookie);
  if(req.method==='POST'&&u.pathname==='/api/ingest'){if(!allow('ingest:'+ip,20,3600000))return send(429,{error:'Too many requests'});if(!H.ingestAuthorized(req,ingestSecret))return send(401,{error:'Invalid ingest credentials'});
