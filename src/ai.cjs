@@ -60,7 +60,7 @@ const SYSTEM='You write short, factual text for Dayweave, a student planner. You
 const TASKS={
  brief:'Write the daily brief: 2 to 4 sentences, each with at least one cite. Explain why the priorities matter today using the urgent and verification lists, mention every failed or unavailable source and what it means, and keep it calm and specific. Do not choose new priorities; explain the ones given.',
  breakdown:'Break this one assignment into 3 to 6 concrete steps in working order. Each step has a short imperative title in English and Chinese, a duration in minutes (a multiple of 5, at most 180), and a quote: a short exact span copied from the assignment description, materials, checklist, AI policy or evidence that the step comes from. Respect the AI policy: never suggest that AI writes the submitted work. If an estimate is given, keep the total near it.',
- propose:'Turn the sentence into at most one proposed calendar block for the user to review. If the day, start time and duration are clear enough, return status "proposal" with day (0 = today), start (HH:MM, 24-hour), minutes, a title in English and Chinese, and cites: the assignment it serves (if any) plus the coverage record. If the time is ambiguous, return status "clarify" with one short question in English and Chinese. If it asks for something other than a personal focus block (inviting people, sending, submitting, deleting), return status "refuse" with a short reason in English and Chinese. Do not check conflicts yourself; Dayweave checks them.'
+ propose:'Turn the sentence into at most one proposed calendar block for the user to review. If the day, start time and duration are clear enough, return status "proposal" with day (0 = today), start (HH:MM, 24-hour), minutes, a short calendar title in English and Chinese (at most 60 characters, such as "Focus: Problem Set 4"), and cites: the assignment it serves (if any) plus the coverage record. If only part of the day is named (morning, afternoon, evening, tonight), pick a start inside it that does not overlap the listed events; the user reviews it and Dayweave checks it again. If the day or the length is missing, return status "clarify" with one short question in English and Chinese. If it asks for something other than a personal focus block (inviting people, sending, submitting, deleting), return status "refuse" with a short reason in English and Chinese. Do not check conflicts yourself; Dayweave checks them.'
 };
 const sentence={type:'object',additionalProperties:false,required:['text','cites'],properties:{text:{type:'string'},cites:{type:'array',items:{type:'string'}}}};
 const SCHEMAS={
@@ -118,9 +118,10 @@ function validateBreakdown(out,pack){
 function validatePropose(out,pack){
  const errors=[],refs=byRef(pack);
  if(!out||!['proposal','clarify','refuse'].includes(out.status))return ['status must be proposal, clarify or refuse'];
- for(const lang of LANGS){const t=String(out[lang]||'').trim();if(!t||t.length>160)errors.push(lang+' text empty or too long');if(URL_RE.test(t))errors.push(lang+' text contains a link');if(EXECUTED.some(r=>r.test(t)))errors.push(lang+' text claims an action was carried out');}
+ for(const lang of LANGS){const t=String(out[lang]||'').trim();if(!t||t.length>240)errors.push(lang+' text empty or too long');if(URL_RE.test(t))errors.push(lang+' text contains a link');if(EXECUTED.some(r=>r.test(t)))errors.push(lang+' text claims an action was carried out');}
  const bad=(out.cites||[]).filter(c=>!refs.has(c));if(bad.length)errors.push('cites unknown records '+bad.join(', '));
  if(out.status!=='proposal')return errors;
+ for(const lang of LANGS)if(String(out[lang]||'').length>60)errors.push(lang+' title is longer than 60 characters');
  if(!Number.isInteger(out.day)||out.day<0||out.day>7)errors.push('day must be 0 to 7');
  if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(out.start||''))errors.push('start must be HH:MM');
  if(!Number.isInteger(out.minutes)||out.minutes<15||out.minutes>240||out.minutes%5)errors.push('minutes must be a multiple of 5 from 15 to 240');
