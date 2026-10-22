@@ -1,8 +1,8 @@
 # Privacy and security
 
-This project has no account integration or credential store. Keep secrets in the external tool's credential system. Do not paste credentials into snapshots, operating prompts, browser storage, issue reports, or release assets.
+This project has no credential store. The optional hosted mode ([private instance](docs/private-instance.md)) signs in one allowlisted Google account and reads its secrets only from the host's secret store. Keep secrets in the external tool's credential system. Do not paste credentials into snapshots, operating prompts, browser storage, issue reports, or release assets.
 
-The renderer embeds records into a standalone HTML file. Input text is escaped and source links accept HTTP(S) only. This limits script injection; it does not anonymize data. Do not serve private output publicly or bind the preview server to a public interface.
+The renderer embeds records into a standalone HTML file. Input text is escaped and source links accept HTTP(S) only. This limits script injection; it does not anonymize data. Do not serve private output publicly or bind the preview server to a public interface; only the hosted mode, behind HTTPS and sign-in, listens on all interfaces.
 
 Report suspected vulnerabilities privately to the repository owner through an available private channel. Avoid posting secrets or personal source data in public issues. If private reporting is not available, request a private contact route without including exploit-sensitive or personal details.
 
