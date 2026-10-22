@@ -20,7 +20,7 @@ test('signed values reject tampering and expiry',()=>{const s=signer('k'.repeat(
 
 test('unauthenticated requests are redirected or refused, with security headers and an exact host',()=>withServer({fetch:fakeGoogle},async(s,port)=>{
  const page=await request(port,'/');a.equal(page.status,302);a.equal(page.headers.location,'/auth/login');a.match(page.headers['strict-transport-security'],/max-age=/);a.equal(page.headers['x-frame-options'],'DENY');
- a.equal((await request(port,'/api/session')).status,401);a.equal((await request(port,'/api/snapshot')).status,401);
+ const expired=await request(port,'/api/session');a.equal(expired.status,401);a.equal(expired.json().signIn,'/auth/login');a.equal((await request(port,'/api/snapshot')).status,401);
  a.equal((await request(port,'/',{headers:{Host:'127.0.0.1:'+port}})).status,403);a.equal((await request(port,'/',{headers:{Host:'evil.example'}})).status,403);
  const login=await request(port,'/auth/login'),to=new URL(login.headers.location);a.equal(to.origin+to.pathname,'https://accounts.google.com/o/oauth2/v2/auth');a.equal(to.searchParams.get('login_hint'),'owner@example.com');
  a.match(login.headers['set-cookie'][0],/^__Host-dwlogin=.*HttpOnly; Secure; SameSite=Lax; Path=\//);}));
@@ -35,7 +35,7 @@ test('only the allowlisted, verified Google account for this client and login ge
  const write=(headers)=>request(port,'/api/progress',{method:'POST',headers:{Cookie:cookie,'Content-Type':'application/json',...headers},body:JSON.stringify({kind:'actual',id:'task',value:15})});
  s.store.importSnapshot(require('../examples/snapshot.json'));
  a.equal((await write({Origin:origin})).status,403);a.equal((await write({Origin:'http://dayweave.example.com','x-dayweave-token':csrf})).status,403);a.equal((await write({Origin:origin,'x-dayweave-token':csrf})).status,200);a.equal(s.store.state().actual.task,15);
- a.equal((await request(port,'/auth/logout',{method:'POST',headers:{Cookie:cookie}})).status,403);const out=await request(port,'/auth/logout',{method:'POST',headers:{Cookie:cookie,Origin:origin}});a.equal(out.status,302);a.match(String(out.headers['set-cookie']),/__Host-dw=; .*Max-Age=0/);}));
+ a.equal((await request(port,'/auth/logout',{method:'POST',headers:{Cookie:cookie}})).status,403);const out=await request(port,'/auth/logout',{method:'POST',headers:{Cookie:cookie,Origin:origin}});a.equal(out.status,302);a.equal(out.headers.location,'/auth/signed-out');a.match(String(out.headers['set-cookie']),/__Host-dw=; .*Max-Age=0/);const done=await request(port,'/auth/signed-out');a.equal(done.status,200);a.match(done.text,/href="\/auth\/login"/);}));
 
 test('ingest needs the bearer secret, imports a valid snapshot and keeps records on a bad one',()=>withServer({fetch:fakeGoogle},async(s,port)=>{
  const snap=JSON.stringify(require('../examples/snapshot.json')),post=(auth,body=snap)=>request(port,'/api/ingest',{method:'POST',headers:{'Content-Type':'application/json',...(auth?{Authorization:auth}:{})},body});
