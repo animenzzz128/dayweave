@@ -10,6 +10,7 @@ import workloadSrc from '../../../src/workload.cjs?raw';
 import plannerSrc from '../../../src/planner.cjs?raw';
 import todosSrc from '../../../src/todos.cjs?raw';
 import demoSrc from '../../../src/demo.cjs?raw';
+import aiSrc from '../../../src/ai.cjs?raw';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Module = Record<string, any>;
@@ -36,3 +37,4 @@ export const Workload = load('workload', workloadSrc);
 export const Planner = load('planner', plannerSrc);
 export const Todos = load('todos', todosSrc);
 export const Demo = load('demo', demoSrc);
+export const AI = load('ai', aiSrc);

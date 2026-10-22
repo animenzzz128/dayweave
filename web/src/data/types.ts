@@ -18,6 +18,8 @@ export interface CalendarEvent {
 export interface Proposal extends CalendarEvent {
   status?: string; reason?: string; action?: string; recurrence?: string; account?: string; calendarId?: string;
   sourceRefs?: { kind: string; id: string }[]; minutes?: number;
+  /** Set on AI proposals made from one sentence: where it came from and its Chinese title. */
+  origin?: string; aiKey?: string; aiSentence?: string; titleZh?: string;
 }
 
 export interface Source { id: string; name: string; status: SourceStatus; lastSuccess?: string; lastAttempt?: string; source?: string; note?: string }
@@ -91,6 +93,8 @@ export interface DataSource {
   completeTodo(id: string, done: boolean): Promise<void>;
   generatePlan(date: string): Promise<PlanResult>;
   editProposal(id: string, changes: Partial<Proposal>): Promise<void>;
+  /** Demo only: adds an AI proposal from one sentence to the review queue. It still needs approval like any other. */
+  addProposal?(p: Proposal): Promise<void>;
   prepare(ids: string[]): Promise<Approval>;
   /** Demo only: stands in for the assistant's approved execution and read-back. */
   simulateApproval?(approval: Approval): Promise<void>;
