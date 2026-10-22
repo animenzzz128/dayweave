@@ -1,11 +1,18 @@
 'use strict';
-const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),{Store}=require('./store.cjs');
-function createServer(dir){const store=new Store(dir),sessions=new Map();const server=http.createServer(async(req,res)=>{
+const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),{Store}=require('./store.cjs'),H=require('./hosted.cjs');
+// options.hosted (from hostedConfig) switches from the 127.0.0.1-only local session to Google sign-in for one account.
+function createServer(dir,{hosted=null,ingestSecret='',fetch}={}){const store=new Store(dir),sessions=new Map(),auth=hosted&&H.createAuth(hosted,{fetch}),allow=H.limiter();const server=http.createServer(async(req,res)=>{
  const send=(status,value)=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(value));};
- try{const host='127.0.0.1:'+server.address().port;if(req.headers.host!==host||['cross-site'].includes(req.headers['sec-fetch-site']))return send(403,{error:'Local requests only'});
- const u=new URL(req.url,'http://'+host),cookie=(req.headers.cookie||'').match(/(?:^|; )dw=([a-f0-9]+)/)?.[1];let session=sessions.get(cookie);
- if(req.method==='GET'&&u.pathname==='/api/session'){const id=crypto.randomBytes(24).toString('hex');session={csrf:crypto.randomBytes(24).toString('hex'),at:Date.now()};sessions.set(id,session);res.setHeader('Set-Cookie',`dw=${id}; HttpOnly; SameSite=Strict; Path=/`);return send(200,{csrf:session.csrf});}
- if(u.pathname.startsWith('/api/')){if(!session||Date.now()-session.at>12*3600000)return send(401,{error:'Reload to renew local session'});if(req.method==='POST'&&(req.headers.origin!=='http://'+host||req.headers['x-dayweave-token']!==session.csrf))return send(403,{error:'Invalid write origin or session'});
+ try{const host=hosted?hosted.host:'127.0.0.1:'+server.address().port,origin=hosted?hosted.origin:'http://'+host;if(hosted)for(const [k,v] of Object.entries(H.securityHeaders))res.setHeader(k,v);
+ if(req.headers.host!==host||['cross-site'].includes(req.headers['sec-fetch-site']))return send(403,{error:hosted?'Unknown host':'Local requests only'});
+ const ip=hosted?String(req.headers['fly-client-ip']||req.socket.remoteAddress):'local';if(hosted&&!allow('all:'+ip,600,60000))return send(429,{error:'Too many requests'});
+ const u=new URL(req.url,origin),cookie=(req.headers.cookie||'').match(/(?:^|; )dw=([a-f0-9]+)/)?.[1];let session=hosted?auth.session(req):sessions.get(cookie);
+ if(req.method==='POST'&&u.pathname==='/api/ingest'){if(!allow('ingest:'+ip,20,3600000))return send(429,{error:'Too many requests'});if(!H.ingestAuthorized(req,ingestSecret))return send(401,{error:'Invalid ingest credentials'});
+  let raw='';for await(const part of req){raw+=part;if(raw.length>5e6)throw Error('Request too large');}const d=store.importSnapshot(JSON.parse(raw||'null'));return send(200,{ok:true,generatedAt:d.generatedAt,assignments:d.assignments.length,events:d.events.length});}
+ if(hosted){if(u.pathname.startsWith('/auth/')){if(!allow('auth:'+ip,30,600000))return send(429,{error:'Too many sign-in attempts'});if(await auth.handle(req,res,u))return;return send(404,{error:'Unknown sign-in route'});}
+  if(!session){if(u.pathname.startsWith('/api/'))return send(401,{error:'Sign in again'});if(req.method!=='GET')return send(405,{error:'Method not allowed'});res.writeHead(302,{Location:'/auth/login','Cache-Control':'no-store'});return res.end();}}
+ if(req.method==='GET'&&u.pathname==='/api/session'){if(hosted)return send(200,{csrf:session.csrf,hosted:true});const id=crypto.randomBytes(24).toString('hex');session={csrf:crypto.randomBytes(24).toString('hex'),at:Date.now()};sessions.set(id,session);res.setHeader('Set-Cookie',`dw=${id}; HttpOnly; SameSite=Strict; Path=/`);return send(200,{csrf:session.csrf});}
+ if(u.pathname.startsWith('/api/')){if(!session||!hosted&&Date.now()-session.at>12*3600000)return send(401,{error:'Reload to renew local session'});if(req.method==='POST'&&(req.headers.origin!==origin||req.headers['x-dayweave-token']!==session.csrf))return send(403,{error:'Invalid write origin or session'});
  let body={};if(req.method==='POST'){let raw='';for await(const part of req){raw+=part;if(raw.length>2e6)throw Error('Request too large');}body=JSON.parse(raw||'{}');}
  if(req.method==='GET'&&u.pathname==='/api/snapshot')return send(200,{snapshot:store.snapshot(),progress:store.state()});
  if(req.method==='GET'&&u.pathname==='/api/history')return send(200,store.history({...Object.fromEntries(u.searchParams),query:u.searchParams.get('q')||''}));
