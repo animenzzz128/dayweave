@@ -14,6 +14,7 @@ export interface CaseStudyText {
     resultsTitle: string; resultsIntro: string; head: [string, string, string]; tasks: Record<'brief' | 'breakdown' | 'propose', [string, string]>;
     meta: (model: string, day: string, runs: number, cost: number) => string; pending: string;
     failuresTitle: string; failuresNote: string; noFailures: string; limits: string;
+    rescored: (first: string, now: string) => string; scorerFixed: string; lessons: string[];
     visitorTitle: string; visitorEmpty: string; visitor: (accepted: number, edited: number, ignored: number, edits: number) => string;
   };
   evals: { title: string; body: string[]; metricsTitle: string; metrics: [string, string, string][]; metricHead: [string, string, string] };
@@ -27,7 +28,7 @@ const en: CaseStudyText = {
   lede: 'An AI daily planner for graduate students, designed around one question: can you trust today’s plan? Every recommendation links to its source, every failure stays visible, and nothing reaches your calendar until you approve an exact version.',
   role: 'Solo project: product, design and engineering, built with AI coding agents.',
   toc: 'On this page',
-  stats: [['7', 'views in the demo'], ['184', 'automated tests'], ['5', 'checks before any approval'], ['0', 'calendar writes without your approval']],
+  stats: [['7', 'views in the demo'], ['196', 'automated tests'], ['5', 'checks before any approval'], ['0', 'calendar writes without your approval']],
   try: { title: 'Try it in two minutes', today: 'Open Luna’s day', outage: 'Simulate an outage', review: 'Review an AI proposal', repo: 'Source on GitHub' },
   problem: {
     title: 'The problem',
@@ -86,6 +87,12 @@ const en: CaseStudyText = {
     failuresTitle: 'Failures, as recorded',
     failuresNote: 'Taken from the result file. Each one is a case the validator or an expectation caught.',
     noFailures: 'No case failed in this run.',
+    rescored: (first, now) => `First score ${first}. After fixing a bug in my own scorer and re-scoring the same stored outputs (no new model calls): ${now}. Both are kept in the result file.`,
+    scorerFixed: 'Rejected by the scorer’s bug, accepted after the fix',
+    lessons: [
+      'Two failures were the model’s: one sentence ran to 329 characters, past the length limit, and one parsed “two hours on stats tomorrow” into a block that cited no assignment. The limit and the citation rule stay; they are what keep the brief short and every block traceable.',
+      'Three failures were mine. The validator removed only the first negation in a sentence and did not know “optional rather than required”, “whether … has already been submitted” or 不是必须, so it rejected correct text. The eval caught the checker, not just the model. I fixed it, added those exact sentences as tests, and re-scored.',
+    ],
     limits: 'Limits: one fictional student and a few dozen runs is a regression set, not proof of reliability on real data. Passing the checks means an output is grounded in its evidence, not that it is the best wording.',
     visitorTitle: 'Your own numbers in this demo',
     visitorEmpty: 'Open an assignment in Coursework and accept, edit or ignore the AI steps. Your choices are counted here, in this browser only.',
@@ -94,7 +101,7 @@ const en: CaseStudyText = {
   evals: {
     title: 'Evals and metrics',
     body: [
-      'Correctness is guarded at two levels. 184 automated tests cover the rules, the server and the real browser scripts in page order. A Luna evaluation set for the in-product AI is described above, and a smaller one checks the assistant’s collection routine: any urgent omission, submitted work shown as outstanding, optional work made compulsory, or unauthorised write blocks a release, and a person still reads the prose.',
+      'Correctness is guarded at two levels. 196 automated tests cover the rules, the server and the real browser scripts in page order. A Luna evaluation set for the in-product AI is described above, and a smaller one checks the assistant’s collection routine: any urgent omission, submitted work shown as outstanding, optional work made compulsory, or unauthorised write blocks a release, and a person still reads the prose.',
       'Product metrics are defined but not yet measured on real use, so none are claimed here.',
     ],
     metricsTitle: 'What I would measure',
@@ -125,7 +132,7 @@ const zh: CaseStudyText = {
   lede: '一款面向研究生的 AI 每日计划工具，围绕一个问题设计：今天的计划能信吗？每条建议都链接到来源，每次失败都保持可见，没有你批准的确切版本，任何内容都不会写进日历。',
   role: '个人项目：产品、设计与开发，借助 AI 编程助手完成。',
   toc: '本页目录',
-  stats: [['7', '个演示页面'], ['184', '项自动化测试'], ['5', '项批准前检查'], ['0', '次未经批准的日历写入']],
+  stats: [['7', '个演示页面'], ['196', '项自动化测试'], ['5', '项批准前检查'], ['0', '次未经批准的日历写入']],
   try: { title: '两分钟体验', today: '打开 Luna 的今天', outage: '模拟数据源故障', review: '审批一条 AI 提议', repo: 'GitHub 源码' },
   problem: {
     title: '问题',
@@ -184,6 +191,12 @@ const zh: CaseStudyText = {
     failuresTitle: '失败记录（原样）',
     failuresNote: '摘自结果文件（英文原文）。每一条都是被校验器或用例预期拦下的情况。',
     noFailures: '这次运行没有失败的用例。',
+    rescored: (first, now) => `第一次打分 ${first}。修复我自己评分器里的一个错误后，用同一批已保存的输出重新打分（没有新的模型调用）：${now}。两个分数都保留在结果文件里。`,
+    scorerFixed: '曾被评分器的错误拦下、修复后通过',
+    lessons: [
+      '两次失败是模型的问题：一句话写了 329 个字符，超过长度上限；另一次把“明天两小时学统计”解析成了一个没有引用任何作业的时间块。长度上限和引用规则都保留，正是它们让简报保持简短、每个时间块都能追溯。',
+      '三次失败是我的问题。校验器只去掉句子里的第一个否定词，也不认识 “optional rather than required”、“whether … has already been submitted” 和“不是必须”，于是把正确的文字判错了。评测抓到的不只是模型，还有检查器本身。我修好了它，把这几句原话加进测试，然后重新打分。',
+    ],
     limits: '局限：一个虚构学生加几十次运行，只是回归测试集，不能证明在真实数据上的可靠性。通过检查说明输出有证据支撑，不代表措辞就是最好的。',
     visitorTitle: '你在这个演示里的数字',
     visitorEmpty: '在“课程作业”里打开一项作业，接受、修改或忽略 AI 拆解的步骤，这里就会统计你的选择，只保存在这个浏览器里。',
@@ -192,7 +205,7 @@ const zh: CaseStudyText = {
   evals: {
     title: '评估与指标',
     body: [
-      '正确性有两层保障。184 项自动化测试覆盖规则、服务器，以及按页面顺序加载的真实浏览器脚本。上文介绍了产品内 AI 的 Luna 评测集，另有一个小型评估集检查助手的收集流程：只要漏掉紧急事项、把已交作业显示为未交、把可选作业变成必做，或出现未经批准的写入，就不能发布；机器检查通过后，还要有人读一遍文字。',
+      '正确性有两层保障。196 项自动化测试覆盖规则、服务器，以及按页面顺序加载的真实浏览器脚本。上文介绍了产品内 AI 的 Luna 评测集，另有一个小型评估集检查助手的收集流程：只要漏掉紧急事项、把已交作业显示为未交、把可选作业变成必做，或出现未经批准的写入，就不能发布；机器检查通过后，还要有人读一遍文字。',
       '产品指标已经定义，但还没有在真实使用中测量，所以这里不报任何数字。',
     ],
     metricsTitle: '我会衡量什么',

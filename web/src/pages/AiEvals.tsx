@@ -9,9 +9,10 @@ const files = import.meta.glob('../../../evals/luna-ai/results/*.json', { eager:
 const latest = Object.keys(files).sort().at(-1);
 const result: Result | null = latest ? files[latest] : null;
 
-interface Run { pass: boolean; errors: string[] }
+interface Run { pass: boolean; errors: string[]; firstErrors?: string[] }
 interface Result {
   model: string; servedModels: string[]; runAt: string; runsPerCase: number;
+  firstSummary?: { overall: Tally };
   summary: { overall: Tally; byTask: Record<'brief' | 'breakdown' | 'propose', Tally>; cases: number; casesPassingEveryRun: number; usage: { costUSD: number } };
   cases: { id: string; task: string; why: string; runs: Run[] }[];
 }
@@ -22,6 +23,7 @@ export function AiEvals({ c }: { c: CaseStudyText['ai'] }) {
   const { t } = useI18n();
   const choices = Object.values((progress.aiBreakdown || {}) as Record<string, BreakdownChoice>);
   const count = (s: BreakdownChoice['status']) => choices.filter((x) => x.status === s).length;
+  const fixed = result ? result.cases.flatMap((x) => x.runs.map((r, i) => ({ id: x.id, run: i + 1, r })).filter((y) => y.r.pass && y.r.firstErrors?.length)) : [];
   const failures = result ? result.cases.flatMap((x) => x.runs.map((r, i) => ({ id: x.id, run: i + 1, error: r.errors[0] })).filter((_, i) => !x.runs[i].pass)) : [];
   const pct = (x: Tally) => (x.total ? Math.round((100 * x.passed) / x.total) : 0);
 
@@ -47,11 +49,14 @@ export function AiEvals({ c }: { c: CaseStudyText['ai'] }) {
               </tbody>
             </table>
           </div>
+          {result.firstSummary && <p className="text-sm">{c.rescored(`${result.firstSummary.overall.passed}/${result.firstSummary.overall.total}`, `${result.summary.overall.passed}/${result.summary.overall.total}`)}</p>}
           <p className="text-sm text-muted">{c.meta(result.servedModels.join(', ') || result.model, f.day(result.runAt), result.runsPerCase, result.summary.usage.costUSD)}</p>
           <h4 className="font-semibold text-ink">{c.failuresTitle}</h4>
           {failures.length
             ? <><p className="text-sm text-muted">{c.failuresNote}</p><ul className="space-y-1 text-sm">{failures.map((x) => <li key={x.id + x.run}><span className="font-mono text-xs text-muted">{x.id} #{x.run}</span> {x.error}</li>)}</ul></>
             : <p className="text-sm text-muted">{c.noFailures}</p>}
+          {fixed.length > 0 && <><h4 className="font-semibold text-ink">{c.scorerFixed}</h4><ul className="space-y-1 text-sm">{fixed.map((x) => <li key={x.id + x.run}><span className="font-mono text-xs text-muted">{x.id} #{x.run}</span> <s className="text-muted">{x.r.firstErrors![0]}</s></li>)}</ul></>}
+          {c.lessons.map((p) => <p key={p}>{p}</p>)}
         </>
       ) : <p className="text-sm text-muted">{c.pending}</p>}
       <p className="text-sm text-muted">{c.limits}</p>
