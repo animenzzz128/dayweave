@@ -146,7 +146,8 @@ function fallbackBrief(pack){
  const refs=byRef(pack),p=pack.records.filter(r=>r.kind==='priority'),failed=pack.records.filter(r=>r.kind==='source'&&['failed','unavailable'].includes(r.status)),verify=pack.lists.verification;
  const out={en:[],zh:[]};
  if(p.length){out.en.push({text:'Today’s priorities: '+p.map(x=>x.title).join('; ')+'.',cites:p.map(x=>x.ref)});out.zh.push({text:'今天的重点：'+p.map(x=>x.title).join('；')+'。',cites:p.map(x=>x.ref)});}
- if(verify.length){out.en.push({text:verify.length+' item'+(verify.length>1?'s need':' needs')+' checking before you rely on them.',cites:verify});out.zh.push({text:'有 '+verify.length+' 项需要先核实。',cites:verify});}
+ // Titles, not counts: a count is a number the cited records do not contain.
+ if(verify.length){const titles=verify.map(r=>refs.get(r)?.title).filter(Boolean);out.en.push({text:'Check before relying on: '+titles.join('; ')+'.',cites:verify});out.zh.push({text:'需要先核实：'+titles.join('；')+'。',cites:verify});}
  for(const s of failed){out.en.push({text:s.name+' could not be read; its records may be stale.',cites:[s.ref]});out.zh.push({text:s.name+' 读取失败，相关记录可能已过期。',cites:[s.ref]});}
  if(!out.en.length){out.en.push({text:'Nothing urgent is recorded for today.',cites:[refs.has('coverage:calendar')?'coverage:calendar':pack.records[0]?.ref].filter(Boolean)});out.zh.push({text:'今天没有记录到紧急事项。',cites:out.en[0].cites});}
  return out;
