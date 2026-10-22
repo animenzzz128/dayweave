@@ -83,7 +83,8 @@ const STORE=path.join(__dirname,'..','examples','luna-ai.json');
 test('ai: the stored demo outputs match today\'s Luna evidence',{skip:!fs.existsSync(STORE)&&'examples/luna-ai.json not generated yet'},()=>{
  const store=JSON.parse(fs.readFileSync(STORE,'utf8')),{d,now}=at('2026-11-10T14:00:00Z');
  a.equal(store.synthetic,true);
- const brief=AI.lookup(store,AI.briefPack(d,now),'today');a.ok(brief.ok||brief.reason==='invalid',brief.reason);
- for(const x of d.assignments.filter(AI.breakable))a.notEqual(AI.lookup(store,AI.breakdownPack(x,d,now),x.id).reason,'evidence-changed',x.id);
- for(const s of store.presets)for(const lang of AI.LANGS)a.notEqual(AI.lookup(store,AI.proposePack(s[lang],d,now),s.key+'-'+lang).reason,'evidence-changed',s.key);
+ const ok=(r,what)=>a.equal(r.ok,true,what+': '+r.reason+' '+(r.errors||[]).join('; '));
+ ok(AI.lookup(store,AI.briefPack(d,now),'today'),'brief');
+ for(const x of d.assignments.filter(AI.breakable))ok(AI.lookup(store,AI.breakdownPack(x,d,now),x.id),x.id);
+ for(const s of store.presets)for(const lang of AI.LANGS)ok(AI.lookup(store,AI.proposePack(s[lang],d,now),s.key+'-'+lang),s.key+'-'+lang);
 });
