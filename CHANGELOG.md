@@ -6,6 +6,10 @@
 - `POST /api/ingest` imports a snapshot through `Store.importSnapshot` with a bearer secret from the host's secret store; invalid snapshots return 400 and keep previous records.
 - `Dockerfile` (server only, unprivileged user) and `deploy/fly.toml.example` (one machine, encrypted volume, 14-day snapshots). Deploy, backup and private-database import steps in [docs/private-instance.md](docs/private-instance.md); nothing has been deployed.
 
+## Unreleased — School mail via Gmail label
+
+- Gmail collection reads only `label:Yale newer_than:7d`: school mail auto-forwarded into Gmail and labelled by a Gmail filter, so personal mail is no longer read and no school admin consent is needed. Procedure, data contract, routine, state and decisions updated; snapshot validation is unchanged.
+
 ## Unreleased — Web demo (DW-1011)
 
 - New `web/` front end (React, Vite, TypeScript, Tailwind) in the "timeline first" design: Today, Coursework, Week, Review, Career, Email and Data health, with an EN / 中文 switch (English default, remembered per browser).
