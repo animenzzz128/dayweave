@@ -47,3 +47,11 @@ test('ingest is disabled without a configured secret and sign-in attempts are ra
  a.equal((await request(port,'/api/ingest',{method:'POST',headers:{Authorization:'Bearer '},body:'{}'})).status,401);
  let last;for(let i=0;i<31;i++)last=await request(port,'/auth/login',{headers:{'Fly-Client-IP':'203.0.113.9'}});a.equal(last.status,429);
  a.equal((await request(port,'/auth/login',{headers:{'Fly-Client-IP':'203.0.113.10'}})).status,302);}));
+
+test('Google redirects back cross-site, so hosted top-level GET navigations pass while other cross-site requests are refused',()=>withServer({fetch:fakeGoogle},async(s,port)=>{
+ const nav={'Sec-Fetch-Site':'cross-site','Sec-Fetch-Mode':'navigate'};
+ const login=await request(port,'/auth/login',{headers:nav}),q=new URL(login.headers.location).searchParams;a.equal(login.status,302);lastNonce=q.get('nonce');lastClaims={};
+ const back=await request(port,'/auth/callback?code=c1&state='+q.get('state'),{headers:{...nav,Cookie:jar(login)}});a.equal(back.status,302);a.equal(back.headers.location,'/');
+ const cookie=jar(back).split('; ').find(c=>c.startsWith(SESSION_COOKIE+'='));a.equal((await request(port,'/home',{headers:{...nav,Cookie:cookie}})).status,200);
+ a.equal((await request(port,'/api/snapshot',{headers:{...nav,Cookie:cookie}})).status,403);a.equal((await request(port,'/api/snapshot',{headers:{'Sec-Fetch-Site':'cross-site','Sec-Fetch-Mode':'cors',Cookie:cookie}})).status,403);
+ a.equal((await request(port,'/auth/logout',{method:'POST',headers:{'Sec-Fetch-Site':'cross-site','Sec-Fetch-Mode':'navigate',Origin:origin,Cookie:cookie}})).status,403);}));
