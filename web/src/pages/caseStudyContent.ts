@@ -82,7 +82,7 @@ const en: CaseStudyText = {
       breakdown: ['Assignment steps', 'Quotes the assignment, keeps a sensible total, never hands submitted work to AI or follows an injected note.'],
       propose: ['One-line proposals', 'Right status (propose, ask or decline), right day, time and length; the rules block real conflicts.'],
     },
-    meta: (model, day, runs, cost) => `${model}, run on ${day}, ${runs} run${runs > 1 ? 's' : ''} per case, about US${cost} in total.`,
+    meta: (model, day, runs, cost) => `${model}, run on ${day}, ${runs} run${runs > 1 ? 's' : ''} per case, about US$${cost} in total.`,
     pending: 'The model evaluation has not been run yet.',
     failuresTitle: 'Failures, as recorded',
     failuresNote: 'Taken from the result file. Each one is a case the validator or an expectation caught.',
