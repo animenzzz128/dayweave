@@ -1,0 +1,5 @@
+# Keep private data, Git history and local tooling out of the image build context.
+*
+!package.json
+!src/
+!scripts/

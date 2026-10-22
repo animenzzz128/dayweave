@@ -1,0 +1,27 @@
+# Template for the private instance (#55). Copy it outside the repository (for example to your private operator folder),
+# replace the placeholders and deploy with `fly deploy --config <that copy> --dockerfile <repo>/Dockerfile`.
+# Secrets never go here: set them with `fly secrets set` (see docs/private-instance.md).
+app = "REPLACE-app-name"
+primary_region = "iad"
+
+[env]
+  DAYWEAVE_DATA_DIR = "/data"
+  PORT = "8080"
+  DAYWEAVE_PUBLIC_ORIGIN = "https://REPLACE-app-name.fly.dev"
+
+# One machine, one encrypted volume: SQLite must have a single writer.
+[[mounts]]
+  source = "dayweave_data"
+  destination = "/data"
+  snapshot_retention = 14
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"

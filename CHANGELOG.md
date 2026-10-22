@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — Private instance (DW-1014, #55)
+
+- Hosted mode in `scripts/serve.cjs`, on only when `DAYWEAVE_PUBLIC_ORIGIN` is set and failing closed when any other variable is missing. One allowlisted, verified Google account signs in (OIDC code flow with state and nonce); no sign-up. Sessions are signed stateless `__Host-` cookies carrying the CSRF token; writes still need it and an exact Origin. Per-client rate limits and HSTS and other security headers. Sidebar sign-out. The local 127.0.0.1 app and the launcher are unchanged.
+- `POST /api/ingest` imports a snapshot through `Store.importSnapshot` with a bearer secret from the host's secret store; invalid snapshots return 400 and keep previous records.
+- `Dockerfile` (server only, unprivileged user) and `deploy/fly.toml.example` (one machine, encrypted volume, 14-day snapshots). Deploy, backup and private-database import steps in [docs/private-instance.md](docs/private-instance.md); nothing has been deployed.
+
 ## Unreleased — Web demo (DW-1011)
 
 - New `web/` front end (React, Vite, TypeScript, Tailwind) in the "timeline first" design: Today, Coursework, Week, Review, Career, Email and Data health, with an EN / 中文 switch (English default, remembered per browser).
