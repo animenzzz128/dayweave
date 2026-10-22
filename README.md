@@ -19,6 +19,7 @@ The repository contains reusable application code and fictional examples only. P
 - Keeps explicit local todos; an email becomes a todo only when you adopt it and confirm its title, due date and duration.
 - Shows the last collected read-only Gmail snapshot (inbox, last seven days, at most 50 messages) with its collection time and coverage. Nothing is sent, deleted or labelled.
 - Includes a reusable operating prompt for an assistant-driven refresh workflow.
+- Explains the day with AI only where it can be checked: cited briefs, assignment breakdowns and one-line proposals are validated against their evidence and fall back to rules when they fail (see [In-product AI](#in-product-ai-in-the-demo)).
 
 Career cards now support source-backed roles and networking candidates, eligibility gaps, local save/dismiss/status tracking, draft requests, progress import and a seven-day activity summary. Research is supplied by the assistant, not by a background scraper. Drafts are never sent. See [Phase 3](docs/phase-3.md).
 
@@ -33,6 +34,18 @@ npm run dev          # demo mode, http://127.0.0.1:5173
 npm run dev:server   # the same UI against a Dayweave server on port 8768 (synthetic data)
 npm run build        # static output in web/dist, ready for GitHub Pages
 ```
+
+### In-product AI in the demo
+
+The Luna demo shows three AI features, in English and Chinese. Rules still decide what matters; the model only explains, breaks down or parses, and every output is checked against its evidence before it is shown.
+
+- **Cited daily brief** (Today): each sentence carries numbered citations that open the source record. If a source fails (try "Simulate an outage") or the stored text fails the checks, the brief falls back to rule-written text and says why.
+- **Assignment breakdown** (Coursework): an "AI suggestion" with steps that quote the assignment text. Accept, edit first, or ignore; the choice stays in your browser.
+- **One-line proposals** (Review): a preset sentence becomes a time-block proposal only through the same conflict and coverage checks, and joins the review queue tagged "AI", where it still needs exact-version approval.
+
+`src/ai.cjs` builds the evidence pack and validates every output: unknown citations, uncited sentences, numbers or times not in the cited records, links, claims that something was scheduled, sent or submitted, optional work called required, hidden source failures, and breakdown steps that hand submitted work to AI are all rejected. The site never calls a model; `npm run ai:generate` produces the stored outputs offline with the Claude API (dev dependency only, key stays in the developer's environment), and the browser re-validates them before display.
+
+The [Luna AI evaluation](evals/luna-ai/README.md) has 21 cases (outages, a moved deadline, unknown submission status, optional work, the DST change day, a stale cache, instructions injected into an email and an assignment, vague, conflicting and out-of-scope sentences). The 2026-10-22 run scored 58/63 on first attempts; three of the five failures were a validator bug, fixed with regression tests, and the re-scored result is 61/63. Both numbers and the two remaining failures are on the case study page.
 
 Every merge to `main` publishes the demo to https://animenzzz128.github.io/dayweave/ (`.github/workflows/pages.yml`).
 
