@@ -69,3 +69,9 @@ test('feed matches refresh legacy per-course Canvas sources, a course ID equal t
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'dayweave-collect-')),store=new Store(dir);try{store.importSnapshot(d);store.importSnapshot(s);const after=store.snapshot();
   a.equal(after.assignments.find(x=>x.id==='701').dueAt,'2026-10-13T03:59:00Z','the import keeps the refreshed due date');a.equal(after.assignments.find(x=>x.id==='b-legacy').status,'not_submitted');
  }finally{store.close();fs.rmSync(dir,{recursive:true,force:true});}});
+
+test('an all-day feed item keeps a known time on that day, otherwise is due 23:59 local, and an equal instant is not an update',()=>{
+ const d=base();d.timezone='America/New_York';d.assignments.push({id:'801',courseId:'course-a',course:'COURSE A',title:'Essay',dueAt:'2026-10-11T23:59:00-04:00',status:'not_submitted',requirement:'required',sourceId:'canvas',source:'https://lms.example.edu/courses/55/assignments/801',estimateMinutes:60},
+  {id:'802',courseId:'course-a',course:'COURSE A',title:'Memo',dueAt:'2026-10-09T17:00:00-04:00',status:'not_submitted',requirement:'required',sourceId:'canvas',source:'https://lms.example.edu/courses/55/assignments/802',estimateMinutes:60});
+ const r=buildSnapshot(d,{canvas:feed([item('801','Essay','COURSE A',null,{date:'2026-10-11'}),item('802','Memo','COURSE A','2026-10-09T21:00:00Z'),item('803','Poll','COURSE A',null,{date:'2026-10-12'})])},{now:NOW}),by=Object.fromEntries(r.snapshot.assignments.map(x=>[x.id,x]));
+ a.deepEqual(r.report.canvas.updated,[]);a.equal(by['801'].dueAt,'2026-10-11T23:59:00-04:00');a.equal(by['802'].dueAt,'2026-10-09T17:00:00-04:00');a.equal(by['canvas-803'].dueAt,'2026-10-13T03:59:00.000Z');});

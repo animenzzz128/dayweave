@@ -24,8 +24,9 @@ function mergeCanvas(assignments,courses,canvas,now){
  const courseFor=item=>{const linked=courses.filter(c=>item.courseId&&(c.canvasCourseIds||[]).includes(item.courseId));if(linked.length===1)return linked[0];if(linked.length>1)return null;
   return courses.find(c=>item.courseId&&c.id===item.courseId)||courses.find(c=>item.course&&c.code&&norm(item.course).startsWith(norm(c.code)));};
  for(const item of items){
-  const dueAt=item.start||(item.date?item.date+'T23:59:00Z':null);let a=match(item);
-  if(a){if(a.dueAt!==dueAt)updated.push(a.id);if(canvasId(a)&&a.sourceId&&a.sourceId!=='canvas')refreshed.add(a.sourceId);a.dueAt=dueAt;a.canvasAssignmentId=item.assignmentId;delete a.archivedFromSource;seen.add(a.id);byId.set(item.assignmentId,a);continue;}
+  // An all-day feed item is due by the end of that local day; a known time on the same day is more precise and is kept.
+  let a=match(item);const dueAt=item.start||(item.date?(a?.dueAt&&C.dayKey(a.dueAt)===item.date?a.dueAt:C.zonedISO(item.date,'23:59')):null);
+  if(a){if(Date.parse(a.dueAt)!==Date.parse(dueAt)){updated.push(a.id);a.dueAt=dueAt;}if(canvasId(a)&&a.sourceId&&a.sourceId!=='canvas')refreshed.add(a.sourceId);a.canvasAssignmentId=item.assignmentId;delete a.archivedFromSource;seen.add(a.id);byId.set(item.assignmentId,a);continue;}
   let course=courseFor(item);
   if(!course&&item.course&&!courses.some(c=>item.courseId&&(c.canvasCourseIds||[]).includes(item.courseId))){course={id:'canvas-course-'+(item.courseId||norm(item.course).replace(/[^a-z0-9]+/g,'-')),code:item.course,name:item.course,category:'academic',note:'Added from the Canvas calendar feed.',...(item.courseId?{canvasCourseIds:[item.courseId]}:{})};if(item.url)course.source=new URL(item.url).origin;courses.push(course);}
   const record={id:'canvas-'+item.assignmentId,courseId:course?.id||null,course:course?.code||item.course||'',title:item.title,dueAt,status:'unknown',requirement:'uncertain',sourceId:'canvas',
@@ -53,7 +54,7 @@ function mergeSchedules(courses,sources,schedules,at,now){const report=[];course
 // reads: {canvas, calendar:{status,note,events,coverage}, email:{...contract email record} | {status:'failed',note}, notes}
 function buildSnapshot(current,{canvas,calendar,email,schedules,notes={}},{now=Date.now()}={}){
  if(!current)throw Error('No current snapshot: import or restore one before cloud collection');
- const at=new Date(now).toISOString(),d=structuredClone(current),report={};let sources=d.sources;
+ const at=new Date(now).toISOString(),d=structuredClone(current),report={};C.configure(d.timezone);let sources=d.sources;
  delete d.actionHistory;// receipts are recorded only in the database; the merge keeps them.
  d.generatedAt=at;
  // Schedules first: they mark courses manual, and the Canvas merge never matches a manual course's work.
