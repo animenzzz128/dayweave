@@ -32,3 +32,11 @@ test('a built snapshot imports through the store: failed sources keep records an
   a.deepEqual(store.previewImport(first).archived,[]);store.importSnapshot(first);const s=store.snapshot();a.ok(s.assignments.some(x=>x.id==='canvas-502'));a.deepEqual(s.events.map(e=>e.id),base().events.map(e=>e.id),'failed calendar keeps events');a.equal(s.calendarCoverage.complete,false);
   const second=buildSnapshot(store.snapshot(),{canvas:feed([])},{now:NOW}).snapshot;a.deepEqual(store.previewImport(second).archived,['canvas-502']);store.importSnapshot(second);a.equal(store.snapshot().assignments.find(x=>x.id==='canvas-502').archivedFromSource,true);
  }finally{store.close();fs.rmSync(dir,{recursive:true,force:true});}});
+
+test('a merged Canvas site is linked to its course through matched work, and an ambiguous site adds no course',()=>{
+ const d=base(),site=(id,title,extra)=>item(id,title,'Merged site FA26','2026-10-20T03:59:00Z',{courseId:'88',...extra});
+ const first=buildSnapshot(d,{canvas:feed([site('601','Group presentation'),site('602','Peer review')])},{now:NOW}).snapshot,by=Object.fromEntries(first.assignments.map(x=>[x.id,x]));
+ a.equal(by['canvas-602'].courseId,'course-b');a.deepEqual(first.courses.find(c=>c.id==='course-b').canvasCourseIds,['88']);a.equal(first.courses.some(c=>c.id==='canvas-course-88'),false);
+ a.equal(buildSnapshot(first,{canvas:feed([site('603','Final memo')])},{now:NOW}).snapshot.assignments.find(x=>x.id==='canvas-603').courseId,'course-b','the link persists in the snapshot');
+ const both=buildSnapshot(d,{canvas:feed([site('604','Research brief'),site('601','Group presentation'),site('605','Lab')])},{now:NOW}).snapshot;
+ a.equal(both.assignments.find(x=>x.id==='canvas-605').courseId,null);a.equal(both.courses.length,d.courses.length);});

@@ -11,21 +11,26 @@ function setSource(sources,id,patch){const i=sources.findIndex(s=>s.id===id),nex
 // A feed-linked assignment due inside the feed window that the feed no longer lists is left out, so the import archives it.
 function mergeCanvas(assignments,courses,canvas,now){
  const window=canvas.window||{pastDays:14,futureDays:180},from=now-window.pastDays*86400000,to=now+window.futureDays*86400000;
- const out=assignments.map(a=>({...a})),seen=new Set(),added=[],updated=[];let addedCourses=[];
- const byId=new Map(out.map(a=>[canvasId(a),a]).filter(([k])=>k));
- for(const item of canvas.items.filter(x=>x.kind==='assignment'&&x.assignmentId)){
-  const dueAt=item.start||(item.date?item.date+'T23:59:00Z':null);
-  let a=byId.get(item.assignmentId);if(!a){const same=out.filter(x=>!canvasId(x)&&!x.archivedFromSource&&norm(x.title)===norm(item.title));if(same.length===1)a=same[0];}
+ const out=assignments.map(a=>({...a})),seen=new Set(),added=[],updated=[],items=canvas.items.filter(x=>x.kind==='assignment'&&x.assignmentId);
+ courses=courses.map(c=>({...c}));const byId=new Map(out.map(a=>[canvasId(a),a]).filter(([k])=>k));
+ // A Canvas site (including a merged site whose name matches no course code) belongs to the course of the assignments already
+ // matched to it; `canvasCourseIds` records that link. A site linked to two courses is ambiguous and not used for new work.
+ const link=(course,id)=>{if(course&&id&&!(course.canvasCourseIds||[]).includes(id))course.canvasCourseIds=[...(course.canvasCourseIds||[]),id];};
+ const match=item=>{let a=byId.get(item.assignmentId);if(!a){const same=out.filter(x=>!canvasId(x)&&!x.archivedFromSource&&norm(x.title)===norm(item.title));if(same.length===1)a=same[0];}return a;};
+ for(const item of items){const a=match(item);if(a)link(courses.find(c=>c.id===a.courseId),item.courseId);}
+ const courseFor=item=>{const linked=courses.filter(c=>item.courseId&&(c.canvasCourseIds||[]).includes(item.courseId));if(linked.length===1)return linked[0];if(linked.length>1)return null;
+  return courses.find(c=>item.course&&c.code&&norm(item.course).startsWith(norm(c.code)));};
+ for(const item of items){
+  const dueAt=item.start||(item.date?item.date+'T23:59:00Z':null);let a=match(item);
   if(a){if(a.dueAt!==dueAt)updated.push(a.id);a.dueAt=dueAt;a.canvasAssignmentId=item.assignmentId;delete a.archivedFromSource;seen.add(a.id);byId.set(item.assignmentId,a);continue;}
-  let course=courses.concat(addedCourses).find(c=>item.course&&c.code&&norm(item.course).startsWith(norm(c.code)));
-  if(!course&&item.course){course={id:'canvas-course-'+(item.courseId||norm(item.course).replace(/[^a-z0-9]+/g,'-')),code:item.course,name:item.course,category:'academic',note:'Added from the Canvas calendar feed.'};if(item.url)course.source=new URL(item.url).origin;addedCourses.push(course);}
+  let course=courseFor(item);
+  if(!course&&item.course&&!courses.some(c=>item.courseId&&(c.canvasCourseIds||[]).includes(item.courseId))){course={id:'canvas-course-'+(item.courseId||norm(item.course).replace(/[^a-z0-9]+/g,'-')),code:item.course,name:item.course,category:'academic',note:'Added from the Canvas calendar feed.',...(item.courseId?{canvasCourseIds:[item.courseId]}:{})};if(item.url)course.source=new URL(item.url).origin;courses.push(course);}
   const record={id:'canvas-'+item.assignmentId,courseId:course?.id||null,course:course?.code||item.course||'',title:item.title,dueAt,status:'unknown',requirement:'uncertain',sourceId:'canvas',
    source:item.url||'',canvasAssignmentId:item.assignmentId,estimateMinutes:null,evidence:'Canvas calendar feed: title and due time only. Submission state and whether the work is required are not in the feed.',
    description:'',materials:'',checklist:[],aiPolicy:'Unknown: check the course policy before asking for help.'};
   if(!record.source)delete record.source;out.push(record);byId.set(item.assignmentId,record);seen.add(record.id);added.push(record.id);}
  const removed=out.filter(a=>canvasId(a)&&!seen.has(a.id)&&!a.archivedFromSource&&a.dueAt&&Date.parse(a.dueAt)>=from&&Date.parse(a.dueAt)<=to).map(a=>a.id);
- addedCourses=addedCourses.filter((c,i,all)=>all.findIndex(x=>x.id===c.id)===i&&!courses.some(x=>x.id===c.id));
- return {assignments:out.filter(a=>!removed.includes(a.id)),courses:[...courses,...addedCourses],added,updated,removed};}
+ return {assignments:out.filter(a=>!removed.includes(a.id)),courses,added,updated,removed};}
 // reads: {canvas, calendar:{status,note,events,coverage}, email:{...contract email record} | {status:'failed',note}, notes}
 function buildSnapshot(current,{canvas,calendar,email,notes={}},{now=Date.now()}={}){
  if(!current)throw Error('No current snapshot: import or restore one before cloud collection');
