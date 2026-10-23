@@ -26,3 +26,9 @@ test('page-order scripts render effort controls and the Settings calibration sum
  a.equal(input('t1'),'60');a.equal(input('t4'),'0');D.assignments.push({...D.assignments[0],id:'t5',title:'Missing',estimateMinutes:10});html=vm.runInContext("coursework(new URLSearchParams(''))",ctx);a.equal(input('t5'),'','missing actual is not shown as zero');
  a.match(html,/Selectable \(choice\)/);a.match(html,/Requirement uncertain/);a.match(html,/Reconfirm effort/);a.match(html,/no longer matches actual minutes/);a.match(html,/Zero actual minutes are saved/);a.doesNotMatch(html,/<img/);
 });
+test('coursework marks assignments of a manually kept course as not auto-updated',async()=>{
+ const D=structuredClone(require('../examples/snapshot.json'));D.courses.find(c=>c.id==='course-b').collection={mode:'manual'};const nodes=new Map(),node=k=>{if(!nodes.has(k))nodes.set(k,{textContent:'',innerHTML:''});return nodes.get(k);};
+ const ctx=vm.createContext({URLSearchParams,Date,Intl,console,window:{addEventListener(){}},document:{querySelector:node,querySelectorAll:()=>[],addEventListener(){}},location:{pathname:'/coursework',search:''},history:{pushState(){}},fetch:async url=>({ok:true,json:async()=>url.endsWith('session')?{csrf:'test'}:{snapshot:D,progress:{}}})});
+ for(const file of ['src/core.cjs','src/phase2.cjs','src/phase3.cjs','src/effort.cjs','src/workload.cjs','src/email.cjs','src/web/app.js'])vm.runInContext(fs.readFileSync(file,'utf8'),ctx,{filename:file});await new Promise(r=>setImmediate(r));
+ const cards=node('#page').innerHTML.split('<article class="panel">').slice(1),b=cards.filter(c=>c.includes('COURSE B')),others=cards.filter(c=>!c.includes('COURSE B'));
+ a.ok(b.length>0&&b.every(c=>c.includes('Not auto-updated')));a.ok(others.length>0&&others.every(c=>!c.includes('Not auto-updated')));});

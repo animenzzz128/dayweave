@@ -40,3 +40,16 @@ test('a merged Canvas site is linked to its course through matched work, and an 
  a.equal(buildSnapshot(first,{canvas:feed([site('603','Final memo')])},{now:NOW}).snapshot.assignments.find(x=>x.id==='canvas-603').courseId,'course-b','the link persists in the snapshot');
  const both=buildSnapshot(d,{canvas:feed([site('604','Research brief'),site('601','Group presentation'),site('605','Lab')])},{now:NOW}).snapshot;
  a.equal(both.assignments.find(x=>x.id==='canvas-605').courseId,null);a.equal(both.courses.length,d.courses.length);});
+
+test('a manual course keeps its assignments, a public schedule is a baseline first and a date change warns for a week',()=>{
+ const d=base(),url='https://course-b.example.edu/meetings',sessions=[{date:'2026-10-14',title:'Exam 1'},{date:'2026-12-09',title:'Exam 2'},{date:'2026-10-21',title:'Class'},{date:'2026-10-28',title:'Class'}];
+ const first=buildSnapshot(d,{schedules:[{course:'COURSE B',url,status:'ok',sessions}]},{now:NOW}),src=s=>s.sources.find(x=>x.id==='schedule-course-b');
+ a.deepEqual(first.report.schedules,[{course:'COURSE B',status:'ok',sessions:4,changes:[]}]);a.equal(src(first.snapshot).status,'ok');a.match(src(first.snapshot).note,/baseline.*not updated automatically/);
+ const b=first.snapshot.courses.find(c=>c.id==='course-b');a.deepEqual(b.collection,{mode:'manual',scheduleUrl:url});a.deepEqual(first.snapshot.assignments,d.assignments.map(x=>x),'assignments untouched');
+ const moved=[{date:'2026-10-14',title:'Exam 1'},{date:'2026-12-10',title:'Exam 2'},{date:'2026-10-21',title:'Class'},{date:'2026-11-04',title:'Guest talk'}];
+ const second=buildSnapshot(first.snapshot,{schedules:[{course:'COURSE B',url,status:'ok',sessions:moved}]},{now:NOW});
+ a.deepEqual(second.report.schedules[0].changes,['Exam 2 2026-12-09 → 2026-12-10','Class 2026-10-21, 2026-10-28 → 2026-10-21','added Guest talk (2026-11-04)']);a.equal(src(second.snapshot).status,'partial');a.match(src(second.snapshot).note,/Exam 2 2026-12-09 → 2026-12-10/);
+ const later=buildSnapshot(second.snapshot,{schedules:[{course:'COURSE B',url,status:'ok',sessions:moved}]},{now:NOW+3*86400000});a.equal(src(later.snapshot).status,'partial','still warning within a week');
+ const week=buildSnapshot(later.snapshot,{schedules:[{course:'COURSE B',url,status:'ok',sessions:moved}]},{now:NOW+8*86400000});a.equal(src(week.snapshot).status,'ok');
+ const failed=buildSnapshot(week.snapshot,{schedules:[{course:'COURSE B',url,status:'failed',note:'Site timed out.'}]},{now:NOW});a.equal(src(failed.snapshot).status,'failed');a.deepEqual(failed.snapshot.courses.find(c=>c.id==='course-b').schedule.sessions,moved,'a failed read keeps the last schedule');
+ a.deepEqual(buildSnapshot(d,{schedules:[{course:'NOPE 1',status:'ok',sessions:[]}]},{now:NOW}).report.schedules,[{course:'NOPE 1',error:'No matching course'}]);});
