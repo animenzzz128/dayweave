@@ -32,3 +32,10 @@ test('coursework marks assignments of a manually kept course as not auto-updated
  for(const file of ['src/core.cjs','src/phase2.cjs','src/phase3.cjs','src/effort.cjs','src/workload.cjs','src/email.cjs','src/web/app.js'])vm.runInContext(fs.readFileSync(file,'utf8'),ctx,{filename:file});await new Promise(r=>setImmediate(r));
  const cards=node('#page').innerHTML.split('<article class="panel">').slice(1),b=cards.filter(c=>c.includes('COURSE B')),others=cards.filter(c=>!c.includes('COURSE B'));
  a.ok(b.length>0&&b.every(c=>c.includes('Not auto-updated')));a.ok(others.length>0&&others.every(c=>!c.includes('Not auto-updated')));});
+test('an empty database still lists backups so a copied backup can be restored from the page',async()=>{
+ const order=[...fs.readFileSync('src/web/index.html','utf8').matchAll(/<script src="\/([\w.]+)"><\/script>/g)].map(m=>m[1]),files={'core.js':'src/core.cjs','phase2.js':'src/phase2.cjs','phase3.js':'src/phase3.cjs','effort.js':'src/effort.cjs','workload.js':'src/workload.cjs','email.js':'src/email.cjs','app.js':'src/web/app.js'};
+ const nodes=new Map(),node=k=>{if(!nodes.has(k))nodes.set(k,{textContent:'',innerHTML:''});return nodes.get(k);};
+ const ctx=vm.createContext({URLSearchParams,Date,Intl,console,window:{addEventListener(){}},document:{querySelector:node,querySelectorAll:()=>[],addEventListener(){}},location:{pathname:'/home',search:''},history:{pushState(){}},fetch:async url=>({ok:true,json:async()=>url.endsWith('session')?{csrf:'test'}:url.endsWith('health')?{runs:[],backups:['backup-2026-10-01-import.sqlite']}:{snapshot:null,progress:{}}})});
+ for(const f of order)vm.runInContext(fs.readFileSync(files[f],'utf8'),ctx,{filename:files[f]});await new Promise(r=>setImmediate(r));await new Promise(r=>setImmediate(r));
+ a.match(node('#notice').textContent,/No database snapshot/);const html=node('#page').innerHTML;a.match(html,/Backups & migration/);a.match(html,/data-action="restore" data-id="backup-2026-10-01-import.sqlite"/);
+});
