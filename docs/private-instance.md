@@ -11,8 +11,9 @@ Hosted mode turns on only when `DAYWEAVE_PUBLIC_ORIGIN` is set (`scripts/serve.c
 | `DAYWEAVE_PUBLIC_ORIGIN` | `fly.toml` `[env]` | Bare `https://` origin. Requests with any other `Host` are refused (403). |
 | `DAYWEAVE_GOOGLE_CLIENT_ID`, `DAYWEAVE_GOOGLE_CLIENT_SECRET` | Fly secrets | Google OAuth web client used for sign-in only (`openid email` scopes). |
 | `DAYWEAVE_ALLOWED_EMAIL` | Fly secrets | The one account allowed in. Matched case-insensitively and must be Google-verified. |
-| `DAYWEAVE_SESSION_SECRET` | Fly secrets | At least 32 characters; signs the session and login cookies. Rotating it signs everyone out. |
-| `DAYWEAVE_INGEST_SECRET` | Fly secrets (optional) | At least 32 characters; enables `POST /api/ingest`. Unset means ingest always returns 401. |
+| `DAYWEAVE_SESSION_SECRET` | Fly secrets | At least 32 random characters (a constant value such as all "A"s is refused); signs the session and login cookies. Rotating it signs everyone out. |
+| `DAYWEAVE_INGEST_SECRET` | Fly secrets (optional) | At least 32 random characters; enables `/api/ingest`. Unset means ingest always returns 401. |
+| `DAYWEAVE_CANVAS_ICS_URL` | Fly secrets (optional) | Canvas calendar feed link (https). The server reads it for the cloud collector; it never appears in responses or errors. |
 | `DAYWEAVE_DATA_DIR`, `PORT` | `fly.toml` `[env]` | `/data` (the volume) and `8080`. |
 
 - **Sign-in.** `/auth/login` redirects to Google with a random `state` and `nonce` held in a signed, 10-minute `__Host-dwlogin` cookie. `/auth/callback` exchanges the code with Google's token endpoint and accepts the ID token only if issuer, audience (this client), expiry, nonce, `email_verified` and the allowlisted email all match. There is no sign-up and no second account.
@@ -32,7 +33,9 @@ Content-Type: application/json
 <snapshot per docs/data-contract.md, at most 5 MB>
 ```
 
-The body goes through the same `Store.importSnapshot` as a local refresh: validation, merge, archive rules, a retained source snapshot and the daily backup. An invalid snapshot returns 400 and keeps the previous records. A success returns `{ok, generatedAt, assignments, events}`. No browser session is involved and the secret is compared in constant time. The cloud collector that calls this is #56.
+`GET /api/ingest` with the same header returns `{snapshot, canvas}`: the current snapshot and the Canvas feed read on the server (`status` `ok`, `failed` or `unconfigured`). `POST /api/ingest?dryRun=1` validates and merges without writing and reports `archived`, the assignment IDs the import would mark as removed from their source.
+
+The body goes through the same `Store.importSnapshot` as a local refresh: validation, merge, archive rules, a retained source snapshot and the daily backup. An invalid snapshot returns 400 and keeps the previous records. A success returns `{ok, generatedAt, assignments, events, archived}`. No browser session is involved and the secret is compared in constant time. The cloud collector that calls this is [cloud-collection.md](cloud-collection.md) (#56).
 
 ## Deploying to Fly.io (needs the owner's approval)
 

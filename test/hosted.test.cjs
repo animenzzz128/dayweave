@@ -1,7 +1,7 @@
 const {test}=require('node:test'),a=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),http=require('node:http');
 const {createServer}=require('../src/server.cjs'),{hostedConfig,signer,SESSION_COOKIE}=require('../src/hosted.cjs');
-const env={DAYWEAVE_PUBLIC_ORIGIN:'https://dayweave.example.com',DAYWEAVE_GOOGLE_CLIENT_ID:'client-1',DAYWEAVE_GOOGLE_CLIENT_SECRET:'shh',DAYWEAVE_ALLOWED_EMAIL:'Owner@Example.com',DAYWEAVE_SESSION_SECRET:'s'.repeat(40)};
-const INGEST='i'.repeat(40),origin=env.DAYWEAVE_PUBLIC_ORIGIN;
+const env={DAYWEAVE_PUBLIC_ORIGIN:'https://dayweave.example.com',DAYWEAVE_GOOGLE_CLIENT_ID:'client-1',DAYWEAVE_GOOGLE_CLIENT_SECRET:'shh',DAYWEAVE_ALLOWED_EMAIL:'Owner@Example.com',DAYWEAVE_SESSION_SECRET:'session-0123456789abcdefghijklmnop'};
+const INGEST='ingest-0123456789ABCDEFGHIJKLMNOPQRSTUV',origin=env.DAYWEAVE_PUBLIC_ORIGIN;
 const idToken=claims=>'h.'+Buffer.from(JSON.stringify({iss:'https://accounts.google.com',aud:'client-1',exp:Date.now()/1000+600,email_verified:true,email:'owner@example.com',...claims})).toString('base64url')+'.sig';
 // Raw requests so the test can send the public Host header the platform proxy forwards.
 function request(port,p,{method='GET',headers={},body}={}){return new Promise((resolve,reject)=>{const r=http.request({port,path:p,method,headers:{Host:'dayweave.example.com',...headers}},res=>{let text='';res.on('data',c=>text+=c);res.on('end',()=>resolve({status:res.statusCode,headers:res.headers,text,json:()=>JSON.parse(text)}));});r.on('error',reject);r.end(body);});}
@@ -14,7 +14,7 @@ const flow=async(port,claims)=>{const login=await request(port,'/auth/login'),q=
 test('hosted config fails closed when partially configured and is off without a public origin',()=>{
  a.equal(hostedConfig({}),null);a.throws(()=>hostedConfig({...env,DAYWEAVE_GOOGLE_CLIENT_SECRET:''}),/DAYWEAVE_GOOGLE_CLIENT_SECRET/);
  a.throws(()=>hostedConfig({...env,DAYWEAVE_PUBLIC_ORIGIN:'http://dayweave.example.com'}),/https/);a.throws(()=>hostedConfig({...env,DAYWEAVE_SESSION_SECRET:'short'}),/32/);
- a.throws(()=>hostedConfig({...env,DAYWEAVE_INGEST_SECRET:'short'}),/32/);a.equal(hostedConfig(env).email,'owner@example.com');});
+ a.throws(()=>hostedConfig({...env,DAYWEAVE_INGEST_SECRET:'short'}),/32/);a.throws(()=>hostedConfig({...env,DAYWEAVE_INGEST_SECRET:'A'.repeat(43)}),/random/);a.throws(()=>hostedConfig({...env,DAYWEAVE_SESSION_SECRET:'A'.repeat(43)}),/random/);a.equal(hostedConfig(env).email,'owner@example.com');});
 
 test('signed values reject tampering and expiry',()=>{const s=signer('k'.repeat(40)),t=s.seal({a:1,exp:Date.now()+1000});a.equal(s.open(t).a,1);a.equal(s.open(t.slice(0,-2)+'xx'),null);a.equal(s.open(s.seal({exp:Date.now()-1})),null);a.equal(signer('o'.repeat(40)).open(t),null);});
 
@@ -55,3 +55,19 @@ test('Google redirects back cross-site, so hosted top-level GET navigations pass
  const cookie=jar(back).split('; ').find(c=>c.startsWith(SESSION_COOKIE+'='));a.equal((await request(port,'/home',{headers:{...nav,Cookie:cookie}})).status,200);
  a.equal((await request(port,'/api/snapshot',{headers:{...nav,Cookie:cookie}})).status,403);a.equal((await request(port,'/api/snapshot',{headers:{'Sec-Fetch-Site':'cross-site','Sec-Fetch-Mode':'cors',Cookie:cookie}})).status,403);
  a.equal((await request(port,'/auth/logout',{method:'POST',headers:{'Sec-Fetch-Site':'cross-site','Sec-Fetch-Mode':'navigate',Origin:origin,Cookie:cookie}})).status,403);}));
+
+test('the collector reads the snapshot and server-side Canvas feed, and a dry run reports archives without writing',()=>{
+ const feed='https://lms.example.edu/feeds/calendars/user_SECRET.ics',ics='BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:event-assignment-9\r\nDTSTART:'+new Date(Date.now()+86400000).toISOString().replace(/[-:]|\.\d+/g,'')+'\r\nSUMMARY:Lab [COURSE A]\r\nEND:VEVENT\r\nEND:VCALENDAR';
+ const canvasFetch=async url=>{a.equal(url,feed);return {ok:true,status:200,headers:{get:()=>null},text:async()=>ics};};
+ return withServer({fetch:fakeGoogle,canvasIcsUrl:feed,canvasFetch},async(s,port)=>{
+  const auth={Authorization:'Bearer '+INGEST},get=headers=>request(port,'/api/ingest',{headers}),post=(q,body)=>request(port,'/api/ingest'+q,{method:'POST',headers:{'Content-Type':'application/json',...auth},body:JSON.stringify(body)});
+  a.equal((await get()).status,401);a.equal((await get({Authorization:'Bearer '+'x'.repeat(40)})).status,401);
+  const empty=(await get(auth)).json();a.equal(empty.snapshot,null);a.equal(empty.canvas.status,'ok');a.equal(empty.canvas.items[0].assignmentId,'9');a.doesNotMatch(JSON.stringify(empty),/SECRET\.ics/);
+  const snap=require('../examples/snapshot.json');a.equal((await post('',snap)).status,200);
+  const before=JSON.stringify(s.store.snapshot()),fewer={...structuredClone(snap),assignments:snap.assignments.slice(1)};
+  const dry=(await post('?dryRun=1',fewer)).json();a.equal(dry.dryRun,true);a.deepEqual(dry.archived,[snap.assignments[0].id]);a.equal(JSON.stringify(s.store.snapshot()),before,'a dry run writes nothing');
+  a.equal((await post('?dryRun=1',{assignments:'nope'})).status,400);
+  const real=(await post('',fewer)).json();a.deepEqual(real.archived,[snap.assignments[0].id]);a.equal((await get(auth)).json().snapshot.assignments.find(x=>x.id===snap.assignments[0].id).archivedFromSource,true);});});
+
+test('without a configured feed the collector is told Canvas is unconfigured',()=>withServer({fetch:fakeGoogle},async(s,port)=>{
+ const r=(await request(port,'/api/ingest',{headers:{Authorization:'Bearer '+INGEST}})).json();a.equal(r.canvas.status,'unconfigured');}));
