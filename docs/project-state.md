@@ -56,6 +56,8 @@ Web launch (Milestone 2, DW-1011, #52): a separate `web/` front end (React + Vit
 
 Private instance (#55, DW-1014, merged in PR69): `scripts/serve.cjs` has a hosted mode, on only with `DAYWEAVE_PUBLIC_ORIGIN`, that signs in one allowlisted Google account, refuses other hosts, rate-limits and adds security headers; `POST /api/ingest` imports a snapshot with a bearer secret. A Dockerfile and `deploy/fly.toml.example` exist and the image was built and exercised locally with synthetic data. Not deployed; no Google OAuth client, Fly app, secrets or real-data import exist yet, and each needs the owner. Procedure and limits: [private-instance.md](private-instance.md).
 
+Cloud collection (#56, DW-1015): `GET /api/ingest` returns the current snapshot and the server-side Canvas feed; `?dryRun=1` checks an import without writing; `scripts/cloud-collect.cjs` builds the next snapshot from Google Calendar and Gmail reads (cloud connectors) and the Canvas feed ([procedure](cloud-collection.md)). Code and tests only: no scheduled task, Canvas feed secret or cloud environment settings exist yet, and three unattended successes are still required.
+
 Email source (2026-10-22): the owner's school mailbox (Microsoft 365, connector blocked by admin consent) auto-forwards to the connected Gmail, where a filter labels it `Yale`. Gmail collection reads only `label:Yale newer_than:7d` ([procedure](google.md#gmail-read-only)); personal mail is out of scope. Only mail received after forwarding started is covered.
 
 Update this file when behavior, limitations or priorities change. Do not append transcripts or duplicate the complete GitHub history.

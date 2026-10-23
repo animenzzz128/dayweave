@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — Cloud collection (DW-1015, #56)
+
+- `GET /api/ingest` (bearer secret) returns the current snapshot and the Canvas calendar feed read on the server from `DAYWEAVE_CANVAS_ICS_URL`; the feed URL never appears in responses or errors. `POST /api/ingest?dryRun=1` validates and merges without writing and reports the assignments an import would archive; a real import reports them too.
+- `scripts/cloud-collect.cjs` (`context`, `build`, `send`) builds the next snapshot from the current one plus Google Calendar and Gmail reads and the Canvas feed. Feed items update due times of matching assignments and add new ones as unknown status and uncertain requirement; failed reads are recorded as failed sources and keep earlier records; a changed calendar or Gmail account stops the run. Procedure for the cloud scheduled task in [docs/cloud-collection.md](docs/cloud-collection.md). Nothing is scheduled yet.
+
 ## Unreleased — Private instance (DW-1014, #55)
 
 - Hosted mode in `scripts/serve.cjs`, on only when `DAYWEAVE_PUBLIC_ORIGIN` is set and failing closed when any other variable is missing. One allowlisted, verified Google account signs in (OIDC code flow with state and nonce); no sign-up. Sessions are signed stateless `__Host-` cookies carrying the CSRF token; writes still need it and an exact Origin. Per-client rate limits and HSTS and other security headers. Sidebar sign-out. The local 127.0.0.1 app and the launcher are unchanged.

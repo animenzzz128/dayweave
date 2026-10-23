@@ -55,3 +55,19 @@ test('Google redirects back cross-site, so hosted top-level GET navigations pass
  const cookie=jar(back).split('; ').find(c=>c.startsWith(SESSION_COOKIE+'='));a.equal((await request(port,'/home',{headers:{...nav,Cookie:cookie}})).status,200);
  a.equal((await request(port,'/api/snapshot',{headers:{...nav,Cookie:cookie}})).status,403);a.equal((await request(port,'/api/snapshot',{headers:{'Sec-Fetch-Site':'cross-site','Sec-Fetch-Mode':'cors',Cookie:cookie}})).status,403);
  a.equal((await request(port,'/auth/logout',{method:'POST',headers:{'Sec-Fetch-Site':'cross-site','Sec-Fetch-Mode':'navigate',Origin:origin,Cookie:cookie}})).status,403);}));
+
+test('the collector reads the snapshot and server-side Canvas feed, and a dry run reports archives without writing',()=>{
+ const feed='https://lms.example.edu/feeds/calendars/user_SECRET.ics',ics='BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:event-assignment-9\r\nDTSTART:'+new Date(Date.now()+86400000).toISOString().replace(/[-:]|\.\d+/g,'')+'\r\nSUMMARY:Lab [COURSE A]\r\nEND:VEVENT\r\nEND:VCALENDAR';
+ const canvasFetch=async url=>{a.equal(url,feed);return {ok:true,status:200,headers:{get:()=>null},text:async()=>ics};};
+ return withServer({fetch:fakeGoogle,canvasIcsUrl:feed,canvasFetch},async(s,port)=>{
+  const auth={Authorization:'Bearer '+INGEST},get=headers=>request(port,'/api/ingest',{headers}),post=(q,body)=>request(port,'/api/ingest'+q,{method:'POST',headers:{'Content-Type':'application/json',...auth},body:JSON.stringify(body)});
+  a.equal((await get()).status,401);a.equal((await get({Authorization:'Bearer '+'x'.repeat(40)})).status,401);
+  const empty=(await get(auth)).json();a.equal(empty.snapshot,null);a.equal(empty.canvas.status,'ok');a.equal(empty.canvas.items[0].assignmentId,'9');a.doesNotMatch(JSON.stringify(empty),/SECRET\.ics/);
+  const snap=require('../examples/snapshot.json');a.equal((await post('',snap)).status,200);
+  const before=JSON.stringify(s.store.snapshot()),fewer={...structuredClone(snap),assignments:snap.assignments.slice(1)};
+  const dry=(await post('?dryRun=1',fewer)).json();a.equal(dry.dryRun,true);a.deepEqual(dry.archived,[snap.assignments[0].id]);a.equal(JSON.stringify(s.store.snapshot()),before,'a dry run writes nothing');
+  a.equal((await post('?dryRun=1',{assignments:'nope'})).status,400);
+  const real=(await post('',fewer)).json();a.deepEqual(real.archived,[snap.assignments[0].id]);a.equal((await get(auth)).json().snapshot.assignments.find(x=>x.id===snap.assignments[0].id).archivedFromSource,true);});});
+
+test('without a configured feed the collector is told Canvas is unconfigured',()=>withServer({fetch:fakeGoogle},async(s,port)=>{
+ const r=(await request(port,'/api/ingest',{headers:{Authorization:'Bearer '+INGEST}})).json();a.equal(r.canvas.status,'unconfigured');}));
