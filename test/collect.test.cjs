@@ -53,3 +53,19 @@ test('a manual course keeps its assignments, a public schedule is a baseline fir
  const week=buildSnapshot(later.snapshot,{schedules:[{course:'COURSE B',url,status:'ok',sessions:moved}]},{now:NOW+8*86400000});a.equal(src(week.snapshot).status,'ok');
  const failed=buildSnapshot(week.snapshot,{schedules:[{course:'COURSE B',url,status:'failed',note:'Site timed out.'}]},{now:NOW});a.equal(src(failed.snapshot).status,'failed');a.deepEqual(failed.snapshot.courses.find(c=>c.id==='course-b').schedule.sessions,moved,'a failed read keeps the last schedule');
  a.deepEqual(buildSnapshot(d,{schedules:[{course:'NOPE 1',status:'ok',sessions:[]}]},{now:NOW}).report.schedules,[{course:'NOPE 1',error:'No matching course'}]);});
+
+test('feed matches refresh legacy per-course Canvas sources, a course ID equal to the site ID files new work, and manual courses stop warning',()=>{
+ const d=base();d.sources.push({id:'legacy-55',name:'Old Canvas collector',status:'failed',note:'Site unreadable.'},{id:'legacy-b',name:'Course B site',status:'failed',note:'Needs sign-in.'});
+ d.courses.push({id:'55',code:'COURSE C',name:'Course C',category:'academic'});
+ d.assignments.push({id:'701',courseId:'55',course:'COURSE C',title:'Memo',dueAt:'2026-10-12T03:59:00Z',status:'not_submitted',requirement:'required',sourceId:'legacy-55',source:'https://lms.example.edu/courses/55/assignments/701',estimateMinutes:60},
+  {id:'b-legacy',courseId:'course-b',course:'COURSE B',title:'Case write-up',dueAt:'2026-10-20T03:59:00Z',status:'not_submitted',requirement:'required',sourceId:'legacy-b',estimateMinutes:60});
+ for(const a of d.assignments)if(a.courseId==='course-b'&&a.id!=='b-legacy')a.sourceId='legacy-b';
+ const r=buildSnapshot(d,{canvas:feed([item('701','Memo','Odd site name','2026-10-13T03:59:00Z'),item('702','Reflection','Odd site name','2026-10-14T03:59:00Z'),item('703','Case write-up','COURSE B','2026-10-21T03:59:00Z',{courseId:'99'})]),
+  schedules:[{course:'COURSE B',url:'https://course-b.example.edu/meetings',status:'ok',sessions:[{date:'2026-10-14',title:'Exam 1'}]}]},{now:NOW}),s=r.snapshot,src=id=>s.sources.find(x=>x.id===id);
+ a.deepEqual(r.report.canvas.updated,['701']);a.equal(src('legacy-55').status,'ok');a.equal(src('legacy-55').lastSuccess,'2026-10-07T12:00:00.000Z');
+ a.equal(s.assignments.find(x=>x.id==='canvas-702').courseId,'55','course ID equal to the Canvas site ID');
+ a.equal(s.assignments.find(x=>x.id==='b-legacy').dueAt,'2026-10-20T03:59:00Z','a manual course is never matched by title');a.equal(src('legacy-b').status,'manual');
+ const {health}=require('../src/workload.cjs');a.equal(health(s,NOW).sources.some(x=>x.id==='legacy-b'),false);
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'dayweave-collect-')),store=new Store(dir);try{store.importSnapshot(d);store.importSnapshot(s);const after=store.snapshot();
+  a.equal(after.assignments.find(x=>x.id==='701').dueAt,'2026-10-13T03:59:00Z','the import keeps the refreshed due date');a.equal(after.assignments.find(x=>x.id==='b-legacy').status,'not_submitted');
+ }finally{store.close();fs.rmSync(dir,{recursive:true,force:true});}});
