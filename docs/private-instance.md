@@ -67,7 +67,7 @@ This uses the existing backup/restore path and never touches the local original.
 
 1. On the owner's machine, take a consistent copy without stopping the local app: either copy the newest file in the local data folder's `backups/`, or run `node scripts/db.cjs backup` with `DAYWEAVE_DATA_DIR` pointing at the private data (it writes a new backup with `VACUUM INTO`; the live database is only read).
 2. Upload it under a backup name: `fly ssh sftp shell --app <app>`, then `put <local copy> /data/backups/backup-<YYYY-MM-DD>-import.sqlite`, and make sure the `node` user owns it (`fly ssh console -C "chown node:node /data/backups/backup-<...>-import.sqlite"`).
-3. Signed in to the instance, open Settings → Backups and restore that backup. Restore checks integrity, schema version and that a snapshot exists, and takes a safety backup first; receipts, approvals and the store ID already on the instance are kept.
+3. Signed in to the instance, restore that backup: an empty instance shows the backup list on every page, otherwise use Settings → Backups. Restore checks integrity, schema version and that a snapshot exists, and takes a safety backup first; receipts, approvals and the store ID already on the instance are kept.
 4. Compare the instance with the local app (snapshot time, counts on Home, Review receipts). Keep the local 8767 service running as the fallback.
 
 ## Limits

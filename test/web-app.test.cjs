@@ -26,3 +26,10 @@ test('page-order scripts render effort controls and the Settings calibration sum
  a.equal(input('t1'),'60');a.equal(input('t4'),'0');D.assignments.push({...D.assignments[0],id:'t5',title:'Missing',estimateMinutes:10});html=vm.runInContext("coursework(new URLSearchParams(''))",ctx);a.equal(input('t5'),'','missing actual is not shown as zero');
  a.match(html,/Selectable \(choice\)/);a.match(html,/Requirement uncertain/);a.match(html,/Reconfirm effort/);a.match(html,/no longer matches actual minutes/);a.match(html,/Zero actual minutes are saved/);a.doesNotMatch(html,/<img/);
 });
+test('an empty database still lists backups so a copied backup can be restored from the page',async()=>{
+ const order=[...fs.readFileSync('src/web/index.html','utf8').matchAll(/<script src="\/([\w.]+)"><\/script>/g)].map(m=>m[1]),files={'core.js':'src/core.cjs','phase2.js':'src/phase2.cjs','phase3.js':'src/phase3.cjs','effort.js':'src/effort.cjs','workload.js':'src/workload.cjs','email.js':'src/email.cjs','app.js':'src/web/app.js'};
+ const nodes=new Map(),node=k=>{if(!nodes.has(k))nodes.set(k,{textContent:'',innerHTML:''});return nodes.get(k);};
+ const ctx=vm.createContext({URLSearchParams,Date,Intl,console,window:{addEventListener(){}},document:{querySelector:node,querySelectorAll:()=>[],addEventListener(){}},location:{pathname:'/home',search:''},history:{pushState(){}},fetch:async url=>({ok:true,json:async()=>url.endsWith('session')?{csrf:'test'}:url.endsWith('health')?{runs:[],backups:['backup-2026-10-01-import.sqlite']}:{snapshot:null,progress:{}}})});
+ for(const f of order)vm.runInContext(fs.readFileSync(files[f],'utf8'),ctx,{filename:files[f]});await new Promise(r=>setImmediate(r));await new Promise(r=>setImmediate(r));
+ a.match(node('#notice').textContent,/No database snapshot/);const html=node('#page').innerHTML;a.match(html,/Backups & migration/);a.match(html,/data-action="restore" data-id="backup-2026-10-01-import.sqlite"/);
+});
