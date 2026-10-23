@@ -9,8 +9,10 @@ function hostedConfig(env=process.env){
  if(!env.DAYWEAVE_PUBLIC_ORIGIN)return null;
  const origin=new URL(env.DAYWEAVE_PUBLIC_ORIGIN);if(origin.protocol!=='https:'||origin.pathname!=='/'||origin.search||origin.username)throw Error('DAYWEAVE_PUBLIC_ORIGIN must be a bare https origin');
  const need=['DAYWEAVE_GOOGLE_CLIENT_ID','DAYWEAVE_GOOGLE_CLIENT_SECRET','DAYWEAVE_ALLOWED_EMAIL','DAYWEAVE_SESSION_SECRET'],missing=need.filter(k=>!env[k]);if(missing.length)throw Error('Hosted mode needs '+missing.join(', '));
- if(env.DAYWEAVE_SESSION_SECRET.length<32)throw Error('DAYWEAVE_SESSION_SECRET must be at least 32 characters');
- if(env.DAYWEAVE_INGEST_SECRET&&env.DAYWEAVE_INGEST_SECRET.length<32)throw Error('DAYWEAVE_INGEST_SECRET must be at least 32 characters');
+ // A failed generator step can leave a long but constant value (for example all "A"s from zero bytes), so length alone is not enough.
+ const weak=v=>v.length<32||new Set(v).size<12;
+ if(weak(env.DAYWEAVE_SESSION_SECRET))throw Error('DAYWEAVE_SESSION_SECRET must be at least 32 random characters');
+ if(env.DAYWEAVE_INGEST_SECRET&&weak(env.DAYWEAVE_INGEST_SECRET))throw Error('DAYWEAVE_INGEST_SECRET must be at least 32 random characters');
  return {origin:origin.origin,host:origin.host,clientId:env.DAYWEAVE_GOOGLE_CLIENT_ID,clientSecret:env.DAYWEAVE_GOOGLE_CLIENT_SECRET,email:env.DAYWEAVE_ALLOWED_EMAIL.trim().toLowerCase(),sessionSecret:env.DAYWEAVE_SESSION_SECRET};}
 // Stateless signed values, so a machine restart or Fly auto-stop does not sign the owner out.
 function signer(secret){const mac=v=>crypto.createHmac('sha256',secret).update(v).digest('base64url');
