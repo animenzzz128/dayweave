@@ -20,7 +20,8 @@ export function Dot({ tone }: { tone: Tone }) {
   return <span aria-hidden="true" className={`inline-block h-2 w-2 shrink-0 rounded-full ${c}`} />;
 }
 
-export const sourceTone = (status: string): Tone => (status === 'ok' ? 'ok' : status === 'partial' ? 'warn' : 'danger');
+// A manual source (a course outside Canvas, kept from the owner's review) is a known limit, not a failure.
+export const sourceTone = (status: string): Tone => (status === 'ok' ? 'ok' : status === 'manual' ? 'neutral' : status === 'partial' ? 'warn' : 'danger');
 
 export function External({ url, children, className = '' }: { url?: string; children: ReactNode; className?: string }) {
   const u = safeUrl(url);

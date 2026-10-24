@@ -58,7 +58,7 @@ Private instance (#55, DW-1014, merged in PR69): `scripts/serve.cjs` has a hoste
 
 Cloud collection (#56, DW-1015): `GET /api/ingest` returns the current snapshot and the server-side Canvas feed; `?dryRun=1` checks an import without writing; `scripts/cloud-collect.cjs` builds the next snapshot from Google Calendar and Gmail reads (cloud connectors) and the Canvas feed ([procedure](cloud-collection.md)). Code and tests only: no scheduled task, Canvas feed secret or cloud environment settings exist yet, and three unattended successes are still required.
 
-New interface (2026-10-24): the private instance's image builds the `web/` front end in server mode and serves it at `/`; the classic UI stays at its routes (`/classic`) for two weeks. Backups and restore, history, effort confirmation and trends are still only in the classic UI. Owner-approved order: this, then coursework done/not-needed and auto-collapse, then email triage.
+New interface (2026-10-24): the private instance's image builds the `web/` front end in server mode and serves it at `/`; the classic UI stays at its routes (`/classic`) for two weeks. Data health in the new UI has backups, export and restore; effort confirmation and trends are still only in the classic UI. Owner-approved order: this, then coursework done/not-needed and auto-collapse, then email triage.
 
 Email source (2026-10-22): the owner's school mailbox (Microsoft 365, connector blocked by admin consent) auto-forwards to the connected Gmail, where a filter labels it `Yale`. Gmail collection reads only `label:Yale newer_than:7d` ([procedure](google.md#gmail-read-only)); personal mail is out of scope. Only mail received after forwarding started is covered.
 
