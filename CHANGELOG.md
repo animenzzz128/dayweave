@@ -3,6 +3,7 @@
 ## Unreleased — New interface on the private instance
 
 - The Docker image builds the `web/` front end in server mode (`npm run build:server`) and `scripts/serve.cjs` serves it at `/` when `DAYWEAVE_WEB_DIST` is set; the classic UI keeps its routes and `/classic` leads there. The hosted banner adds Classic view and Sign out. The page CSP allows the inline theme script by hash. The shared `src/*.cjs` rules are now wrapped at build time (`?shared` imports) instead of being evaluated with `new Function`, so neither the demo nor the private instance needs `unsafe-eval`.
+- Gmail messages can carry assistant triage (category reply/action/info/promo, priority, one-line summary and action, stated due time, optional assignment hint), validated in `src/email.cjs`; bodies are still never stored. Owner overrides (`emailTriage` progress: category, handled) are validated by the store. The cloud collection steps now ask the task to read each message and write triage.
 - Coursework in the new front end can mark work **done** or **not needed** (a local mark; the source is unchanged and refreshes keep it), with Undo. Work not done and due more than 3 days ago moves off Today into a **Past due** tab; nothing is deleted. Today's source warnings no longer list manual sources. The server now refuses malformed archive marks.
 - Data health in the new front end lists backups and can create one, export the data and restore a backup after a confirmation (server mode only). Manual sources show as "Manual" in neutral colours instead of red.
 
