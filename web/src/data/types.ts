@@ -31,7 +31,11 @@ export interface Receipt { id: string; status: string; fingerprint?: string; ref
 export interface EmailMessage {
   id: string; threadId: string; receivedAt: string; from: string; subject: string; snippet?: string;
   labels?: string[]; unread?: boolean; hasAttachments?: boolean; attachmentCount?: number | null; link?: string;
+  /** AI triage written by the collecting assistant; the owner's `emailTriage` progress overrides it. */
+  triage?: { category: TriageCategory; priority: 'high' | 'medium' | 'low'; summary: string; action: string; dueAt: string | null; assignmentId?: string };
 }
+
+export type TriageCategory = 'reply' | 'action' | 'info' | 'promo';
 
 export interface Role {
   id: string; title: string; market: string; source?: string; evidence?: string; checkedAt?: string;
@@ -70,6 +74,7 @@ export interface Progress {
   dismissed?: Record<string, boolean>;
   preferences?: { workloadMode?: string };
   todo?: Record<string, Todo>;
+  emailTriage?: Record<string, { category?: TriageCategory; handled?: boolean; at?: string } | null>;
   [kind: string]: Record<string, unknown> | undefined;
 }
 

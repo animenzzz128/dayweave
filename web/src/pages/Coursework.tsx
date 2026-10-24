@@ -165,11 +165,11 @@ function Todos({ todos }: { todos: Todo[] }) {
   );
 }
 
-export function TodoForm({ origin, initialTitle = '', onDone }: { origin?: { type: 'email'; messageId: string }; initialTitle?: string; onDone?: () => void }) {
+export function TodoForm({ origin, initialTitle = '', initialDue = '', onDone }: { origin?: { type: 'email'; messageId: string }; initialTitle?: string; initialDue?: string; onDone?: () => void }) {
   const { source, run, snapshot: d } = useApp();
   const { t } = useI18n();
   const [title, setTitle] = useState(initialTitle);
-  const [due, setDue] = useState('');
+  const [due, setDue] = useState(initialDue);
   const [minutes, setMinutes] = useState('30');
   const [notes, setNotes] = useState('');
   const submit = async (e: FormEvent) => {
