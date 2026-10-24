@@ -6,20 +6,23 @@ import { Core } from '../lib/shared';
 import { Breakdown } from '../components/Breakdown';
 import type { Assignment, Todo } from '../data/types';
 
-type Tab = 'required' | 'choice' | 'verify' | 'done' | 'todos';
+type Tab = 'required' | 'choice' | 'verify' | 'past' | 'done' | 'todos';
 
 export function Coursework({ params }: { params: URLSearchParams }) {
-  const { snapshot: d, classify, isDone, progress } = useApp();
+  const { snapshot: d, classify, isDone, isPast, progress } = useApp();
   const { t } = useI18n();
-  const groups: Record<Exclude<Tab, 'todos'>, Assignment[]> = { required: [], choice: [], verify: [], done: [] };
+  const groups: Record<Exclude<Tab, 'todos'>, Assignment[]> = { required: [], choice: [], verify: [], past: [], done: [] };
   for (const a of d.assignments) {
     const k = classify(a);
     if (isDone(a)) groups.done.push(a);
+    else if (isPast(a)) groups.past.push(a);
     else if (k === 'verify') groups.verify.push(a);
     else if (a.requirement === 'choice') groups.choice.push(a);
     else groups.required.push(a);
   }
   for (const list of Object.values(groups)) list.sort((a, b) => (Date.parse(a.dueAt || '') || Infinity) - (Date.parse(b.dueAt || '') || Infinity));
+  // Finished and past work reads newest first.
+  groups.done.reverse(); groups.past.reverse();
   const openId = params.get('open') || '';
   const inferred = (Object.keys(groups) as (keyof typeof groups)[]).find((k) => groups[k].some((a) => a.id === openId));
   const [tab, setTab] = useState<Tab>((params.get('tab') as Tab) || inferred || 'required');
@@ -32,20 +35,21 @@ export function Coursework({ params }: { params: URLSearchParams }) {
         ['required', t.coursework.tabs.required, groups.required.length],
         ['choice', t.coursework.tabs.choice, groups.choice.length],
         ['verify', t.coursework.tabs.verify, groups.verify.length],
+        ['past', t.coursework.tabs.past, groups.past.length],
         ['done', t.coursework.tabs.done, groups.done.length],
         ['todos', t.coursework.tabs.todos, todos.filter((x) => x.status !== 'done').length],
       ]} />
       {tab === 'todos'
         ? <Todos todos={todos} />
         : groups[tab].length
-          ? <div className="space-y-3">{groups[tab].map((a) => <AssignmentCard key={a.id} a={a} initiallyOpen={a.id === openId} />)}</div>
+          ? <div className="space-y-3">{tab === 'past' && <p className="text-sm text-muted">{t.coursework.pastHint}</p>}{groups[tab].map((a) => <AssignmentCard key={a.id} a={a} initiallyOpen={a.id === openId} />)}</div>
           : <Empty>{t.coursework.empty}</Empty>}
     </>
   );
 }
 
 function AssignmentCard({ a, initiallyOpen }: { a: Assignment; initiallyOpen: boolean }) {
-  const { progress, source, run, f, now, classify, snapshot: d, workStatus, verifyReason } = useApp();
+  const { progress, source, run, f, now, classify, snapshot: d, workStatus, verifyReason, mark, isPast } = useApp();
   const { t } = useI18n();
   const [open, setOpen] = useState(initiallyOpen);
   // Ticks show at once; the saved value replaces them after the round trip, or they revert if saving fails.
@@ -57,6 +61,8 @@ function AssignmentCard({ a, initiallyOpen }: { a: Assignment; initiallyOpen: bo
     setPending(({ [key]: _, ...rest }) => rest);
   };
   const k = classify(a);
+  const m = mark(a), past = isPast(a);
+  const setMark = (status: 'done' | 'skipped' | null) => run(() => source.saveProgress('archive', a.id, status && { status, at: new Date().toISOString() }), status === 'done' ? t.coursework.markedDone : status ? t.coursework.markedSkipped : t.coursework.unmarked);
   const list = a.checklist || [];
   const done = list.filter((_, i) => checked(`${a.id}:${i}`)).length;
   const failedSource = d.sources.find((s) => s.id === a.sourceId && ['failed', 'unavailable'].includes(s.status));
@@ -72,7 +78,7 @@ function AssignmentCard({ a, initiallyOpen }: { a: Assignment; initiallyOpen: bo
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {a.requirement === 'choice' && <Tag tone="info">{t.status.optional}</Tag>}
-          <Tag tone={tone}>{k === 'verify' ? t.status.verify : k === 'submitted' ? workStatus(a.status) : k === 'overdue' ? t.status.overdue : f.when(a.dueAt, now)}</Tag>
+          <Tag tone={past ? 'warn' : tone}>{m ? t.coursework.mark[m] : past ? t.coursework.pastTag : k === 'verify' ? t.status.verify : k === 'submitted' ? workStatus(a.status) : k === 'overdue' ? t.status.overdue : f.when(a.dueAt, now)}</Tag>
           <span aria-hidden="true" className="text-muted">{open ? '−' : '+'}</span>
         </div>
       </button>
@@ -88,6 +94,14 @@ function AssignmentCard({ a, initiallyOpen }: { a: Assignment; initiallyOpen: bo
             {a.aiPolicy && <Field label={t.coursework.aiPolicy} value={a.aiPolicy} />}
             {a.evidence && <Field label={t.coursework.evidence} value={a.evidence} />}
             <External url={a.source} className="text-[13px]">{t.coursework.openSource}</External>
+            {/* A local mark: it never changes the source, and the next refresh keeps it. Submitted work at the source needs none. */}
+            {!['submitted', 'graded', 'excused'].includes(a.status) && (
+              <div className="flex flex-wrap items-center gap-2 pt-1">
+                {m
+                  ? <><span className="text-[13px] text-muted">{t.coursework.markedNote(t.coursework.mark[m])}</span><button type="button" className="btn" onClick={() => setMark(null)}>{t.coursework.unmark}</button></>
+                  : <><button type="button" className="btn btn-primary" onClick={() => setMark('done')}>{t.coursework.markDone}</button><button type="button" className="btn" onClick={() => setMark('skipped')}>{t.coursework.markSkipped}</button></>}
+              </div>
+            )}
           </dl>
           <div className="space-y-4">
             <Breakdown a={a} />

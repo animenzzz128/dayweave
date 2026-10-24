@@ -13,7 +13,7 @@ export function emailHealth(email: unknown, now: Date) {
 }
 
 export function Today() {
-  const { snapshot: d, progress, f, now, source, run, classify, waiting, verifyReason } = useApp();
+  const { snapshot: d, progress, f, now, source, run, classify, waiting, verifyReason, mark, isPast } = useApp();
   const { t } = useI18n();
   const today = f.dayKey(now);
   const tomorrow: string = Demo.addDays(today, 1);
@@ -21,11 +21,12 @@ export function Today() {
   // Open on the first of today/tomorrow that has proposals waiting, so the approve-before-write idea is visible at once.
   const [shown, setShown] = useState(proposalsOn(today) || !proposalsOn(tomorrow) ? today : tomorrow);
   const mode: string = Workload.mode(progress.preferences?.workloadMode);
-  const focus = Workload.focus(d.assignments, d.sources, now, mode);
+  // Work you marked done or not needed, and work more than a few days past due, stays in Coursework, not on Today.
+  const focus = Workload.focus(d.assignments.filter((a) => !mark(a) && !isPast(a)), d.sources, now, mode);
   const byUrl = new Map(d.assignments.map((a) => [a.source, a]));
-  const due72 = d.assignments.filter((a) => !a.archivedFromSource && a.requirement === 'required' && ['soon', 'overdue'].includes(classify(a)))
+  const due72 = d.assignments.filter((a) => !a.archivedFromSource && !isPast(a) && a.requirement === 'required' && ['soon', 'overdue'].includes(classify(a)))
     .sort((a, b) => Date.parse(a.dueAt || '') - Date.parse(b.dueAt || ''));
-  const failing = d.sources.filter((s) => s.status !== 'ok');
+  const failing = Workload.health(d, now).sources as typeof d.sources;
   const inbox = emailHealth(d.email, now);
 
   return (
