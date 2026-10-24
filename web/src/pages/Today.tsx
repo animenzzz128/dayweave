@@ -6,6 +6,7 @@ import { Brief } from '../components/Brief';
 import { Dot, Empty, External, Section, Tag, sourceTone } from '../components/ui';
 import { Demo, Email, Workload } from '../lib/shared';
 import { href } from '../lib/router';
+import { toHandle, triaged } from '../lib/triage';
 import type { Assignment, Priority } from '../data/types';
 
 export function emailHealth(email: unknown, now: Date) {
@@ -28,6 +29,7 @@ export function Today() {
     .sort((a, b) => Date.parse(a.dueAt || '') - Date.parse(b.dueAt || ''));
   const failing = Workload.health(d, now).sources as typeof d.sources;
   const inbox = emailHealth(d.email, now);
+  const handleCount = toHandle(triaged(d.email?.messages || [], progress)).length;
 
   return (
     <div className="flex flex-wrap gap-8">
@@ -120,7 +122,7 @@ export function Today() {
             ))}
           </div>
           {failing.filter((s) => s.status !== 'partial').map((s) => <p key={s.id} className="mt-2.5 text-[13px] text-danger">{t.today.failedSource(s.name)}</p>)}
-          {'shown' in inbox && <p className="mt-2.5 text-[13px] text-muted"><a href={href('email')} className="underline underline-offset-2">{t.today.inbox}</a>: {t.today.inboxLine(inbox.shown as number, inbox.unread as number)}</p>}
+          {'shown' in inbox && <p className="mt-2.5 text-[13px] text-muted"><a href={href('email')} className="underline underline-offset-2">{t.today.inbox}</a>: {t.today.inboxLine(inbox.shown as number, inbox.unread as number)}{handleCount > 0 && <> <a href={href('email')} className="font-medium text-ink">{t.today.toHandle(handleCount)}</a></>}</p>}
         </Section>
       </div>
     </div>
