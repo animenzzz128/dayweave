@@ -75,3 +75,13 @@ test('an all-day feed item keeps a known time on that day, otherwise is due 23:5
   {id:'802',courseId:'course-a',course:'COURSE A',title:'Memo',dueAt:'2026-10-09T17:00:00-04:00',status:'not_submitted',requirement:'required',sourceId:'canvas',source:'https://lms.example.edu/courses/55/assignments/802',estimateMinutes:60});
  const r=buildSnapshot(d,{canvas:feed([item('801','Essay','COURSE A',null,{date:'2026-10-11'}),item('802','Memo','COURSE A','2026-10-09T21:00:00Z'),item('803','Poll','COURSE A',null,{date:'2026-10-12'})])},{now:NOW}),by=Object.fromEntries(r.snapshot.assignments.map(x=>[x.id,x]));
  a.deepEqual(r.report.canvas.updated,[]);a.equal(by['801'].dueAt,'2026-10-11T23:59:00-04:00');a.equal(by['802'].dueAt,'2026-10-09T17:00:00-04:00');a.equal(by['canvas-803'].dueAt,'2026-10-13T03:59:00.000Z');});
+
+test('retired Outlook and old email sources are dropped, the active calendar and Gmail stay, and stale notes are cleared',()=>{
+ const d=base();d.summary='Old run summary';d.coverageNote='Old note';d.priorities=[{title:'Old',detail:'x',source:'https://lms.example.edu'}];
+ d.sources.push({id:'outlook',name:'Outlook · primary calendar',status:'failed'},{id:'outlook-connector',name:'Outlook connector',status:'failed'},{id:'email',name:'Email',status:'not enabled'});
+ const s=buildSnapshot(d,{},{now:NOW}).snapshot,ids=s.sources.map(x=>x.id);
+ for(const id of ['outlook','outlook-connector','email'])a.equal(ids.includes(id),false,id+' is dropped');
+ a.ok(ids.includes('google-calendar')&&ids.includes('gmail'));a.equal(s.summary,undefined);a.equal(s.coverageNote,undefined);a.deepEqual(s.priorities,[]);
+ a.equal(buildSnapshot(d,{notes:{summary:'Fresh'}},{now:NOW}).snapshot.summary,'Fresh');
+ // A legacy snapshot whose coverage is still Outlook keeps that source, so it still validates.
+ const legacy=structuredClone(require('../examples/snapshot.json'));a.ok(buildSnapshot(legacy,{},{now:NOW}).snapshot.sources.some(x=>x.id==='outlook'));});
