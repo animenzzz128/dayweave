@@ -22,7 +22,12 @@ export function Layout({ route, children }: { route: Route; children: ReactNode 
     <div className="min-h-screen bg-surface">
       <a href="#main" onClick={(e) => { e.preventDefault(); document.getElementById('main')?.focus(); }} className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-2 focus:z-50 focus:rounded-lg focus:bg-surface focus:px-3 focus:py-2">Skip to content</a>
       <div className={`flex flex-wrap items-center justify-center gap-x-4 gap-y-2 border-b px-4 py-2 text-[13px] ${demo ? 'border-warn-line bg-warn-soft text-warn' : 'border-accent-line bg-accent-soft text-accent-ink'}`}>
-        <span>{demo ? t.demo.banner : t.local.banner}</span>
+        <span>{demo ? t.demo.banner : source.hosted ? t.local.hosted : t.local.banner}</span>
+        {source.hosted && <a href="/home" className="font-medium text-accent-ink underline underline-offset-2 hover:text-ink">{t.local.classic}</a>}
+        {source.hosted && (
+          // A plain form post: the server checks its Origin, clears the session cookie and shows the signed-out page.
+          <form method="post" action="/auth/logout"><button type="submit" className="min-h-8 rounded-lg border border-accent-line bg-raised px-3 text-accent-ink transition-colors hover:bg-accent-soft">{t.local.signOut}</button></form>
+        )}
         {demo && route !== 'case-study' && <a href={href('case-study')} className="font-medium text-warn underline underline-offset-2 hover:text-ink">{t.demo.about} →</a>}
         {demo && source.setOutage && (
           <button type="button" aria-pressed={!!outage} className="min-h-8 rounded-lg border border-warn-edge bg-raised px-3 text-warn transition-colors hover:bg-warn-soft"

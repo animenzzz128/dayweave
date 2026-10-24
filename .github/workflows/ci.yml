@@ -36,3 +36,5 @@ jobs:
       - run: npm run typecheck
       - run: npm run build
       - run: node ../scripts/privacy-check.cjs --dir dist
+      # The private instance's image builds the same front end in server mode (Dockerfile).
+      - run: npm run build:server

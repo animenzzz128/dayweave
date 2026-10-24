@@ -3,3 +3,9 @@
 !package.json
 !src/
 !scripts/
+# The web/ front end is built inside the image; its bundle imports the shared src/ rules and the fictional Luna examples.
+!web/
+web/node_modules/
+web/dist/
+!examples/luna-demo.json
+!examples/luna-ai.json

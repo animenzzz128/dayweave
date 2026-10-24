@@ -5,11 +5,14 @@ import type { Approval, DataSource, Loaded, PlanResult, Proposal, Todo } from '.
 export class ApiSource implements DataSource {
   readonly mode = 'local' as const;
   private csrf = '';
+  hosted = false;
 
   private async session() {
     const r = await fetch('/api/session', { credentials: 'same-origin' });
     if (!r.ok) throw new Error('Could not start a local session');
-    this.csrf = (await r.json()).csrf;
+    const value = await r.json();
+    this.csrf = value.csrf;
+    this.hosted = !!value.hosted;
   }
 
   private async call<T>(path: string, body?: unknown, retry = true): Promise<T> {
