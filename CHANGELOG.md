@@ -3,6 +3,7 @@
 ## Unreleased — New interface on the private instance
 
 - The Docker image builds the `web/` front end in server mode (`npm run build:server`) and `scripts/serve.cjs` serves it at `/` when `DAYWEAVE_WEB_DIST` is set; the classic UI keeps its routes and `/classic` leads there. The hosted banner adds Classic view and Sign out. The page CSP allows the inline theme script by hash. The shared `src/*.cjs` rules are now wrapped at build time (`?shared` imports) instead of being evaluated with `new Function`, so neither the demo nor the private instance needs `unsafe-eval`.
+- Data health in the new front end lists backups and can create one, export the data and restore a backup after a confirmation (server mode only). Manual sources show as "Manual" in neutral colours instead of red.
 
 ## Unreleased — Cloud collection (DW-1015, #56)
 

@@ -91,7 +91,7 @@ const en = {
     noDue: 'No due date',
   },
   status: {
-    ok: 'OK', partial: 'Partial', failed: 'Failed', unavailable: 'Unavailable', stale: 'Stale',
+    ok: 'OK', partial: 'Partial', failed: 'Failed', unavailable: 'Unavailable', stale: 'Stale', manual: 'Manual',
     overdue: 'Overdue', soon: 'Due within 72 h', week: 'This week', later: 'Later', undated: 'No date',
     verify: 'Needs verification', optional: 'Selectable', submitted: 'Done', required: 'Required',
   },
@@ -202,6 +202,10 @@ const en = {
       'Required and selectable work stay separate; uncertain submissions are flagged, not assumed overdue.',
     ],
     demoData: 'Demo data', demoDataNote: 'All data is fictional and regenerated around today’s date. Your changes stay in this browser until you reset.',
+    backups: 'Backups', backupsNote: 'Daily backups are kept for 30 days. Restoring first saves the current database and invalidates prepared approvals.',
+    backupNow: 'Create backup', exportData: 'Export data (JSON)', restore: 'Restore',
+    restoreConfirm: (name: string) => `Restore ${name}? The current database is saved first, and prepared approvals are invalidated.`,
+    restored: (name: string) => `Restored ${name}.`, noBackups: 'No backups yet.', showAll: (n: number) => `Show all ${n}`,
   },
 };
 
@@ -299,7 +303,7 @@ const zh: Messages = {
     noDue: '无截止时间',
   },
   status: {
-    ok: '正常', partial: '部分', failed: '失败', unavailable: '不可用', stale: '已过期',
+    ok: '正常', partial: '部分', failed: '失败', unavailable: '不可用', stale: '已过期', manual: '手动维护',
     overdue: '已逾期', soon: '72 小时内截止', week: '本周', later: '以后', undated: '无日期',
     verify: '需要核实', optional: '可选', submitted: '已完成', required: '必交',
   },
@@ -410,6 +414,10 @@ const zh: Messages = {
       '必交和可选任务分开显示；提交状态不确定的会被标出，而不是直接算作逾期。',
     ],
     demoData: '演示数据', demoDataNote: '所有数据都是虚构的，并以今天为基准重新生成。你的改动只保存在这个浏览器里，重置后恢复。',
+    backups: '备份', backupsNote: '每天自动备份，保留 30 天。恢复前会先保存当前数据库，已准备的审批会失效。',
+    backupNow: '立即备份', exportData: '导出数据（JSON）', restore: '恢复',
+    restoreConfirm: (name: string) => `恢复 ${name}？会先保存当前数据库，已准备的审批会失效。`,
+    restored: (name: string) => `已恢复 ${name}。`, noBackups: '还没有备份。', showAll: (n: number) => `显示全部 ${n} 个`,
   },
 };
 

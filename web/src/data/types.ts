@@ -103,4 +103,8 @@ export interface DataSource {
   /** Demo only: makes the calendar and Gmail fail, to show how failures stay visible. */
   setOutage?(on: boolean): Promise<void>;
   reset?(): Promise<void>;
+  /** Server only: the backup list (newest first), a new backup, and restoring one. */
+  backups?(): Promise<string[]>;
+  backup?(): Promise<string>;
+  restore?(name: string): Promise<void>;
 }

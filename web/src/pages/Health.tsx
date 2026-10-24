@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import { useApp } from '../data/AppData';
 import { useI18n } from '../i18n/I18n';
 import { Dot, External, PageHeader, Section, Tag, sourceTone } from '../components/ui';
@@ -37,6 +38,7 @@ export function Health() {
           <Section title={t.health.principles}>
             <ol className="list-decimal space-y-2 pl-5 text-sm">{t.health.principleList.map((x) => <li key={x}>{x}</li>)}</ol>
           </Section>
+          {source.backups && <Backups />}
           {source.mode === 'demo' && (
             <Section title={t.health.demoData}>
               <div className="panel space-y-3 p-4 text-sm">
@@ -49,5 +51,38 @@ export function Health() {
         </div>
       </div>
     </>
+  );
+}
+
+// Server only. Restore asks first: it replaces the database (after saving the current one) and invalidates prepared approvals.
+function Backups() {
+  const { source, run } = useApp();
+  const { t } = useI18n();
+  const [list, setList] = useState<string[] | null>(null);
+  const [all, setAll] = useState(false);
+  const refresh = () => source.backups!().then(setList, () => setList([]));
+  useEffect(() => { refresh(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const shown = list && (all ? list : list.slice(0, 7));
+  return (
+    <Section title={t.health.backups}>
+      <div className="panel space-y-3 p-4 text-sm">
+        <p className="text-muted">{t.health.backupsNote}</p>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className="btn" onClick={async () => { let name = ''; await run(async () => { name = await source.backup!(); }); if (name) await refresh(); }}>{t.health.backupNow}</button>
+          <a className="btn no-underline" href="/api/export">{t.health.exportData}</a>
+        </div>
+        {shown && (shown.length ? (
+          <ul className="divide-y divide-line rounded-lg border border-line">
+            {shown.map((name) => (
+              <li key={name} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+                <span className="font-mono text-[12px] break-all">{name}</span>
+                <button type="button" className="btn" onClick={() => { if (window.confirm(t.health.restoreConfirm(name))) run(() => source.restore!(name), t.health.restored(name)).then(refresh); }}>{t.health.restore}</button>
+              </li>
+            ))}
+          </ul>
+        ) : <p>{t.health.noBackups}</p>)}
+        {list && !all && list.length > 7 && <button type="button" className="text-[13px] underline underline-offset-2" onClick={() => setAll(true)}>{t.health.showAll(list.length)}</button>}
+      </div>
+    </Section>
   );
 }
