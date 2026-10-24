@@ -9,6 +9,8 @@ import { ErrorState, Skeleton } from '../components/ui';
 
 const DONE = ['submitted', 'graded', 'excused'];
 const STARTED = ['executed', 'pending', 'unverified'];
+// Work still open this many days after its due date leaves Today and the main lists for Coursework → Past due.
+export const PAST_DAYS = 3;
 
 interface AppData extends Loaded {
   source: DataSource;
@@ -20,7 +22,12 @@ interface AppData extends Loaded {
   notice: { kind: 'ok' | 'error'; text: string } | null;
   dismissNotice: () => void;
   classify: (a: Assignment) => string;
+  /** Submitted, graded or excused at the source, or marked done / not needed by you (a local mark; the source is unchanged). */
   isDone: (a: Assignment) => boolean;
+  /** Your local mark, if any. */
+  mark: (a: Assignment) => 'done' | 'skipped' | null;
+  /** Not done and due more than PAST_DAYS ago: hidden from Today and listed under Past due. Nothing is deleted. */
+  isPast: (a: Assignment) => boolean;
   waiting: Proposal[];
   started: (id: string) => boolean;
   workStatus: (status: string) => string;
@@ -53,6 +60,9 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     const d = data.snapshot;
     Core.configure(d.timezone);
     const failed = new Set(d.sources.filter((s) => ['failed', 'unavailable'].includes(s.status)).map((s) => s.id));
+    const archive = (data.progress.archive || {}) as Record<string, unknown>;
+    const mark = (a: Assignment) => { const m = archive[a.id] as { status?: string } | true | null | undefined; return !m ? null : m === true || m.status === 'done' ? 'done' as const : 'skipped' as const; };
+    const isDone = (a: Assignment) => DONE.includes(a.status) || !!mark(a);
     const started = (id: string) => d.actionHistory.some((h) => h.id === id && STARTED.includes(h.status));
     return {
       ...data,
@@ -64,8 +74,10 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       notice,
       dismissNotice: () => setNotice(null),
       // A record from a failed source is kept but cannot be trusted as current, so it needs verification first.
-      classify: (a) => (a.sourceId && failed.has(a.sourceId) && !DONE.includes(a.status) ? 'verify' : Core.classify(a, now)),
-      isDone: (a) => DONE.includes(a.status),
+      classify: (a) => (mark(a) ? 'submitted' : a.sourceId && failed.has(a.sourceId) && !DONE.includes(a.status) ? 'verify' : Core.classify(a, now)),
+      isDone,
+      mark,
+      isPast: (a) => !isDone(a) && !!a.dueAt && now.getTime() - Date.parse(a.dueAt) > PAST_DAYS * 86400000,
       waiting: d.proposals.filter((p) => !started(p.id) && !data.progress.dismissed?.[p.id]),
       started,
       workStatus: (s) => t.work[s] ?? s,
