@@ -9,6 +9,7 @@
     "dev": "vite",
     "dev:server": "vite --mode server",
     "build": "vite build",
+    "build:server": "vite build --mode server",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit"
   },

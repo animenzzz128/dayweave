@@ -1,7 +1,14 @@
 'use strict';
 const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),{Store}=require('./store.cjs'),H=require('./hosted.cjs'),Canvas=require('./canvas.cjs');
 // options.hosted (from hostedConfig) switches from the 127.0.0.1-only local session to Google sign-in for one account.
-function createServer(dir,{hosted=null,ingestSecret='',canvasIcsUrl='',canvasFetch,fetch}={}){const store=new Store(dir),sessions=new Map(),auth=hosted&&H.createAuth(hosted,{fetch}),allow=H.limiter();const server=http.createServer(async(req,res)=>{
+// options.webDist is a built web/ front end (`npm run build:server` in web/): it then serves / and its assets, and the classic
+// UI stays reachable at its own routes (/classic leads there).
+const MIME={'.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.woff2':'font/woff2','.svg':'image/svg+xml','.png':'image/png','.json':'application/json'};
+function loadWeb(dist){if(!dist)return null;const root=path.resolve(dist),html=fs.readFileSync(path.join(root,'index.html'),'utf8');
+ // The page's inline theme script (it avoids a light flash before the app loads) is allowed by its hash, not by 'unsafe-inline'.
+ const hashes=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>"'sha256-"+crypto.createHash('sha256').update(m[1]).digest('base64')+"'");
+ return {root,html,csp:`default-src 'self'; script-src 'self' ${hashes.join(' ')}; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`};}
+function createServer(dir,{hosted=null,ingestSecret='',canvasIcsUrl='',canvasFetch,fetch,webDist=''}={}){const web=loadWeb(webDist),store=new Store(dir),sessions=new Map(),auth=hosted&&H.createAuth(hosted,{fetch}),allow=H.limiter();const server=http.createServer(async(req,res)=>{
  const send=(status,value)=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(value));};
  try{const host=hosted?hosted.host:'127.0.0.1:'+server.address().port,origin=hosted?hosted.origin:'http://'+host;if(hosted)for(const [k,v] of Object.entries(H.securityHeaders))res.setHeader(k,v);
  if(req.headers.host!==host)return send(403,{error:hosted?'Unknown host':'Local requests only'});
@@ -40,6 +47,12 @@ function createServer(dir,{hosted=null,ingestSecret='',canvasIcsUrl='',canvasFet
  if(server.actionRoute&&await server.actionRoute({req,res,u,body,store,send}))return;
  return send(404,{error:'Unknown API route'});}
  if(req.method!=='GET')return send(405,{error:'Method not allowed'});
+ if(web){if(u.pathname==='/'||u.pathname==='/index.html'){res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':web.csp});return res.end(web.html);}
+  if(u.pathname==='/classic'){res.writeHead(302,{Location:'/home','Cache-Control':'no-store'});return res.end();}
+  if(u.pathname.startsWith('/assets/')){const file=path.resolve(web.root,'.'+decodeURIComponent(u.pathname)),type=MIME[path.extname(file)];
+   if(!type||!file.startsWith(web.root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile())return send(404,{error:'Page not found'});
+   // Built asset names carry a content hash, so a cached copy is never stale.
+   res.writeHead(200,{'Content-Type':type,'Cache-Control':'public, max-age=31536000, immutable','X-Content-Type-Options':'nosniff'});return res.end(fs.readFileSync(file));}}
  const routes=['/','/home','/coursework','/timetable','/review','/career','/email','/settings'];const assets={'/app.js':'web/app.js','/app.css':'web/app.css','/core.js':'core.cjs','/phase2.js':'phase2.cjs','/phase3.js':'phase3.cjs','/effort.js':'effort.cjs','/workload.js':'workload.cjs','/email.js':'email.cjs'};const asset=routes.includes(u.pathname)?'web/index.html':assets[u.pathname];if(!asset)return send(404,{error:'Page not found'});
  const mime=asset.endsWith('.html')?'text/html':asset.endsWith('.css')?'text/css':'text/javascript';res.writeHead(200,{'Content-Type':mime+'; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"});res.end(fs.readFileSync(path.join(__dirname,asset)));
  }catch(e){send(400,{error:e.message});}

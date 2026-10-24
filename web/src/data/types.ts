@@ -86,6 +86,8 @@ export interface Loaded { snapshot: Snapshot; progress: Progress; approvals: App
 
 export interface DataSource {
   readonly mode: 'demo' | 'local';
+  /** Local mode on a private hosted instance (Google sign-in): known after the first request. */
+  hosted?: boolean;
   load(): Promise<Loaded>;
   saveProgress(kind: string, id: string, value: unknown): Promise<void>;
   setWorkloadMode(mode: string): Promise<void>;

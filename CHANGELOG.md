@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — New interface on the private instance
+
+- The Docker image builds the `web/` front end in server mode (`npm run build:server`) and `scripts/serve.cjs` serves it at `/` when `DAYWEAVE_WEB_DIST` is set; the classic UI keeps its routes and `/classic` leads there. The hosted banner adds Classic view and Sign out. The page CSP allows the inline theme script by hash. The shared `src/*.cjs` rules are now wrapped at build time (`?shared` imports) instead of being evaluated with `new Function`, so neither the demo nor the private instance needs `unsafe-eval`.
+
 ## Unreleased — Cloud collection (DW-1015, #56)
 
 - `GET /api/ingest` (bearer secret) returns the current snapshot and the Canvas calendar feed read on the server from `DAYWEAVE_CANVAS_ICS_URL`; the feed URL never appears in responses or errors. `POST /api/ingest?dryRun=1` validates and merges without writing and reports the assignments an import would archive; a real import reports them too.

@@ -1,29 +1,32 @@
 // The planning rules live in ../../src/*.cjs and are shared with the Node server and its tests. They are plain
-// CommonJS-or-browser scripts, so we evaluate them with a tiny CommonJS shim instead of rewriting them. Load order
+// CommonJS-or-browser scripts. The `?shared` import (vite.config.ts) wraps each in a function at build time, so no string is
+// evaluated at run time (the private instance's CSP has no 'unsafe-eval') and nothing is rewritten. Load order
 // matters only for require() calls made at load time (phase2, workload and planner read core immediately).
-import emailSrc from '../../../src/email.cjs?raw';
-import coreSrc from '../../../src/core.cjs?raw';
-import phase2Src from '../../../src/phase2.cjs?raw';
-import phase3Src from '../../../src/phase3.cjs?raw';
-import effortSrc from '../../../src/effort.cjs?raw';
-import workloadSrc from '../../../src/workload.cjs?raw';
-import plannerSrc from '../../../src/planner.cjs?raw';
-import todosSrc from '../../../src/todos.cjs?raw';
-import demoSrc from '../../../src/demo.cjs?raw';
-import aiSrc from '../../../src/ai.cjs?raw';
+import emailSrc from '../../../src/email.cjs?shared';
+import coreSrc from '../../../src/core.cjs?shared';
+import phase2Src from '../../../src/phase2.cjs?shared';
+import phase3Src from '../../../src/phase3.cjs?shared';
+import effortSrc from '../../../src/effort.cjs?shared';
+import workloadSrc from '../../../src/workload.cjs?shared';
+import plannerSrc from '../../../src/planner.cjs?shared';
+import todosSrc from '../../../src/todos.cjs?shared';
+import demoSrc from '../../../src/demo.cjs?shared';
+import aiSrc from '../../../src/ai.cjs?shared';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 type Module = Record<string, any>;
 const registry: Record<string, Module> = {};
 
-function load(name: string, source: string): Module {
+type Factory = (module: { exports: Module }, exports: Module, require: (path: string) => Module) => void;
+
+function load(name: string, factory: Factory): Module {
   const module = { exports: {} as Module };
   const require = (path: string) => {
     const key = path.replace(/^\.\//, '').replace(/\.cjs$/, '');
     if (!(key in registry)) throw new Error(`Shared module ${key} is not loaded`);
     return registry[key];
   };
-  new Function('module', 'exports', 'require', source)(module, module.exports, require);
+  factory(module, module.exports, require);
   registry[name] = module.exports;
   return module.exports;
 }
