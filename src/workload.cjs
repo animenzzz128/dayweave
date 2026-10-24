@@ -29,8 +29,8 @@ function focus(assignments,sources,now,m){
  for(const k of ['urgent','upcoming','selectable','verification'])out[k].sort(byDue);
  return out;
 }
-// Warnings shown in every mode: non-ok sources, stale snapshot and calendar coverage limits.
-function health(d,now){const t=new Date(now).getTime(),g=Date.parse(d?.generatedAt);return {sources:(d?.sources||[]).filter(s=>s&&s.status!=='ok'),stale:!Number.isFinite(g)||t-g>26*3600000,coverageComplete:d?.calendarCoverage?.complete===true};}
+// Warnings shown in every mode: non-ok sources (a manual source is a known limit shown on its coursework, not a warning), stale snapshot and calendar coverage limits.
+function health(d,now){const t=new Date(now).getTime(),g=Date.parse(d?.generatedAt);return {sources:(d?.sources||[]).filter(s=>s&&s.status!=='ok'&&s.status!=='manual'),stale:!Number.isFinite(g)||t-g>26*3600000,coverageComplete:d?.calendarCoverage?.complete===true};}
 const api={MODES,DEFAULT,valid,mode,byDue,bucket,reason,focus,health};
 if(typeof module!=='undefined')module.exports=api;else window.PlannerWorkload=api;
 })();
