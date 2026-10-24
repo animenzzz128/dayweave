@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — Leaner Home, bulk marks, Gmail-only mail
+
+- Home is a dashboard instead of a page of text: a source-health pill, four clickable KPI tiles (due in 72 hours with overdue count, needs verification, proposals to review, email to handle), the day timeline in a card, a three-line AI brief with Read all, the next five items, a seven-day due-load bar chart, a Career card (roles, people, saved, the top two roles with an eligibility dot) and a compact source strip. The "three things" cards and the full verification list moved behind the tiles.
+- Coursework has **Select**: tick several items (or Select all) and mark them done or not needed at once; in Done, undo several marks. Work the source already shows as submitted cannot be selected.
+- Cloud builds drop the retired Outlook calendar/connector and old email-module sources (Gmail `label:Yale` is the only mail source) and clear a previous run's summary and priorities when the run writes no notes.
+
 ## Unreleased — New interface on the private instance
 
 - The Docker image builds the `web/` front end in server mode (`npm run build:server`) and `scripts/serve.cjs` serves it at `/` when `DAYWEAVE_WEB_DIST` is set; the classic UI keeps its routes and `/classic` leads there. The hosted banner adds Classic view and Sign out. The page CSP allows the inline theme script by hash. The shared `src/*.cjs` rules are now wrapped at build time (`?shared` imports) instead of being evaluated with `new Function`, so neither the demo nor the private instance needs `unsafe-eval`.

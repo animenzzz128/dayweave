@@ -11,6 +11,8 @@ export function Brief() {
   const { snapshot: d, now, f, source } = useApp();
   const { t, lang } = useI18n();
   const [open, setOpen] = useState<string[] | null>(null);
+  // Home stays scannable: three lines first, the rest on request.
+  const [full, setFull] = useState(false);
   const day = f.dayKey(now);
   // The pack depends on the snapshot and the day; recomputing it every minute would only repeat the same work.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -23,11 +25,12 @@ export function Brief() {
 
   if (source.mode === 'local' && d.summary) {
     // Local mode keeps the assistant's own summary from the collection run.
-    return <p className="mt-2.5 text-[17px] leading-relaxed">{d.summary}</p>;
+    return <p className="mt-1.5 line-clamp-3 text-[15px] leading-relaxed" title={d.summary}>{d.summary}</p>;
   }
   return (
     <>
-      <p className="mt-2.5 text-[17px] leading-relaxed">{sentences.map((s, i) => <CitedSentence key={i} s={s} numbers={numbers} onOpen={setOpen} />)}</p>
+      <p className={`mt-1.5 text-[15px] leading-relaxed ${full ? '' : 'line-clamp-3'}`}>{sentences.map((s, i) => <CitedSentence key={i} s={s} numbers={numbers} onOpen={setOpen} />)}</p>
+      <button type="button" className="mt-1 text-[13px] text-accent hover:underline" aria-expanded={full} onClick={() => setFull(!full)}>{full ? t.today.briefLess : t.today.briefMore}</button>
       <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-muted">
         <Tag tone={result.used === 'ai' ? 'info' : 'neutral'}>{result.used === 'ai' ? t.ai.aiTag : t.ai.rulesTag}</Tag>
         <span>{result.used === 'ai' ? t.ai.generated(result.model, f.day(result.generatedAt)) : t.ai.fallback[result.reason]}</span>

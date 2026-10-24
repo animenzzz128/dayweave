@@ -51,6 +51,9 @@ function mergeSchedules(courses,sources,schedules,at,now){const report=[];course
   sources=setSource(sources,id,{name,status:recent?'partial':'ok',lastSuccess:at,note:recent?`Schedule changed ${course.schedule.changedAt.slice(0,10)}: ${course.schedule.changes.join('; ')}. Check the affected assignments. ${manual}`:`${sessions.length} sessions read${prev?'; no date changes':' (first read, used as the baseline)'}. ${manual}`,...(s.url?{source:s.url}:{})});
   report.push({course:course.code,status:'ok',sessions:sessions.length,changes});}
  return {courses,sources,report};}
+// Outlook (calendar and connector) and the old email module are retired sources (owner decision 2026-10-24). The source the
+// calendar coverage or the email record names is never dropped, so a legacy Outlook snapshot still validates.
+function retired(s,d){if(s.id===C.calendarSource(d.calendarCoverage)||s.id===d.email?.sourceId)return false;return /outlook/i.test(s.id+' '+(s.name||''))||/^e-?mail$/i.test(s.id)||/^e-?mail$/i.test(String(s.name||'').trim());}
 // reads: {canvas, calendar:{status,note,events,coverage}, email:{...contract email record} | {status:'failed',note}, notes}
 function buildSnapshot(current,{canvas,calendar,email,schedules,notes={}},{now=Date.now()}={}){
  if(!current)throw Error('No current snapshot: import or restore one before cloud collection');
@@ -77,6 +80,11 @@ function buildSnapshot(current,{canvas,calendar,email,schedules,notes={}},{now=D
  // A course outside Canvas is not read automatically: its own sources say so instead of warning as failed every day.
  const manualCourses=new Set(d.courses.filter(c=>c.collection?.mode==='manual').map(c=>c.id));
  for(const s of sources){const work=d.assignments.filter(a=>a.sourceId===s.id);if(s.status!=='ok'&&s.status!=='manual'&&work.length&&work.every(a=>manualCourses.has(a.courseId)))sources=setSource(sources,s.id,{status:'manual',note:'Kept from your last review; this course\'s site needs its own sign-in and is not read automatically.'});}
- d.sources=sources;for(const k of ['summary','coverageNote','weeklyReview'])if(typeof notes[k]==='string')d[k]=notes[k];for(const k of ['priorities','questions'])if(Array.isArray(notes[k]))d[k]=notes[k];
+ // Retired sources are dropped instead of failing every day: Gmail label:Yale is the only mail source and Google Calendar the only calendar.
+ d.sources=sources.filter(s=>!retired(s,d));
+ // A summary and priorities describe the run that wrote them; without new notes the old ones would read as today's, so they are cleared.
+ for(const k of ['summary','coverageNote'])if(typeof notes[k]==='string')d[k]=notes[k];else delete d[k];
+ d.priorities=Array.isArray(notes.priorities)?notes.priorities:[];
+ if(typeof notes.weeklyReview==='string')d.weeklyReview=notes.weeklyReview;if(Array.isArray(notes.questions))d.questions=notes.questions;
  C.validate(d);return {snapshot:d,report};}
 module.exports={buildSnapshot,mergeCanvas,mergeSchedules,scheduleChanges,canvasId};

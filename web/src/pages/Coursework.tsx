@@ -9,7 +9,7 @@ import type { Assignment, Todo } from '../data/types';
 type Tab = 'required' | 'choice' | 'verify' | 'past' | 'done' | 'todos';
 
 export function Coursework({ params }: { params: URLSearchParams }) {
-  const { snapshot: d, classify, isDone, isPast, progress } = useApp();
+  const { snapshot: d, classify, isDone, isPast, progress, mark, run, source } = useApp();
   const { t } = useI18n();
   const groups: Record<Exclude<Tab, 'todos'>, Assignment[]> = { required: [], choice: [], verify: [], past: [], done: [] };
   for (const a of d.assignments) {
@@ -27,11 +27,28 @@ export function Coursework({ params }: { params: URLSearchParams }) {
   const inferred = (Object.keys(groups) as (keyof typeof groups)[]).find((k) => groups[k].some((a) => a.id === openId));
   const [tab, setTab] = useState<Tab>((params.get('tab') as Tab) || inferred || 'required');
   const todos = Object.values(progress.todo || {});
+  // Multi-select: local marks only, never for work the source already shows as submitted.
+  const [selecting, setSelecting] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const markable = (a: Assignment) => !['submitted', 'graded', 'excused'].includes(a.status) && (tab === 'done' ? !!mark(a) : !mark(a));
+  const list = tab === 'todos' ? [] : groups[tab];
+  const choosable = list.filter(markable);
+  const changeTab = (v: Tab) => { setTab(v); setSelected(new Set()); };
+  const toggle = (id: string, on: boolean) => setSelected((s) => { const n = new Set(s); if (on) n.add(id); else n.delete(id); return n; });
+  const bulk = async (status: 'done' | 'skipped' | null) => {
+    const ids = choosable.filter((a) => selected.has(a.id)).map((a) => a.id);
+    const at = new Date().toISOString();
+    const ok = await run(async () => { for (const id of ids) await source.saveProgress('archive', id, status && { status, at }); },
+      status === 'done' ? t.coursework.bulkDoneMsg(ids.length) : status ? t.coursework.bulkSkippedMsg(ids.length) : t.coursework.bulkUndoMsg(ids.length));
+    if (ok) setSelected(new Set());
+  };
 
   return (
     <>
-      <PageHeader title={t.coursework.title} subtitle={t.coursework.subtitle} />
-      <Tabs label={t.coursework.title} value={tab} onChange={setTab} items={[
+      <PageHeader title={t.coursework.title} subtitle={t.coursework.subtitle} actions={tab !== 'todos' && choosable.length > 0 && (
+        <button type="button" className="btn" aria-pressed={selecting} onClick={() => { setSelecting(!selecting); setSelected(new Set()); }}>{selecting ? t.coursework.selectEnd : t.coursework.select}</button>
+      )} />
+      <Tabs label={t.coursework.title} value={tab} onChange={changeTab} items={[
         ['required', t.coursework.tabs.required, groups.required.length],
         ['choice', t.coursework.tabs.choice, groups.choice.length],
         ['verify', t.coursework.tabs.verify, groups.verify.length],
@@ -42,13 +59,33 @@ export function Coursework({ params }: { params: URLSearchParams }) {
       {tab === 'todos'
         ? <Todos todos={todos} />
         : groups[tab].length
-          ? <div className="space-y-3">{tab === 'past' && <p className="text-sm text-muted">{t.coursework.pastHint}</p>}{groups[tab].map((a) => <AssignmentCard key={a.id} a={a} initiallyOpen={a.id === openId} />)}</div>
+          ? <div className="space-y-3">
+              {selecting && choosable.length > 0 && (
+                <div role="toolbar" aria-label={t.coursework.select} className="sticky top-2 z-20 flex flex-wrap items-center gap-2 rounded-xl border border-accent-line bg-accent-soft px-3 py-2 shadow-sm">
+                  <label className="flex items-center gap-2 text-sm">
+                    <input type="checkbox" className="h-4 w-4 accent-accent" checked={selected.size > 0 && choosable.every((a) => selected.has(a.id))}
+                      onChange={(e) => setSelected(e.target.checked ? new Set(choosable.map((a) => a.id)) : new Set())} />
+                    {t.coursework.selectAll}
+                  </label>
+                  <span className="font-mono text-xs text-muted">{t.coursework.selectedCount(selected.size)}</span>
+                  <span className="ml-auto flex flex-wrap gap-2">
+                    {tab === 'done'
+                      ? <button type="button" className="btn" disabled={!selected.size} onClick={() => bulk(null)}>{t.coursework.unmark}</button>
+                      : <><button type="button" className="btn btn-primary" disabled={!selected.size} onClick={() => bulk('done')}>{t.coursework.markDone}</button>
+                          <button type="button" className="btn" disabled={!selected.size} onClick={() => bulk('skipped')}>{t.coursework.markSkipped}</button></>}
+                  </span>
+                </div>
+              )}
+              {tab === 'past' && <p className="text-sm text-muted">{t.coursework.pastHint}</p>}
+              {groups[tab].map((a) => <AssignmentCard key={a.id} a={a} initiallyOpen={a.id === openId}
+                select={selecting && markable(a) ? { checked: selected.has(a.id), onChange: (on) => toggle(a.id, on) } : undefined} />)}
+            </div>
           : <Empty>{t.coursework.empty}</Empty>}
     </>
   );
 }
 
-function AssignmentCard({ a, initiallyOpen }: { a: Assignment; initiallyOpen: boolean }) {
+function AssignmentCard({ a, initiallyOpen, select }: { a: Assignment; initiallyOpen: boolean; select?: { checked: boolean; onChange: (on: boolean) => void } }) {
   const { progress, source, run, f, now, classify, snapshot: d, workStatus, verifyReason, mark, isPast } = useApp();
   const { t } = useI18n();
   const [open, setOpen] = useState(initiallyOpen);
@@ -70,8 +107,14 @@ function AssignmentCard({ a, initiallyOpen }: { a: Assignment; initiallyOpen: bo
   const tone = k === 'overdue' ? 'danger' : k === 'soon' ? 'warn' : k === 'verify' ? 'warn' : k === 'submitted' ? 'ok' : 'neutral';
 
   return (
-    <article className="panel overflow-hidden">
-      <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="flex w-full flex-wrap items-center justify-between gap-3 px-4 py-3.5 text-left hover:bg-soft">
+    <article className={`panel overflow-hidden ${select?.checked ? 'border-accent' : ''}`}>
+      <div className="flex items-stretch">
+      {select && (
+        <label className="flex shrink-0 cursor-pointer items-center border-r border-line pl-4 pr-3 hover:bg-soft">
+          <input type="checkbox" className="h-4 w-4 accent-accent" checked={select.checked} onChange={(e) => select.onChange(e.target.checked)} aria-label={t.coursework.selectOne(a.title)} />
+        </label>
+      )}
+      <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-3 px-4 py-3.5 text-left hover:bg-soft">
         <div className="min-w-0">
           <div className="font-medium">{a.title}</div>
           <div className="text-xs text-muted">{a.course}{a.estimateMinutes ? ` · ${t.common.est(f.duration(a.estimateMinutes))}` : ''}{list.length ? ` · ${t.coursework.progress(done, list.length)}` : ''}</div>
@@ -82,6 +125,7 @@ function AssignmentCard({ a, initiallyOpen }: { a: Assignment; initiallyOpen: bo
           <span aria-hidden="true" className="text-muted">{open ? '−' : '+'}</span>
         </div>
       </button>
+      </div>
       {open && (
         <div className="grid gap-5 border-t border-line px-4 py-4 [grid-template-columns:repeat(auto-fit,minmax(260px,1fr))]">
           <dl className="space-y-3 text-sm">
