@@ -14,7 +14,7 @@ A case passes only when both layers pass. The model is scored on its first attem
 ## Run
 
 - `npm test` runs `test/ai-eval.test.cjs`: every case builds, the scenarios change the evidence as described, and the scorer accepts good outputs and rejects bad ones. No network.
-- `npm run eval:ai -- --runs 3` (with `ANTHROPIC_API_KEY` in the environment) calls the Claude API once per case per run and writes `results/<date>.json`: model, served model, prompt version, pass/fail per run, every failing output with its errors, and token usage. A result file contains only fictional data.
+- `npm run eval:ai -- --runs 3` (with `ANTHROPIC_API_KEY` in the environment) calls the Claude API once per case per run (Claude Haiku 5.5 at low effort by default, about US$0.04 for three runs; `DAYWEAVE_AI_MODEL=claude-sonnet-5-5` or `claude-opus-5-5` for a comparison run; every script run stops at `DAYWEAVE_AI_MAX_USD`, default US$0.25) and writes `results/<date>.json`: model, served model, prompt version, pass/fail per run, every failing output with its errors, and token usage. A result file contains only fictional data.
 
 ## Limits
 
