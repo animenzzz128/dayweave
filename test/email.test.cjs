@@ -120,3 +120,16 @@ test('review fixes: an omitted email record with a down source is failed/retaine
  for(const v of ['true',1,'false',0,null,undefined])a.throws(()=>M.normalize({...record(),enabled:v}),/enabled must be true or false/,String(v));
  a.deepEqual(M.normalize({enabled:false,note:'Legacy'}),{enabled:false,note:'Legacy'});
 });
+
+test('message triage is validated and kept through a merge, bodies are still dropped, and owner overrides are checked',()=>{
+ const d=google(),m=d.email.messages[0];m.body='full text that must never be stored';
+ m.triage={category:'reply',priority:'high',summary:'Team asks who presents the recommendation.',action:'Reply before Friday.',dueAt:'2026-10-09T21:00:00Z'};
+ const e=M.normalize(d.email);a.deepEqual(e.messages.find(x=>x.id===m.id).triage,{category:'reply',priority:'high',summary:'Team asks who presents the recommendation.',action:'Reply before Friday.',dueAt:'2026-10-09T21:00:00Z'});
+ a.equal('body' in e.messages.find(x=>x.id===m.id),false);a.equal(e.messages.find(x=>x.id!==m.id).triage,undefined,'triage is optional');
+ a.equal(M.normalize({...d.email,messages:[{...m,triage:{...m.triage,summary:'x'.repeat(400)}}]}).messages[0].triage.summary.length,300);
+ for(const bad of [{...m.triage,category:'spam'},{...m.triage,priority:'urgent'},{...m.triage,dueAt:'2026-10-09'},'reply'])a.throws(()=>M.normalize({...d.email,messages:[{...m,triage:bad}]}),/triage/);
+ a.equal(M.merge(null,d.email,d.sources,d.generatedAt).messages.find(x=>x.id===m.id).triage.category,'reply');
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'dw-triage-')),s=new Store(dir);try{
+  s.saveState('emailTriage',m.id,{category:'info',handled:true,at});a.equal(s.state().emailTriage[m.id].handled,true);s.saveState('emailTriage',m.id,null);
+  for(const bad of [{category:'spam'},{handled:'yes'},{note:'x'},'info'])a.throws(()=>s.saveState('emailTriage',m.id,bad),/triage override/);
+ }finally{s.close();fs.rmSync(dir,{recursive:true,force:true});}});

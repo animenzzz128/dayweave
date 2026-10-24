@@ -124,6 +124,8 @@ Dayweave has no OAuth client, token store or mail/calendar network access. An au
 - A prepared Q version is invalidated when its proposals change or when the coverage provider, account or (Google) calendar ID no longer matches what it was reviewed for.
 - Google events may carry `provider`, `account`, `calendarId`, `calendar` and `allDay: true` (start/end are explicit-offset instants bounding the local day or days). Recurring series are supplied as expanded occurrences.
 
+**Triage (2026-10-24).** A message may carry `triage` from the collecting assistant: `category` (`reply`, `action`, `info`, `promo`), `priority` (`high`, `medium`, `low`), `summary` (≤300 characters), `action` (≤200), `dueAt` (an instant or null) and an optional `assignmentId` hint. Anything else is refused; the body is never stored. The owner's overrides are local progress `emailTriage[<message id>]` = `{category?, handled?, at?}` (or `null` to clear) and win over the next collection's triage.
+
 ## Todos and daily plan recommendations
 
 ### Todos

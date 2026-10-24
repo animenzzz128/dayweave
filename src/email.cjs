@@ -2,7 +2,8 @@
 'use strict';
 // Read-only Gmail snapshot contract. Dayweave never reads, sends, deletes or labels mail itself: an authorized assistant
 // supplies a bounded snapshot (recent inbox window, at most MAX_LIMIT messages, metadata and snippets, no attachment content).
-// The page shows that last collected snapshot; nothing here infers completeness, emptiness, todos or dates.
+// The page shows that last collected snapshot; nothing here infers completeness, emptiness, todos or dates. Triage, when
+// present, is the collecting assistant's labelled judgment, validated here but never computed here.
 const PROVIDERS=['google'],STATUSES=['complete','partial','failed'],DOWN=['failed','unavailable'];
 const MAX_DAYS=7,MAX_LIMIT=50,STALE_MS=26*3600000,LINK_HOSTS=['mail.google.com'],ACTIONS=['send','delete','labels','modify'];
 const instant=x=>typeof x==='string'&&/(Z|[+-]\d\d:\d\d)$/.test(x)&&Number.isFinite(Date.parse(x));
@@ -13,6 +14,16 @@ function text(x,max,name){if(x==null)return '';if(typeof x!=='string')throw Erro
 function flag(x,name){if(x==null)return null;if(typeof x!=='boolean')throw Error('Email '+name+' must be true, false or absent');return x;}
 // Outbound links are limited to https Gmail web URLs without credentials.
 function link(x){if(x==null||x==='')return null;let u;try{u=new URL(x);}catch{throw Error('Unsafe email link');}if(u.protocol!=='https:'||!LINK_HOSTS.includes(u.hostname)||u.username||u.password)throw Error('Email links must be https://mail.google.com URLs');return u.href;}
+// Triage written by the collecting assistant after reading the message (read-only). It is a labelled AI judgment: a
+// category, a priority, a one-line summary and suggested action, and a due time only when the mail states one. The body
+// itself is never stored. `assignmentId` links a message (such as a submission receipt) to coursework as a hint only.
+const CATEGORIES=['reply','action','info','promo'],PRIORITIES=['high','medium','low'];
+function triage(t){if(t==null)return null;if(!plain(t))throw Error('Invalid email triage');
+ if(!CATEGORIES.includes(t.category))throw Error('Email triage category must be reply, action, info or promo');
+ if(!PRIORITIES.includes(t.priority))throw Error('Email triage priority must be high, medium or low');
+ if(t.dueAt!=null&&!instant(t.dueAt))throw Error('Email triage dueAt needs an explicit offset');
+ if(t.assignmentId!=null&&!stableId(t.assignmentId))throw Error('Invalid email triage assignment');
+ return {category:t.category,priority:t.priority,summary:text(t.summary,300,'triage summary'),action:text(t.action,200,'triage action'),dueAt:t.dueAt??null,...(t.assignmentId!=null?{assignmentId:t.assignmentId}:{})};}
 // Projects a message to the allowed fields. Bodies and attachment content are never kept, whatever the input carries.
 function message(m){
  if(!plain(m))throw Error('Invalid email message');
@@ -20,7 +31,7 @@ function message(m){
  if(!instant(m.receivedAt))throw Error('Email receivedAt needs an explicit offset');
  if(m.labels!=null&&!(Array.isArray(m.labels)&&m.labels.length<=20&&m.labels.every(l=>typeof l==='string'&&l.length<=100)))throw Error('Invalid email labels');
  if(m.attachmentCount!=null&&!(Number.isInteger(m.attachmentCount)&&m.attachmentCount>=0&&m.attachmentCount<=1000))throw Error('Invalid attachment count');
- return {id:m.id,threadId:m.threadId,receivedAt:m.receivedAt,from:text(m.from,300,'sender'),subject:text(m.subject,500,'subject'),snippet:text(m.snippet,1000,'snippet'),labels:[...new Set(m.labels||[])],unread:flag(m.unread,'unread flag'),hasAttachments:flag(m.hasAttachments,'attachment flag'),attachmentCount:m.attachmentCount??null,link:link(m.link),...(m.retained===true?{retained:true}:{})};
+ return {id:m.id,threadId:m.threadId,receivedAt:m.receivedAt,from:text(m.from,300,'sender'),subject:text(m.subject,500,'subject'),snippet:text(m.snippet,1000,'snippet'),labels:[...new Set(m.labels||[])],unread:flag(m.unread,'unread flag'),hasAttachments:flag(m.hasAttachments,'attachment flag'),attachmentCount:m.attachmentCount??null,link:link(m.link),...(m.triage!=null?{triage:triage(m.triage)}:{}),...(m.retained===true?{retained:true}:{})};
 }
 const newest=(a,b)=>Date.parse(b.receivedAt)-Date.parse(a.receivedAt)||(a.id<b.id?-1:a.id>b.id?1:0);
 const fresh=m=>{const {retained,...x}=m;return x;};
@@ -84,6 +95,6 @@ function health(e,now=new Date()){
  return {state:e.coverage.status,complete:e.coverage.complete,truncated:e.coverage.truncated,stale:!Number.isFinite(Date.parse(e.checkedAt))||t-Date.parse(e.checkedAt)>STALE_MS,
   retained:messages.filter(m=>m.retained).length,returned:e.coverage.returned,shown:messages.length,unread:messages.filter(m=>m.unread===true).length,threads:new Set(messages.map(m=>m.threadId)).size};
 }
-const api={MAX_DAYS,MAX_LIMIT,STALE_MS,LINK_HOSTS,normalize,merge,health,link};
+const api={MAX_DAYS,MAX_LIMIT,STALE_MS,LINK_HOSTS,CATEGORIES,PRIORITIES,normalize,merge,health,link,triage};
 if(typeof module!=='undefined')module.exports=api;else window.PlannerEmail=api;
 })();
