@@ -4,6 +4,7 @@
 
 - The server reads course sites that run Yelukerest (PostgREST, e.g. `www.656.mba`, `www.802.mba`) with the owner's personal API token from Fly secrets (`DAYWEAVE_COURSE_SITES`, `DAYWEAVE_COURSE_TOKEN_<CODE>`) and returns them to the cloud collector in `GET /api/ingest`. Only GET requests for meetings, assignments (with extension-aware deadlines) and quizzes; never grades or submissions; tokens never appear in responses or errors.
 - Cloud builds turn such a course from manual upkeep into a read course: due times update, new work is added with status unknown, withdrawn work is archived, the meeting schedule replaces the public-page read, and the Canvas feed leaves the course alone. An expiring token shows as a source warning 14 days ahead.
+- Course-site meetings show in the timetable as busy class events (skipped where the owner's calendar already has that class), so a course missing from Google Calendar (MGT 802) still appears. A refused token keeps the public schedule and reports the server's reason.
 
 ## Unreleased — Leaner Home, bulk marks, Gmail-only mail
 

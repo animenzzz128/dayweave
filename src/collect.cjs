@@ -87,6 +87,17 @@ function mergeCourseSites(d,sources,sites,at,now){const report=[];let assignment
   sources=setSource(sources,sourceId,{name,status:renew?'partial':'ok',lastSuccess:at,source:s.url,note:`${items.length} assignments and quizzes, ${sessions.length} sessions read${changes.length?`; schedule changed: ${changes.join('; ')}`:''}.${renew?` The API token expires ${s.tokenExpiresAt.slice(0,10)}: create a new course:read token.`:''}`});
   report.push({course:s.course,status:'ok',added,updated,removed,sessions:sessions.length,changes});}
  return {assignments,courses,sources,report};}
+// Course-site meetings are class time: they join the timetable and block planning like calendar events. A meeting is skipped when
+// a calendar event naming the course already overlaps it (the owner's calendar wins). A failed site read keeps its earlier events.
+const SITE_EVENT_PAST_DAYS=7,SITE_EVENT_FUTURE_DAYS=120;
+const minutes=v=>{const m=String(v||'').match(/^(\d+):(\d{2})(?::\d{2})?$/);return m?+m[1]*60+ +m[2]:80;};
+function siteEvents(events,sites,now){const from=now-SITE_EVENT_PAST_DAYS*86400000,to=now+SITE_EVENT_FUTURE_DAYS*86400000;let out=events;const report={};
+ for(const s of sites){if(!Array.isArray(s.meetings))continue;const sourceId='site-'+slugCode(s.course),code=norm(s.course);out=out.filter(e=>e.sourceId!==sourceId);let added=0;
+  for(const m of s.meetings){const start=Date.parse(m.begins_at);if(m.meeting_type==='no-meeting'||!m.slug||typeof m.title!=='string'||!(start>=from&&start<=to))continue;const end=start+minutes(m.duration)*60000;
+   if(out.some(e=>e.sourceId!==sourceId&&norm(e.title).includes(code)&&Date.parse(e.start)<end&&Date.parse(e.end)>start))continue;
+   out.push({id:sourceId+'-meeting-'+m.slug,title:`${s.course} · ${m.title.slice(0,200)}`,start:new Date(start).toISOString(),end:new Date(end).toISOString(),busy:true,location:'',sourceId,source:s.url,calendar:s.course+' course site'});added++;}
+  report[s.course]=added;}
+ return {events:out,report};}
 // Outlook (calendar and connector) and the old email module are retired sources (owner decision 2026-10-24). The source the
 // calendar coverage or the email record names is never dropped, so a legacy Outlook snapshot still validates.
 function retired(s,d){if(s.id===C.calendarSource(d.calendarCoverage)||s.id===d.email?.sourceId)return false;return /outlook/i.test(s.id+' '+(s.name||''))||/^e-?mail$/i.test(s.id)||/^e-?mail$/i.test(String(s.name||'').trim());}
@@ -115,6 +126,7 @@ function buildSnapshot(current,{canvas,courseSites,calendar,email,schedules,note
   if(d.email?.account&&email.account&&email.account!==d.email.account)throw Error('Gmail account changed: stop and ask the owner; never switch accounts in a scheduled run');
   if(failed){sources=setSource(sources,'gmail',{status:'failed',note:email.note||email.coverage?.note||'Gmail could not be read.'});if(email.enabled)d.email=email;report.email={status:'failed'};}
   else{d.email=email;sources=setSource(sources,'gmail',{name:'Gmail (Yale label)',status:email.coverage?.status==='complete'?'ok':'partial',lastSuccess:at,note:`${email.messages.length} messages from ${email.request?.query}.`});report.email={status:email.coverage?.status,messages:email.messages.length};}}
+ if(Array.isArray(courseSites)&&courseSites.length){const r=siteEvents(d.events,courseSites,now);d.events=r.events;report.siteEvents=r.report;}
  // A course outside Canvas is not read automatically: its own sources say so instead of warning as failed every day.
  const manualCourses=new Set(d.courses.filter(c=>c.collection?.mode==='manual').map(c=>c.id));
  for(const s of sources){const work=d.assignments.filter(a=>a.sourceId===s.id);if(s.status!=='ok'&&s.status!=='manual'&&work.length&&work.every(a=>manualCourses.has(a.courseId)))sources=setSource(sources,s.id,{status:'manual',note:'Kept from your last review; this course\'s site needs its own sign-in and is not read automatically.'});}
@@ -125,4 +137,4 @@ function buildSnapshot(current,{canvas,courseSites,calendar,email,schedules,note
  d.priorities=Array.isArray(notes.priorities)?notes.priorities:[];
  if(typeof notes.weeklyReview==='string')d.weeklyReview=notes.weeklyReview;if(Array.isArray(notes.questions))d.questions=notes.questions;
  C.validate(d);return {snapshot:d,report};}
-module.exports={buildSnapshot,mergeCanvas,mergeCourseSites,mergeSchedules,scheduleChanges,canvasId};
+module.exports={buildSnapshot,mergeCanvas,mergeCourseSites,siteEvents,mergeSchedules,scheduleChanges,canvasId};
