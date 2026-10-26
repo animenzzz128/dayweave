@@ -71,3 +71,8 @@ test('the collector reads the snapshot and server-side Canvas feed, and a dry ru
 
 test('without a configured feed the collector is told Canvas is unconfigured',()=>withServer({fetch:fakeGoogle},async(s,port)=>{
  const r=(await request(port,'/api/ingest',{headers:{Authorization:'Bearer '+INGEST}})).json();a.equal(r.canvas.status,'unconfigured');}));
+
+test('the collector gets course-site reads from the server and never the site token',()=>{
+ const token='h.eyJleHAiOjk5OTk5OTk5OTl9.SITE_TOKEN_SIG',siteFetch=async(url,init)=>{a.ok(url.startsWith('https://site.example/rest/'));return {ok:true,status:200,text:async()=>url.includes('/meetings')?'[{"slug":"m","title":"Lecture","begins_at":"2026-10-28T17:00:00Z","meeting_type":"lecture","is_draft":false}]':'[]'};};
+ return withServer({fetch:fakeGoogle,courseSites:[{course:'COURSE A',url:'https://site.example',token}],siteFetch},async(s,port)=>{
+  const r=(await request(port,'/api/ingest',{headers:{Authorization:'Bearer '+INGEST}})).json();a.equal(r.courseSites[0].status,'ok');a.equal(r.courseSites[0].meetings.length,1);a.equal(r.courseSites[0].tokenExpiresAt,'2286-11-20T17:46:39.000Z');a.doesNotMatch(JSON.stringify(r),/SITE_TOKEN_SIG/);});});

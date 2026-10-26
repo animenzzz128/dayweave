@@ -2,7 +2,7 @@
 // Cloud collection (#56): builds the next snapshot from the current one plus three reads. The assistant supplies the Google
 // Calendar and Gmail reads (connector output in contract shape); the Canvas feed comes from the server. Everything the reads
 // do not cover (courses, curated assignment details, career, proposals, receipts) is carried forward unchanged.
-const C=require('./core.cjs');
+const C=require('./core.cjs'),{RENEW_DAYS}=require('./coursesite.cjs');
 const DOWN=['failed','unavailable'],norm=s=>String(s||'').toLowerCase().replace(/\s+/g,' ').trim();
 const canvasId=a=>a.canvasAssignmentId||(String(a.source||'').match(/(?:\/assignments\/|#assignment_)(\d+)/)||[])[1]||(String(a.id).match(/^canvas-(\d+)$/)||[])[1]||null;
 function setSource(sources,id,patch){const i=sources.findIndex(s=>s.id===id),next=[...sources];next[i<0?next.length:i]={...(i<0?{id,name:patch.name||id}:sources[i]),...patch};return next;}
@@ -18,7 +18,8 @@ function mergeCanvas(assignments,courses,canvas,now){
  // A Canvas site (including a merged site whose name matches no course code) belongs to the course of the assignments already
  // matched to it; `canvasCourseIds` records that link. A site linked to two courses is ambiguous and not used for new work.
  const link=(course,id)=>{if(course&&id&&!(course.canvasCourseIds||[]).includes(id))course.canvasCourseIds=[...(course.canvasCourseIds||[]),id];};
- const manual=new Set(courses.filter(c=>c.collection?.mode==='manual').map(c=>c.id));
+ // Manual courses and courses read from their own site (mergeCourseSites) are not updated from the feed.
+ const manual=new Set(courses.filter(c=>['manual','site'].includes(c.collection?.mode)).map(c=>c.id));
  const match=item=>{let a=byId.get(item.assignmentId);if(a&&manual.has(a.courseId))return null;if(!a){const same=out.filter(x=>!canvasId(x)&&!manual.has(x.courseId)&&!x.archivedFromSource&&norm(x.title)===norm(item.title));if(same.length===1)a=same[0];}return a;};
  for(const item of items){const a=match(item);if(a)link(courses.find(c=>c.id===a.courseId),item.courseId);}
  const courseFor=item=>{const linked=courses.filter(c=>item.courseId&&(c.canvasCourseIds||[]).includes(item.courseId));if(linked.length===1)return linked[0];if(linked.length>1)return null;
@@ -27,7 +28,7 @@ function mergeCanvas(assignments,courses,canvas,now){
   // An all-day feed item is due by the end of that local day; a known time on the same day is more precise and is kept.
   let a=match(item);const dueAt=item.start||(item.date?(a?.dueAt&&C.dayKey(a.dueAt)===item.date?a.dueAt:C.zonedISO(item.date,'23:59')):null);
   if(a){if(Date.parse(a.dueAt)!==Date.parse(dueAt)){updated.push(a.id);a.dueAt=dueAt;}if(canvasId(a)&&a.sourceId&&a.sourceId!=='canvas')refreshed.add(a.sourceId);a.canvasAssignmentId=item.assignmentId;delete a.archivedFromSource;seen.add(a.id);byId.set(item.assignmentId,a);continue;}
-  let course=courseFor(item);
+  let course=courseFor(item);if(course&&manual.has(course.id))continue;
   if(!course&&item.course&&!courses.some(c=>item.courseId&&(c.canvasCourseIds||[]).includes(item.courseId))){course={id:'canvas-course-'+(item.courseId||norm(item.course).replace(/[^a-z0-9]+/g,'-')),code:item.course,name:item.course,category:'academic',note:'Added from the Canvas calendar feed.',...(item.courseId?{canvasCourseIds:[item.courseId]}:{})};if(item.url)course.source=new URL(item.url).origin;courses.push(course);}
   const record={id:'canvas-'+item.assignmentId,courseId:course?.id||null,course:course?.code||item.course||'',title:item.title,dueAt,status:'unknown',requirement:'uncertain',sourceId:'canvas',
    source:item.url||'',canvasAssignmentId:item.assignmentId,estimateMinutes:null,evidence:'Canvas calendar feed: title and due time only. Submission state and whether the work is required are not in the feed.',
@@ -51,17 +52,54 @@ function mergeSchedules(courses,sources,schedules,at,now){const report=[];course
   sources=setSource(sources,id,{name,status:recent?'partial':'ok',lastSuccess:at,note:recent?`Schedule changed ${course.schedule.changedAt.slice(0,10)}: ${course.schedule.changes.join('; ')}. Check the affected assignments. ${manual}`:`${sessions.length} sessions read${prev?'; no date changes':' (first read, used as the baseline)'}. ${manual}`,...(s.url?{source:s.url}:{})});
   report.push({course:course.code,status:'ok',sessions:sessions.length,changes});}
  return {courses,sources,report};}
+// Course sites with their own API (src/coursesite.cjs) replace manual upkeep for their course: assignments are matched by site slug,
+// else by one title in the same course (a curated title may extend the site's, e.g. "Exam 1 · prepare…" for "Exam-1"), so
+// reviewed details and progress stay. New work gets ID <code>-<slug>, status unknown, and is added only if due within the last
+// 14 days or later; work the site no longer lists is left out, so the import archives it. Grades and submissions are never read.
+const SITE_PAST_DAYS=14,key=s=>String(s||'').toLowerCase().replace(/[^a-z0-9]/g,''),slugCode=code=>String(code).toLowerCase().replace(/[^a-z0-9]+/g,'');
+function mergeCourseSites(d,sources,sites,at,now){const report=[];let assignments=d.assignments.map(a=>({...a}));const courses=d.courses.map(c=>({...c}));
+ for(const s of sites){let course=courses.find(c=>norm(c.code)===norm(s.course));
+  if(!course){course={id:'site-'+slugCode(s.course),code:s.course,name:s.course,category:'academic',note:''};courses.push(course);}
+  if(course.category!=='academic'){course.category='academic';course.note='';}
+  course.collection={mode:'site',url:s.url};const sourceId='site-'+slugCode(s.course),name=s.course+' course site';
+  if(s.status==='failed'||!Array.isArray(s.meetings)){sources=setSource(sources,sourceId,{name,status:'failed',source:s.url,note:(s.error||'Course site could not be read.')+' Earlier records are kept.'});report.push({course:s.course,status:'failed'});continue;}
+  const sessions=s.meetings.filter(m=>m.meeting_type!=='no-meeting'&&typeof m.title==='string'&&Number.isFinite(Date.parse(m.begins_at))).map(m=>({date:C.dayKey(m.begins_at),title:m.title.slice(0,200),at:m.begins_at}));
+  const prev=course.schedule,changes=prev?scheduleChanges(prev.sessions,sessions):[];
+  course.schedule={url:s.url,checkedAt:at,sessions,...(changes.length?{changedAt:at,changes}:prev?.changedAt&&now-Date.parse(prev.changedAt)<CHANGE_DAYS*86400000?{changedAt:prev.changedAt,changes:prev.changes}:{})};
+  sources=sources.filter(x=>x.id!=='schedule-'+course.id);// the site's schedule replaces a public-page schedule read
+  if(!Array.isArray(s.assignments)){sources=setSource(sources,sourceId,{name,status:'partial',lastSuccess:at,source:s.url,note:`${sessions.length} sessions read. ${s.error||'Assignments were not read.'}`});report.push({course:s.course,status:'partial',sessions:sessions.length});continue;}
+  const prefix=slugCode(s.course)+'-',from=now-SITE_PAST_DAYS*86400000,seen=new Set(),added=[],updated=[],moved=new Set();
+  const meeting=new Map(s.meetings.map(m=>[m.slug,m.title]));
+  const items=[...s.assignments.filter(x=>!x.is_draft&&x.slug&&x.title&&Date.parse(x.effective_closed_at||x.closed_at)).map(x=>({slug:x.slug,title:x.title,dueAt:x.effective_closed_at||x.closed_at,points:x.points_possible,team:!!x.is_team})),
+   ...(s.quizzes||[]).filter(q=>!q.is_draft&&q.id!=null&&Date.parse(q.closed_at)).map(q=>({slug:'quiz-'+q.id,title:'Quiz: '+(meeting.get(q.meeting_slug)||q.meeting_slug||'class'),dueAt:q.closed_at,points:q.points_possible,team:false}))];
+  for(const x of items){const mine=assignments.filter(a=>a.courseId===course.id);
+   let a=mine.find(a=>a.siteSlug===x.slug);
+   if(!a){const k=key(x.title),same=mine.filter(a=>!a.siteSlug&&!a.archivedFromSource&&(key(a.title)===k||k.length>=4&&key(a.title).startsWith(k)));if(same.length===1)a=same[0];}
+   if(a){if(Date.parse(a.dueAt)!==Date.parse(x.dueAt)){updated.push(a.id);a.dueAt=x.dueAt;}if(a.sourceId!==sourceId){moved.add(a.sourceId);a.sourceId=sourceId;}a.siteSlug=x.slug;delete a.archivedFromSource;seen.add(a.id);continue;}
+   if(Date.parse(x.dueAt)<from)continue;
+   const required=Number(x.points)>0,record={id:prefix+x.slug,courseId:course.id,course:course.code,title:x.title,dueAt:x.dueAt,status:'unknown',requirement:required?'required':'uncertain',sourceId,source:s.url,siteSlug:x.slug,estimateMinutes:null,
+    evidence:`${course.code} course site API: title and due time (including any extension)${Number.isFinite(x.points)?`, ${x.points} points`:''}${x.team?', team assignment':''}. Submission state is not read.`,description:'',materials:'',checklist:[],aiPolicy:'Unknown: check the course policy before asking for help.'};
+   assignments.push(record);seen.add(record.id);added.push(record.id);}
+  const removed=assignments.filter(a=>a.sourceId===sourceId&&!seen.has(a.id)&&!a.archivedFromSource&&Date.parse(a.dueAt)>=from).map(a=>a.id);assignments=assignments.filter(a=>!removed.includes(a.id));
+  // A source whose work all moved to the site (e.g. an earlier failed browser read) is dropped instead of warning every day.
+  for(const id of moved)if(!assignments.some(a=>a.sourceId===id)&&!d.events.some(e=>e.sourceId===id))sources=sources.filter(x=>x.id!==id);
+  const exp=s.tokenExpiresAt&&Date.parse(s.tokenExpiresAt),renew=exp&&exp-now<RENEW_DAYS*86400000;
+  sources=setSource(sources,sourceId,{name,status:renew?'partial':'ok',lastSuccess:at,source:s.url,note:`${items.length} assignments and quizzes, ${sessions.length} sessions read${changes.length?`; schedule changed: ${changes.join('; ')}`:''}.${renew?` The API token expires ${s.tokenExpiresAt.slice(0,10)}: create a new course:read token.`:''}`});
+  report.push({course:s.course,status:'ok',added,updated,removed,sessions:sessions.length,changes});}
+ return {assignments,courses,sources,report};}
 // Outlook (calendar and connector) and the old email module are retired sources (owner decision 2026-10-24). The source the
 // calendar coverage or the email record names is never dropped, so a legacy Outlook snapshot still validates.
 function retired(s,d){if(s.id===C.calendarSource(d.calendarCoverage)||s.id===d.email?.sourceId)return false;return /outlook/i.test(s.id+' '+(s.name||''))||/^e-?mail$/i.test(s.id)||/^e-?mail$/i.test(String(s.name||'').trim());}
-// reads: {canvas, calendar:{status,note,events,coverage}, email:{...contract email record} | {status:'failed',note}, notes}
-function buildSnapshot(current,{canvas,calendar,email,schedules,notes={}},{now=Date.now()}={}){
+// reads: {canvas, courseSites:[fetchSite results], calendar:{status,note,events,coverage}, email:{...contract email record} | {status:'failed',note}, notes}
+function buildSnapshot(current,{canvas,courseSites,calendar,email,schedules,notes={}},{now=Date.now()}={}){
  if(!current)throw Error('No current snapshot: import or restore one before cloud collection');
  const at=new Date(now).toISOString(),d=structuredClone(current),report={};C.configure(d.timezone);let sources=d.sources;
  delete d.actionHistory;// receipts are recorded only in the database; the merge keeps them.
  d.generatedAt=at;
  // Schedules first: they mark courses manual, and the Canvas merge never matches a manual course's work.
  if(Array.isArray(schedules)){const r=mergeSchedules(d.courses,sources,schedules,at,now);d.courses=r.courses;sources=r.sources;report.schedules=r.report;}
+ // Course sites next: they turn a manual course into a read one, after any public-page schedule read and before the Canvas feed.
+ if(Array.isArray(courseSites)&&courseSites.length){const r=mergeCourseSites(d,sources,courseSites,at,now);d.assignments=r.assignments;d.courses=r.courses;sources=r.sources;report.courseSites=r.report;}
  if(canvas&&canvas.status!=='unconfigured'){
   if(canvas.status==='ok'){const r=mergeCanvas(d.assignments,d.courses,canvas,now);d.assignments=r.assignments;d.courses=r.courses;report.canvas={added:r.added,updated:r.updated,removed:r.removed};
    sources=setSource(sources,'canvas',{name:'Canvas calendar feed',status:'ok',lastSuccess:at,note:`${canvas.items.length} feed items in the window; titles and due times only.`});
@@ -87,4 +125,4 @@ function buildSnapshot(current,{canvas,calendar,email,schedules,notes={}},{now=D
  d.priorities=Array.isArray(notes.priorities)?notes.priorities:[];
  if(typeof notes.weeklyReview==='string')d.weeklyReview=notes.weeklyReview;if(Array.isArray(notes.questions))d.questions=notes.questions;
  C.validate(d);return {snapshot:d,report};}
-module.exports={buildSnapshot,mergeCanvas,mergeSchedules,scheduleChanges,canvasId};
+module.exports={buildSnapshot,mergeCanvas,mergeCourseSites,mergeSchedules,scheduleChanges,canvasId};

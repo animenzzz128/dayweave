@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — Course sites with an API
+
+- The server reads course sites that run Yelukerest (PostgREST, e.g. `www.656.mba`, `www.802.mba`) with the owner's personal API token from Fly secrets (`DAYWEAVE_COURSE_SITES`, `DAYWEAVE_COURSE_TOKEN_<CODE>`) and returns them to the cloud collector in `GET /api/ingest`. Only GET requests for meetings, assignments (with extension-aware deadlines) and quizzes; never grades or submissions; tokens never appear in responses or errors.
+- Cloud builds turn such a course from manual upkeep into a read course: due times update, new work is added with status unknown, withdrawn work is archived, the meeting schedule replaces the public-page read, and the Canvas feed leaves the course alone. An expiring token shows as a source warning 14 days ahead.
+
 ## Unreleased — Leaner Home, bulk marks, Gmail-only mail
 
 - Home is a dashboard instead of a page of text: a source-health pill, four clickable KPI tiles (due in 72 hours with overdue count, needs verification, proposals to review, email to handle), the day timeline in a card, a three-line AI brief with Read all, the next five items, a seven-day due-load bar chart, a Career card (roles, people, saved, the top two roles with an eligibility dot) and a compact source strip. The "three things" cards and the full verification list moved behind the tiles.
