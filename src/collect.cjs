@@ -62,14 +62,15 @@ function mergeCourseSites(d,sources,sites,at,now){const report=[];let assignment
   if(!course){course={id:'site-'+slugCode(s.course),code:s.course,name:s.course,category:'academic',note:''};courses.push(course);}
   if(course.category!=='academic'){course.category='academic';course.note='';}
   course.collection={mode:'site',url:s.url};const sourceId='site-'+slugCode(s.course),name=s.course+' course site';
-  if(s.status==='failed'||!Array.isArray(s.meetings)){sources=setSource(sources,sourceId,{name,status:'failed',source:s.url,note:(s.error||'Course site could not be read.')+' Earlier records are kept.'});report.push({course:s.course,status:'failed'});continue;}
-  const sessions=s.meetings.filter(m=>m.meeting_type!=='no-meeting'&&typeof m.title==='string'&&Number.isFinite(Date.parse(m.begins_at))).map(m=>({date:C.dayKey(m.begins_at),title:m.title.slice(0,200),at:m.begins_at}));
-  const prev=course.schedule,changes=prev?scheduleChanges(prev.sessions,sessions):[];
-  course.schedule={url:s.url,checkedAt:at,sessions,...(changes.length?{changedAt:at,changes}:prev?.changedAt&&now-Date.parse(prev.changedAt)<CHANGE_DAYS*86400000?{changedAt:prev.changedAt,changes:prev.changes}:{})};
+  if(s.status==='failed'&&!Array.isArray(s.assignments)||!Array.isArray(s.meetings)&&!Array.isArray(s.assignments)){sources=setSource(sources,sourceId,{name,status:'failed',source:s.url,note:(s.error||'Course site could not be read.')+' Earlier records are kept.'});report.push({course:s.course,status:'failed'});continue;}
+  // Without a schedule read (the site was down but the connector answered) the last schedule is kept.
+  const sessions=!s.meetings?course.schedule?.sessions||[]:s.meetings.filter(m=>m.meeting_type!=='no-meeting'&&typeof m.title==='string'&&Number.isFinite(Date.parse(m.begins_at))).map(m=>({date:C.dayKey(m.begins_at),title:m.title.slice(0,200),at:m.begins_at}));
+  const prev=course.schedule,changes=prev&&s.meetings?scheduleChanges(prev.sessions,sessions):[];
+  if(s.meetings)course.schedule={url:s.url,checkedAt:at,sessions,...(changes.length?{changedAt:at,changes}:prev?.changedAt&&now-Date.parse(prev.changedAt)<CHANGE_DAYS*86400000?{changedAt:prev.changedAt,changes:prev.changes}:{})};
   sources=sources.filter(x=>x.id!=='schedule-'+course.id);// the site's schedule replaces a public-page schedule read
   if(!Array.isArray(s.assignments)){sources=setSource(sources,sourceId,{name,status:'partial',lastSuccess:at,source:s.url,note:`${sessions.length} sessions read. ${s.error||'Assignments were not read.'}`});report.push({course:s.course,status:'partial',sessions:sessions.length});continue;}
   const prefix=slugCode(s.course)+'-',from=now-SITE_PAST_DAYS*86400000,seen=new Set(),added=[],updated=[],moved=new Set();
-  const meeting=new Map(s.meetings.map(m=>[m.slug,m.title]));
+  const meeting=new Map((s.meetings||[]).map(m=>[m.slug,m.title]));
   const items=[...s.assignments.filter(x=>!x.is_draft&&x.slug&&x.title&&Date.parse(x.effective_closed_at||x.closed_at)).map(x=>({slug:x.slug,title:x.title,dueAt:x.effective_closed_at||x.closed_at,points:x.points_possible,team:!!x.is_team})),
    ...(s.quizzes||[]).filter(q=>!q.is_draft&&q.id!=null&&Date.parse(q.closed_at)).map(q=>({slug:'quiz-'+q.id,title:'Quiz: '+(meeting.get(q.meeting_slug)||q.meeting_slug||'class'),dueAt:q.closed_at,points:q.points_possible,team:false}))];
   for(const x of items){const mine=assignments.filter(a=>a.courseId===course.id);
@@ -84,7 +85,7 @@ function mergeCourseSites(d,sources,sites,at,now){const report=[];let assignment
   // A source whose work all moved to the site (e.g. an earlier failed browser read) is dropped instead of warning every day.
   for(const id of moved)if(!assignments.some(a=>a.sourceId===id)&&!d.events.some(e=>e.sourceId===id))sources=sources.filter(x=>x.id!==id);
   const exp=s.tokenExpiresAt&&Date.parse(s.tokenExpiresAt),renew=exp&&exp-now<RENEW_DAYS*86400000;
-  sources=setSource(sources,sourceId,{name,status:renew?'partial':'ok',lastSuccess:at,source:s.url,note:`${items.length} assignments and quizzes, ${sessions.length} sessions read${changes.length?`; schedule changed: ${changes.join('; ')}`:''}.${renew?` The API token expires ${s.tokenExpiresAt.slice(0,10)}: create a new course:read token.`:''}`});
+  sources=setSource(sources,sourceId,{name,status:renew?'partial':'ok',lastSuccess:at,source:s.url,note:`${items.length} assignments and quizzes${s.via==='connector'?' (through the course connector)':''}, ${sessions.length} sessions read${changes.length?`; schedule changed: ${changes.join('; ')}`:''}.${renew?` The API token expires ${s.tokenExpiresAt.slice(0,10)}: create a new course:read token.`:''}`});
   report.push({course:s.course,status:'ok',added,updated,removed,sessions:sessions.length,changes});}
  return {assignments,courses,sources,report};}
 // Course-site meetings are class time: they join the timetable and block planning like calendar events. A meeting is skipped when

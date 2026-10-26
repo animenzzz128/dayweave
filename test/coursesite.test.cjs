@@ -65,3 +65,12 @@ test('course-site meetings become class events unless the calendar already has t
  a.ok(r.snapshot.events.some(e=>e.id==='gcal-c'));a.deepEqual(r.report.siteEvents,{'COURSE C':1});
  const again=buildSnapshot(r.snapshot,{courseSites:[site]},{now:NOW}).snapshot;a.equal(again.events.filter(e=>e.sourceId==='site-coursec').length,1,'no duplicates on a run without a calendar read');
  const down=buildSnapshot(r.snapshot,{courseSites:[{course:'COURSE C',url:'https://c.example',status:'failed',error:'x'}]},{now:NOW}).snapshot;a.equal(down.events.filter(e=>e.sourceId==='site-coursec').length,1);});
+
+test('connector reads supply assignments over the server schedule read, and a failed connector read keeps the schedule only',()=>{
+ const sched={course:'COURSE A',url:'https://a.example',status:'partial',error:'No API token: only the public schedule was read',meetings};
+ const read={course:'course a',status:'ok',assignments:assignments.map(x=>({...x,can_submit:true,submissions:[{grade:1}]})),quizzes};
+ const [s]=S.withConnectorReads([sched],[read]);a.equal(s.status,'ok');a.equal(s.via,'connector');a.equal(s.error,undefined);a.equal(s.meetings.length,3);a.equal(s.assignments.length,5);a.equal('submissions' in s.assignments[0],false,'only the listed fields are kept');
+ const built=buildSnapshot(base(),{courseSites:[s]},{now:NOW}).snapshot;a.ok(built.assignments.some(x=>x.id==='coursea-sprint'));a.match(built.sources.find(x=>x.id==='site-coursea').note,/through the course connector/);
+ const [f]=S.withConnectorReads([sched],[{course:'COURSE A',status:'failed',note:'sign-in expired'}]);a.equal(f.status,'partial');a.match(f.error,/sign-in expired/);a.equal(f.assignments,undefined);
+ const [only]=S.withConnectorReads([],[read]);a.equal(only.meetings,undefined);const kept=buildSnapshot(base(),{courseSites:[only]},{now:NOW}).snapshot;a.ok(kept.assignments.some(x=>x.id==='coursea-sprint'),'assignments merge even when the schedule was not read');
+ a.deepEqual(S.withConnectorReads([sched],undefined),[sched]);});
