@@ -15,13 +15,28 @@ const rows=(list,keys)=>list.slice(0,MAX_ROWS).map(x=>Object.fromEntries(keys.ma
 async function fetchSite(site,{fetch:doFetch=globalThis.fetch,now=Date.now()}={}){
  const fetchedAt=new Date(now).toISOString(),base={course:site.course,url:site.url,fetchedAt};
  const get=async(view,query,auth)=>{const r=await doFetch(`${site.url}/rest/${view}?${new URLSearchParams(query)}`,{headers:{Accept:'application/json',...(auth?{Authorization:'Bearer '+site.token}:{})},signal:AbortSignal.timeout(TIMEOUT_MS)});
-  if(r.status===401||r.status===403)throw Error(`${site.course} course API refused the token (HTTP ${r.status}): create a new course:read token`);if(!r.ok)throw Error(`${site.course} course API returned HTTP ${r.status} for ${view}`);
+  // PostgREST says why it refused (e.g. "JWT expired"); that reason is kept, the token never is.
+  if(r.status===401||r.status===403){const why=await r.text().then(t=>String(JSON.parse(t).message||'')).catch(()=>'');
+   throw Object.assign(Error(`${site.course} course API refused the token for ${view} (HTTP ${r.status}${why?': '+why.split(site.token||'\0').join('[token]').slice(0,120):''}): check or renew the token`),{refused:true});}
+  if(!r.ok)throw Error(`${site.course} course API returned HTTP ${r.status} for ${view}`);
   const text=await r.text();if(text.length>MAX_BYTES)throw Error(`${site.course} course API answer is too large`);const v=JSON.parse(text);if(!Array.isArray(v))throw Error(`${site.course} course API answer for ${view} is not a list`);return v;};
- try{const meetings=rows(await get('meetings',{select:'slug,title,begins_at,meeting_type,is_draft',order:'begins_at.asc'}),['slug','title','begins_at','meeting_type','is_draft']);
+ let meetings;
+ try{meetings=rows(await get('meetings',{select:'slug,title,begins_at,duration,meeting_type,is_draft',order:'begins_at.asc'}),['slug','title','begins_at','duration','meeting_type','is_draft']);
   if(!site.token)return {...base,status:'partial',error:'No API token: only the public schedule was read',meetings};
   const assignments=rows(await get('my_assignments',{select:'slug,title,points_possible,is_team,is_draft,closed_at,effective_closed_at',order:'closed_at.asc'},true),['slug','title','points_possible','is_team','is_draft','closed_at','effective_closed_at']);
   const quizzes=rows(await get('quizzes',{select:'id,meeting_slug,points_possible,is_draft,open_at,closed_at',order:'closed_at.asc'},true),['id','meeting_slug','points_possible','is_draft','open_at','closed_at']);
   return {...base,status:'ok',tokenExpiresAt:tokenExpiry(site.token),meetings,assignments,quizzes};}
- catch(e){return {...base,status:'failed',error:e.name==='TimeoutError'?`${site.course} course API timed out`:/course API/.test(e.message)?e.message:`${site.course} course API could not be read`};}}
+ // A refused token still leaves the public schedule.
+ catch(e){if(e.refused&&meetings)return {...base,status:'partial',error:e.message,meetings};
+  return {...base,status:'failed',error:e.name==='TimeoutError'?`${site.course} course API timed out`:/course API/.test(e.message)?e.message:`${site.course} course API could not be read`};}}
+// The daily cloud task reads assignments and quizzes through each course's claude.ai connector (the site's API accepts personal
+// tokens only from the Yale network). Those reads are laid over the server's schedule read for the same course; the connector
+// rows have the same fields as the API's, and only list tools are used, never grades, submissions or write tools.
+function withConnectorReads(sites,reads){if(!Array.isArray(reads)||!reads.length)return sites;const key=c=>String(c||'').toLowerCase().replace(/\s+/g,' ').trim(),out=(sites||[]).map(s=>({...s}));
+ for(const r of reads){if(!r||!r.course)continue;let s=out.find(x=>key(x.course)===key(r.course));if(!s){s={course:r.course,url:r.url||null,status:'failed',error:'No schedule read for this course'};out.push(s);}
+  if(r.status!=='ok'||!Array.isArray(r.assignments)){s.error=[s.error,`${r.course} connector: ${r.note||'not read'}`].filter(Boolean).join('; ');continue;}
+  Object.assign(s,{assignments:rows(r.assignments,['slug','title','points_possible','is_team','is_draft','closed_at','effective_closed_at']),quizzes:rows(r.quizzes||[],['id','meeting_slug','points_possible','is_draft','open_at','closed_at']),via:'connector',status:'ok'});
+  if(!Array.isArray(s.meetings))s.error=`${s.error||'Schedule not read'}; assignments read through the connector`;else delete s.error;}
+ return out;}
 const fetchCourseSites=(sites,options)=>Promise.all((sites||[]).map(s=>fetchSite(s,options)));
-module.exports={sitesFromEnv,tokenKey,tokenExpiry,fetchSite,fetchCourseSites,RENEW_DAYS};
+module.exports={withConnectorReads,sitesFromEnv,tokenKey,tokenExpiry,fetchSite,fetchCourseSites,RENEW_DAYS};

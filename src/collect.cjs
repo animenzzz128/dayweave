@@ -62,14 +62,15 @@ function mergeCourseSites(d,sources,sites,at,now){const report=[];let assignment
   if(!course){course={id:'site-'+slugCode(s.course),code:s.course,name:s.course,category:'academic',note:''};courses.push(course);}
   if(course.category!=='academic'){course.category='academic';course.note='';}
   course.collection={mode:'site',url:s.url};const sourceId='site-'+slugCode(s.course),name=s.course+' course site';
-  if(s.status==='failed'||!Array.isArray(s.meetings)){sources=setSource(sources,sourceId,{name,status:'failed',source:s.url,note:(s.error||'Course site could not be read.')+' Earlier records are kept.'});report.push({course:s.course,status:'failed'});continue;}
-  const sessions=s.meetings.filter(m=>m.meeting_type!=='no-meeting'&&typeof m.title==='string'&&Number.isFinite(Date.parse(m.begins_at))).map(m=>({date:C.dayKey(m.begins_at),title:m.title.slice(0,200),at:m.begins_at}));
-  const prev=course.schedule,changes=prev?scheduleChanges(prev.sessions,sessions):[];
-  course.schedule={url:s.url,checkedAt:at,sessions,...(changes.length?{changedAt:at,changes}:prev?.changedAt&&now-Date.parse(prev.changedAt)<CHANGE_DAYS*86400000?{changedAt:prev.changedAt,changes:prev.changes}:{})};
+  if(s.status==='failed'&&!Array.isArray(s.assignments)||!Array.isArray(s.meetings)&&!Array.isArray(s.assignments)){sources=setSource(sources,sourceId,{name,status:'failed',source:s.url,note:(s.error||'Course site could not be read.')+' Earlier records are kept.'});report.push({course:s.course,status:'failed'});continue;}
+  // Without a schedule read (the site was down but the connector answered) the last schedule is kept.
+  const sessions=!s.meetings?course.schedule?.sessions||[]:s.meetings.filter(m=>m.meeting_type!=='no-meeting'&&typeof m.title==='string'&&Number.isFinite(Date.parse(m.begins_at))).map(m=>({date:C.dayKey(m.begins_at),title:m.title.slice(0,200),at:m.begins_at}));
+  const prev=course.schedule,changes=prev&&s.meetings?scheduleChanges(prev.sessions,sessions):[];
+  if(s.meetings)course.schedule={url:s.url,checkedAt:at,sessions,...(changes.length?{changedAt:at,changes}:prev?.changedAt&&now-Date.parse(prev.changedAt)<CHANGE_DAYS*86400000?{changedAt:prev.changedAt,changes:prev.changes}:{})};
   sources=sources.filter(x=>x.id!=='schedule-'+course.id);// the site's schedule replaces a public-page schedule read
   if(!Array.isArray(s.assignments)){sources=setSource(sources,sourceId,{name,status:'partial',lastSuccess:at,source:s.url,note:`${sessions.length} sessions read. ${s.error||'Assignments were not read.'}`});report.push({course:s.course,status:'partial',sessions:sessions.length});continue;}
   const prefix=slugCode(s.course)+'-',from=now-SITE_PAST_DAYS*86400000,seen=new Set(),added=[],updated=[],moved=new Set();
-  const meeting=new Map(s.meetings.map(m=>[m.slug,m.title]));
+  const meeting=new Map((s.meetings||[]).map(m=>[m.slug,m.title]));
   const items=[...s.assignments.filter(x=>!x.is_draft&&x.slug&&x.title&&Date.parse(x.effective_closed_at||x.closed_at)).map(x=>({slug:x.slug,title:x.title,dueAt:x.effective_closed_at||x.closed_at,points:x.points_possible,team:!!x.is_team})),
    ...(s.quizzes||[]).filter(q=>!q.is_draft&&q.id!=null&&Date.parse(q.closed_at)).map(q=>({slug:'quiz-'+q.id,title:'Quiz: '+(meeting.get(q.meeting_slug)||q.meeting_slug||'class'),dueAt:q.closed_at,points:q.points_possible,team:false}))];
   for(const x of items){const mine=assignments.filter(a=>a.courseId===course.id);
@@ -84,9 +85,20 @@ function mergeCourseSites(d,sources,sites,at,now){const report=[];let assignment
   // A source whose work all moved to the site (e.g. an earlier failed browser read) is dropped instead of warning every day.
   for(const id of moved)if(!assignments.some(a=>a.sourceId===id)&&!d.events.some(e=>e.sourceId===id))sources=sources.filter(x=>x.id!==id);
   const exp=s.tokenExpiresAt&&Date.parse(s.tokenExpiresAt),renew=exp&&exp-now<RENEW_DAYS*86400000;
-  sources=setSource(sources,sourceId,{name,status:renew?'partial':'ok',lastSuccess:at,source:s.url,note:`${items.length} assignments and quizzes, ${sessions.length} sessions read${changes.length?`; schedule changed: ${changes.join('; ')}`:''}.${renew?` The API token expires ${s.tokenExpiresAt.slice(0,10)}: create a new course:read token.`:''}`});
+  sources=setSource(sources,sourceId,{name,status:renew?'partial':'ok',lastSuccess:at,source:s.url,note:`${items.length} assignments and quizzes${s.via==='connector'?' (through the course connector)':''}, ${sessions.length} sessions read${changes.length?`; schedule changed: ${changes.join('; ')}`:''}.${renew?` The API token expires ${s.tokenExpiresAt.slice(0,10)}: create a new course:read token.`:''}`});
   report.push({course:s.course,status:'ok',added,updated,removed,sessions:sessions.length,changes});}
  return {assignments,courses,sources,report};}
+// Course-site meetings are class time: they join the timetable and block planning like calendar events. A meeting is skipped when
+// a calendar event naming the course already overlaps it (the owner's calendar wins). A failed site read keeps its earlier events.
+const SITE_EVENT_PAST_DAYS=7,SITE_EVENT_FUTURE_DAYS=120;
+const minutes=v=>{const m=String(v||'').match(/^(\d+):(\d{2})(?::\d{2})?$/);return m?+m[1]*60+ +m[2]:80;};
+function siteEvents(events,sites,now){const from=now-SITE_EVENT_PAST_DAYS*86400000,to=now+SITE_EVENT_FUTURE_DAYS*86400000;let out=events;const report={};
+ for(const s of sites){if(!Array.isArray(s.meetings))continue;const sourceId='site-'+slugCode(s.course),code=norm(s.course);out=out.filter(e=>e.sourceId!==sourceId);let added=0;
+  for(const m of s.meetings){const start=Date.parse(m.begins_at);if(m.meeting_type==='no-meeting'||!m.slug||typeof m.title!=='string'||!(start>=from&&start<=to))continue;const end=start+minutes(m.duration)*60000;
+   if(out.some(e=>e.sourceId!==sourceId&&norm(e.title).includes(code)&&Date.parse(e.start)<end&&Date.parse(e.end)>start))continue;
+   out.push({id:sourceId+'-meeting-'+m.slug,title:`${s.course} · ${m.title.slice(0,200)}`,start:new Date(start).toISOString(),end:new Date(end).toISOString(),busy:true,location:'',sourceId,source:s.url,calendar:s.course+' course site'});added++;}
+  report[s.course]=added;}
+ return {events:out,report};}
 // Outlook (calendar and connector) and the old email module are retired sources (owner decision 2026-10-24). The source the
 // calendar coverage or the email record names is never dropped, so a legacy Outlook snapshot still validates.
 function retired(s,d){if(s.id===C.calendarSource(d.calendarCoverage)||s.id===d.email?.sourceId)return false;return /outlook/i.test(s.id+' '+(s.name||''))||/^e-?mail$/i.test(s.id)||/^e-?mail$/i.test(String(s.name||'').trim());}
@@ -115,6 +127,7 @@ function buildSnapshot(current,{canvas,courseSites,calendar,email,schedules,note
   if(d.email?.account&&email.account&&email.account!==d.email.account)throw Error('Gmail account changed: stop and ask the owner; never switch accounts in a scheduled run');
   if(failed){sources=setSource(sources,'gmail',{status:'failed',note:email.note||email.coverage?.note||'Gmail could not be read.'});if(email.enabled)d.email=email;report.email={status:'failed'};}
   else{d.email=email;sources=setSource(sources,'gmail',{name:'Gmail (Yale label)',status:email.coverage?.status==='complete'?'ok':'partial',lastSuccess:at,note:`${email.messages.length} messages from ${email.request?.query}.`});report.email={status:email.coverage?.status,messages:email.messages.length};}}
+ if(Array.isArray(courseSites)&&courseSites.length){const r=siteEvents(d.events,courseSites,now);d.events=r.events;report.siteEvents=r.report;}
  // A course outside Canvas is not read automatically: its own sources say so instead of warning as failed every day.
  const manualCourses=new Set(d.courses.filter(c=>c.collection?.mode==='manual').map(c=>c.id));
  for(const s of sources){const work=d.assignments.filter(a=>a.sourceId===s.id);if(s.status!=='ok'&&s.status!=='manual'&&work.length&&work.every(a=>manualCourses.has(a.courseId)))sources=setSource(sources,s.id,{status:'manual',note:'Kept from your last review; this course\'s site needs its own sign-in and is not read automatically.'});}
@@ -125,4 +138,4 @@ function buildSnapshot(current,{canvas,courseSites,calendar,email,schedules,note
  d.priorities=Array.isArray(notes.priorities)?notes.priorities:[];
  if(typeof notes.weeklyReview==='string')d.weeklyReview=notes.weeklyReview;if(Array.isArray(notes.questions))d.questions=notes.questions;
  C.validate(d);return {snapshot:d,report};}
-module.exports={buildSnapshot,mergeCanvas,mergeCourseSites,mergeSchedules,scheduleChanges,canvasId};
+module.exports={buildSnapshot,mergeCanvas,mergeCourseSites,siteEvents,mergeSchedules,scheduleChanges,canvasId};

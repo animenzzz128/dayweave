@@ -24,7 +24,7 @@ test('a site read returns titles, due times and the schedule, sends the token on
  a.equal(r.status,'ok');a.equal(r.assignments.length,5);a.equal(r.meetings.length,3);a.equal(r.quizzes.length,1);a.doesNotMatch(JSON.stringify(r),new RegExp(TOKEN.split('.')[1]));
  a.equal(calls.find(c=>c.url.includes('/rest/meetings')).auth,undefined);a.ok(calls.every(c=>c.url.startsWith('https://a.example/rest/')));a.ok(calls.every(c=>!/submissions|grades/.test(c.url)));
  const noToken=await S.fetchSite({course:'COURSE A',url:'https://a.example',token:''},{fetch:fakeFetch([]),now:NOW});a.equal(noToken.status,'partial');a.equal(noToken.assignments,undefined);a.equal(noToken.meetings.length,3);
- const bad=await S.fetchSite({course:'COURSE A',url:'https://a.example',token:'wrong-token'},{fetch:fakeFetch([]),now:NOW});a.equal(bad.status,'failed');a.match(bad.error,/HTTP 401/);a.doesNotMatch(bad.error,/wrong-token/);
+ const bad=await S.fetchSite({course:'COURSE A',url:'https://a.example',token:'wrong-token'},{fetch:fakeFetch([]),now:NOW});a.equal(bad.status,'partial','a refused token still leaves the public schedule');a.equal(bad.meetings.length,3);a.match(bad.error,/my_assignments \(HTTP 401\)/);a.doesNotMatch(bad.error,/wrong-token/);
  const down=await S.fetchSite({course:'COURSE A',url:'https://a.example',token:TOKEN},{fetch:async()=>{throw Error('getaddrinfo https://a.example?token=x');},now:NOW});a.equal(down.error,'COURSE A course API could not be read');});
 
 test('site work updates matched assignments, adds new work, keeps reviewed details, and replaces manual upkeep',async()=>{
@@ -52,3 +52,25 @@ test('a new or unpublished course becomes academic, the Canvas feed leaves site 
  a.equal(c.category,'academic');a.equal(c.note,'');a.ok(s.assignments.some(x=>x.id==='coursec-paper'&&x.courseId==='course-c'));a.equal(s.assignments.some(x=>x.id==='canvas-9'),false);
  const src=s.sources.find(x=>x.id==='site-coursec');a.equal(src.status,'partial');a.match(src.note,/expires .*new course:read token/);
  const fresh=buildSnapshot(d,{courseSites:[{...site,course:'COURSE NEW'}]},{now:NOW}).snapshot;a.ok(fresh.courses.some(x=>x.id==='site-coursenew'&&x.category==='academic'));});
+
+test('a refusal keeps the server reason without the token',async()=>{
+ const r=await S.fetchSite({course:'COURSE A',url:'https://a.example',token:'tok-123'},{fetch:async url=>url.includes('meetings')?{ok:true,status:200,text:async()=>'[]'}:{ok:false,status:401,text:async()=>JSON.stringify({message:'JWSError bad tok-123'})},now:NOW});
+ a.equal(r.status,'partial');a.match(r.error,/JWSError bad \[token\]/);a.doesNotMatch(r.error,/tok-123/);});
+
+test('course-site meetings become class events unless the calendar already has that class, and survive a calendar refresh',()=>{
+ const d=base(),site={course:'COURSE C',url:'https://c.example',status:'partial',meetings:[{slug:'one',title:'Intro',begins_at:'2026-10-08T17:00:00Z',duration:'01:20:00',meeting_type:'lecture'},{slug:'two',title:'Second',begins_at:'2026-10-13T17:00:00Z',duration:null,meeting_type:'lecture'},{slug:'off',title:'Break',begins_at:'2026-10-15T17:00:00Z',meeting_type:'no-meeting'},{slug:'old',title:'Long ago',begins_at:'2026-08-01T17:00:00Z',meeting_type:'lecture'}]};
+ const cal={id:'gcal-c',title:'COURSE C',start:'2026-10-13T17:00:00Z',end:'2026-10-13T18:20:00Z',busy:true,sourceId:'google-calendar',provider:'google',account:d.calendarCoverage.account,calendarId:d.calendarCoverage.calendarId,calendar:'Student'};
+ const r=buildSnapshot(d,{courseSites:[site],calendar:{status:'ok',events:[cal],coverage:{...d.calendarCoverage,checkedAt:new Date(NOW).toISOString()}}},{now:NOW});
+ const mine=r.snapshot.events.filter(e=>e.sourceId==='site-coursec');a.deepEqual(mine.map(e=>[e.id,e.title,e.start,e.end,e.busy]),[['site-coursec-meeting-one','COURSE C · Intro','2026-10-08T17:00:00.000Z','2026-10-08T18:20:00.000Z',true]]);
+ a.ok(r.snapshot.events.some(e=>e.id==='gcal-c'));a.deepEqual(r.report.siteEvents,{'COURSE C':1});
+ const again=buildSnapshot(r.snapshot,{courseSites:[site]},{now:NOW}).snapshot;a.equal(again.events.filter(e=>e.sourceId==='site-coursec').length,1,'no duplicates on a run without a calendar read');
+ const down=buildSnapshot(r.snapshot,{courseSites:[{course:'COURSE C',url:'https://c.example',status:'failed',error:'x'}]},{now:NOW}).snapshot;a.equal(down.events.filter(e=>e.sourceId==='site-coursec').length,1);});
+
+test('connector reads supply assignments over the server schedule read, and a failed connector read keeps the schedule only',()=>{
+ const sched={course:'COURSE A',url:'https://a.example',status:'partial',error:'No API token: only the public schedule was read',meetings};
+ const read={course:'course a',status:'ok',assignments:assignments.map(x=>({...x,can_submit:true,submissions:[{grade:1}]})),quizzes};
+ const [s]=S.withConnectorReads([sched],[read]);a.equal(s.status,'ok');a.equal(s.via,'connector');a.equal(s.error,undefined);a.equal(s.meetings.length,3);a.equal(s.assignments.length,5);a.equal('submissions' in s.assignments[0],false,'only the listed fields are kept');
+ const built=buildSnapshot(base(),{courseSites:[s]},{now:NOW}).snapshot;a.ok(built.assignments.some(x=>x.id==='coursea-sprint'));a.match(built.sources.find(x=>x.id==='site-coursea').note,/through the course connector/);
+ const [f]=S.withConnectorReads([sched],[{course:'COURSE A',status:'failed',note:'sign-in expired'}]);a.equal(f.status,'partial');a.match(f.error,/sign-in expired/);a.equal(f.assignments,undefined);
+ const [only]=S.withConnectorReads([],[read]);a.equal(only.meetings,undefined);const kept=buildSnapshot(base(),{courseSites:[only]},{now:NOW}).snapshot;a.ok(kept.assignments.some(x=>x.id==='coursea-sprint'),'assignments merge even when the schedule was not read');
+ a.deepEqual(S.withConnectorReads([sched],undefined),[sched]);});
