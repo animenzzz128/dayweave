@@ -74,3 +74,21 @@ test('connector reads supply assignments over the server schedule read, and a fa
  const [f]=S.withConnectorReads([sched],[{course:'COURSE A',status:'failed',note:'sign-in expired'}]);a.equal(f.status,'partial');a.match(f.error,/sign-in expired/);a.equal(f.assignments,undefined);
  const [only]=S.withConnectorReads([],[read]);a.equal(only.meetings,undefined);const kept=buildSnapshot(base(),{courseSites:[only]},{now:NOW}).snapshot;a.ok(kept.assignments.some(x=>x.id==='coursea-sprint'),'assignments merge even when the schedule was not read');
  a.deepEqual(S.withConnectorReads([sched],undefined),[sched]);});
+
+test('connector instructions become descriptions and submission reads set status without keeping submitted values',()=>{
+ const sched={course:'COURSE A',url:'https://a.example',status:'partial',meetings};
+ const read={course:'COURSE A',status:'ok',assignments,bodies:[{slug:'sprint',body:'  Ship a walking skeleton.  '},{slug:'unknown',body:'x'}],quizzes:[...quizzes,{id:8,meeting_slug:'exam',points_possible:3,is_draft:false,closed_at:'2026-10-21T18:20:00+00:00'}],
+  submissions:[{assignment_slug:'brief',fields:[{assignment_field_slug:'url',body:'https://private.example/work'}]},{assignment_slug:'exam-1',fields:[]}],quizSubmissions:[{quiz_id:7}]};
+ const [s]=S.withConnectorReads([sched],[read]);a.deepEqual(s.submitted,{assignments:['brief'],quizzes:['7']});a.doesNotMatch(JSON.stringify(s),/private\.example/,'submitted values are not kept');
+ const r=buildSnapshot(base(),{courseSites:[s]},{now:NOW}),by=Object.fromEntries(r.snapshot.assignments.map(x=>[x.id,x]));
+ a.equal(by['coursea-sprint'].description,'Ship a walking skeleton.');a.equal(by['coursea-sprint'].status,'not_submitted','not yet due, nothing submitted');a.match(by['coursea-sprint'].evidence,/instructions.*read from your submissions/);
+ a.equal(by['brief-a'].status,'submitted','a matched record is upgraded from not submitted');a.equal(by['coursea-quiz-7'].status,'submitted');a.equal(by['coursea-quiz-8'].status,'not_submitted');
+ a.equal(by['coursea-exam-1'].status,'not_submitted');
+ a.equal(buildSnapshot(base(),{courseSites:[s]},{now:Date.parse('2026-10-16T12:00:00Z')}).snapshot.assignments.find(x=>x.id==='coursea-exam-1').status,'unknown','past work with an empty submission stays unknown (in-class exams)');
+ a.match(r.snapshot.sources.find(x=>x.id==='site-coursea').note,/with your submission status/);
+ // A later run fills reviewed records only where they are empty and never turns submitted work back.
+ const next=structuredClone(r.snapshot);next.assignments.find(x=>x.id==='brief-a').description='My notes.';
+ const [later]=S.withConnectorReads([sched],[{...read,assignments:read.assignments.map(x=>x.slug==='brief'?{...x,body:'Site text.'}:x),submissions:[]}]);
+ const again=Object.fromEntries(buildSnapshot(next,{courseSites:[later]},{now:NOW}).snapshot.assignments.map(x=>[x.id,x]));a.equal(again['brief-a'].description,'My notes.');a.equal(again['brief-a'].status,'submitted');
+ const [plain]=S.withConnectorReads([sched],[{course:'COURSE A',status:'ok',assignments,quizzes}]);a.equal(plain.submitted,undefined);
+ a.equal(buildSnapshot(base(),{courseSites:[plain]},{now:NOW}).snapshot.assignments.find(x=>x.id==='coursea-sprint').status,'unknown','no submission read, no status');});

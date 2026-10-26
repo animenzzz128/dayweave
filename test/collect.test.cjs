@@ -7,7 +7,7 @@ const calendar=(d,events)=>({status:'ok',events,coverage:{...d.calendarCoverage,
 
 test('Canvas feed items update matching assignments, add new ones as unknown and uncertain, and drop withdrawn feed work',()=>{
  const d=base(),first=buildSnapshot(d,{canvas:feed([item('501','Research brief','COURSE A 01','2026-10-10T03:59:00Z'),item('502','Lab report','COURSE A 01 (FA26)','2026-10-15T03:59:00Z'),item('503','Quiz','COURSE Z','2026-10-16T03:59:00Z',{courseId:'77'})])},{now:NOW});
- const s=first.snapshot,by=Object.fromEntries(s.assignments.map(x=>[x.id,x]));a.deepEqual(first.report.canvas,{added:['canvas-502','canvas-503'],updated:['brief-a'],removed:[]});
+ const s=first.snapshot,by=Object.fromEntries(s.assignments.map(x=>[x.id,x]));a.deepEqual(first.report.canvas,{added:['canvas-502','canvas-503'],updated:['brief-a'],detailed:[],removed:[],status:'unconfigured'});
  a.equal(by['brief-a'].dueAt,'2026-10-10T03:59:00Z');a.equal(by['brief-a'].description,d.assignments[0].description,'curated details are kept');a.equal(by['brief-a'].status,d.assignments[0].status);
  a.equal(by['canvas-502'].courseId,'course-a');a.equal(by['canvas-502'].status,'unknown');a.equal(by['canvas-502'].requirement,'uncertain');a.equal(by['canvas-502'].estimateMinutes,null);
  a.equal(by['canvas-503'].courseId,'canvas-course-77');a.ok(s.courses.some(c=>c.id==='canvas-course-77'&&c.source==='https://lms.example.edu'));
@@ -16,6 +16,23 @@ test('Canvas feed items update matching assignments, add new ones as unknown and
  a.deepEqual(second.report.canvas.removed,['canvas-502']);a.ok(second.snapshot.assignments.some(x=>x.id==='brief-a'),'matched by its Canvas ID after a rename');a.equal(second.snapshot.courses.filter(c=>c.id==='canvas-course-77').length,1);
  const failed=buildSnapshot(s,{canvas:{status:'failed',error:'Canvas feed returned HTTP 401',items:[]}},{now:NOW});a.equal(failed.snapshot.sources.find(x=>x.id==='canvas').status,'failed');a.deepEqual(failed.snapshot.assignments,s.assignments);
  a.equal(buildSnapshot(d,{canvas:{status:'unconfigured',items:[]}},{now:NOW}).snapshot.sources.some(x=>x.id==='canvas'),false);});
+
+test('Canvas instructions fill empty descriptions, and planner flags set status and requirement without undoing reviewed work',()=>{
+ const d=base();d.assignments[0].description='';d.assignments[0].status='submitted';
+ const flags=items=>({status:'ok',items});
+ const read=feed([item('501','Research brief','COURSE A 01','2026-10-10T03:59:00Z',{description:'Write 2 pages.'}),item('502','Lab report','COURSE A 01','2026-10-15T03:59:00Z',{description:'Upload a PDF.'}),item('503','Essay','COURSE A 01','2026-10-16T03:59:00Z')]);
+ const plain=buildSnapshot(d,{canvas:read},{now:NOW}),by=Object.fromEntries(plain.snapshot.assignments.map(x=>[x.id,x]));
+ a.equal(by['brief-a'].description,'Write 2 pages.','an empty reviewed description is filled');a.equal(by['canvas-502'].description,'Upload a PDF.');a.equal(by['canvas-502'].status,'unknown','no token, no status');
+ a.match(plain.snapshot.sources.find(x=>x.id==='canvas').note,/no Canvas access token/);a.deepEqual(plain.report.canvas.detailed,['brief-a']);
+ const kept=structuredClone(d);kept.assignments[0].description='Reviewed notes.';a.equal(buildSnapshot(kept,{canvas:read},{now:NOW}).snapshot.assignments.find(x=>x.id==='brief-a').description,'Reviewed notes.','a reviewed description is kept');
+ const withFlags={...read,submissions:flags([{assignmentId:'501',submitted:false,excused:false,graded:false,points:10},{assignmentId:'502',submitted:true,excused:false,graded:false,points:20},{assignmentId:'503',submitted:false,excused:false,graded:false,points:0}])};
+ const r=buildSnapshot(d,{canvas:withFlags},{now:NOW}),b=Object.fromEntries(r.snapshot.assignments.map(x=>[x.id,x]));
+ a.equal(b['brief-a'].status,'submitted','a reviewed submission is not turned back');a.equal(b['canvas-502'].status,'submitted');a.equal(b['canvas-502'].requirement,'required','points make it required');
+ a.equal(b['canvas-503'].status,'not_submitted');a.equal(b['canvas-503'].requirement,'uncertain','no points, still uncertain');a.match(b['canvas-502'].evidence,/planner.*20 points/);
+ a.equal(r.snapshot.sources.find(x=>x.id==='canvas').status,'ok');a.match(r.snapshot.sources.find(x=>x.id==='canvas').note,/read from the Canvas planner/);
+ const later=buildSnapshot(r.snapshot,{canvas:{...withFlags,submissions:flags([{assignmentId:'503',submitted:false,excused:true,graded:false,points:0}])}},{now:NOW}).snapshot;a.equal(later.assignments.find(x=>x.id==='canvas-503').status,'excused');
+ const down=buildSnapshot(d,{canvas:{...read,submissions:{status:'failed',error:'Canvas refused the access token (HTTP 401): check or renew it'}}},{now:NOW}).snapshot;
+ a.equal(down.sources.find(x=>x.id==='canvas').status,'partial');a.match(down.sources.find(x=>x.id==='canvas').note,/not read: Canvas refused/);a.equal(down.assignments.find(x=>x.id==='canvas-502').status,'unknown');});
 
 test('calendar and Gmail reads replace their parts, failures keep records, and a changed account stops the run',()=>{
  const d=base(),ev={id:'gcal-new',title:'Office hours',start:'2026-10-08T15:00:00Z',end:'2026-10-08T16:00:00Z',busy:true,sourceId:'google-calendar',provider:'google',account:d.calendarCoverage.account,calendarId:d.calendarCoverage.calendarId,calendar:'Student'};
