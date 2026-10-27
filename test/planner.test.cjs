@@ -110,7 +110,7 @@ test('work whose source cannot report submission is planned with a note; other u
 });
 test('blocks carry a Google Calendar colour by what they are for; weekly goals can choose their own',()=>{
  a.equal(PL.habitColor({id:'gym'}),'10');a.equal(PL.habitColor({id:'job-applications'}),'3');a.equal(PL.habitColor({id:'reading'}),PL.HABIT_COLOR);a.equal(PL.habitColor({id:'gym',color:'4'}),'4');
- const goal={id:'reading',title:'Reading',minutes:30,perWeek:2,days:[1],windows:[{start:'19:00',end:'21:00'}]};
+ const goal={id:'reading',title:'Reading',minutes:30,perWeek:2,days:[1,3],windows:[{start:'19:00',end:'21:00'}]};
  a.equal(PL.planSettings({habits:[{...goal,color:'7'}]}).habits[0].color,'7');a.equal('color' in PL.planSettings({habits:[goal]}).habits[0],false);
  a.throws(()=>PL.planSettings({habits:[{...goal,color:'12'}]}),/calendar colours/);
  const p={id:'x',title:'Focus: X',start:'2026-10-28T14:00:00.000Z',end:'2026-10-28T15:00:00.000Z',account:'a',calendar:'c',timezone:TZ};
@@ -119,4 +119,17 @@ test('blocks carry a Google Calendar colour by what they are for; weekly goals c
  const date='2026-10-28',now=C.zonedISO(date,'08:00'),d=snap(date,now,x=>{x.assignments.push({...x.assignments[0],id:'quiz',title:'Quiz 3',requirement:'required',status:'not_submitted',estimateMinutes:30,dueAt:C.zonedISO(PL.nextDay(date),'10:00')});return x;});
  const r=PL.plan({snapshot:d,date,now,todos:{t1:{id:'t1',title:'Synthetic todo',minutes:30,version:1}}});
  const by=re=>r.blocks.find(b=>re.test(b.title));a.equal(by(/^Review: /)?.color,PL.COLORS.review);a.equal(by(/^Focus: Task/)?.color,PL.COLORS.coursework);
+});
+test('deadline risk lists required work due within the week whose planned minutes fall short; a daily limit caps coursework',()=>{
+ const date='2026-10-28',now=C.zonedISO(date,'08:00'),d=snap(date,now);
+ const before=PL.risks({snapshot:d,now}).map(r=>[r.id,r.missing]);a.deepEqual(before.find(r=>r[0]==='big'),['big',150]);a.deepEqual(before.find(r=>r[0]==='soon'),['soon',45]);
+ const r=PL.plan({snapshot:d,date,now});d.proposals.push(...r.blocks);
+ const after=PL.risks({snapshot:d,now});a.equal(after.some(x=>x.id==='soon'),false,'fully planned before its deadline');
+ a.equal(PL.risks({snapshot:d,now,dismissed:Object.fromEntries(r.blocks.map(b=>[b.id,true]))}).some(x=>x.id==='soon'),true,'removed blocks do not count');
+ a.equal(PL.risks({snapshot:d,now,days:0}).length,0,'nothing due inside an empty horizon');
+ const col=snap(date,now);col.proposals.push({id:'collector',title:'Focus: Task soon',start:C.zonedISO(date,'15:00'),end:C.zonedISO(date,'16:00'),source:'https://example.com/assignments/soon'});
+ a.equal(PL.risks({snapshot:col,now}).some(x=>x.id==='soon'),false,'a collector block counts through its source URL');
+ const cap=PL.planSettings({maxDailyWork:60});a.equal(cap.maxDailyWork,60);a.throws(()=>PL.planSettings({maxDailyWork:50}),/60–720/);a.equal('maxDailyWork' in PL.planSettings({maxDailyWork:''}),false);
+ const capped=PL.plan({snapshot:snap(date,now),date,now,settings:cap}),work=capped.blocks.filter(b=>['assignment','todo'].includes(b.sourceRefs[0].kind)).reduce((n,b)=>n+(Date.parse(b.end)-Date.parse(b.start))/MIN,0);
+ a.ok(work<=60,String(work));a.ok(capped.unscheduled.some(u=>/Daily coursework limit \(60 minutes\)/.test(u.reason)&&u.group==='hidden'));
 });

@@ -7,18 +7,21 @@ import { Core, Demo, Phase2, Planner } from '../lib/shared';
 import { href } from '../lib/router';
 import { CALENDAR_COLORS, COLOR_IDS } from '../lib/calendarColors';
 import { ApproveButton } from './Review';
-import type { Approval, Habit, PlanSettings, Proposal } from '../data/types';
+import { DeadlineRisks } from '../components/DeadlineRisks';
+import type { Approval, Habit, PlanSettings, Proposal, Unscheduled } from '../data/types';
 
 const MIN = 60000;
 // Days the morning run and the "plan the next days" button cover (src/store.cjs PLAN_DAYS).
-const PLAN_DAYS = 5;
+const PLAN_DAYS = 7;
 // The demo's interview email has a prep pack on the Career page (a preview; the private instance has none yet).
 const PREP_EMAIL = 'msg-recruiter';
 const minutes = (p: { start: string; end: string }) => Math.round((Date.parse(p.end) - Date.parse(p.start)) / MIN);
 const iso = (ms: number) => new Date(ms).toISOString();
 const isoDay = (k: string) => new Date(Date.parse(k + 'T12:00:00Z')).getUTCDay() || 7;
 
-interface Summary { usable?: { minutes: number; budget: number; allocated: number }; unscheduled?: { id: string; title: string; reason: string; kind?: string }[]; gaps?: string[] }
+interface Summary { usable?: { minutes: number; budget: number; allocated: number }; unscheduled?: Unscheduled[]; gaps?: string[] }
+// Summaries stored before items carried a group are sorted by their reason.
+const groupOf = (u: Unscheduled) => u.group ?? (/^(Already covered|Spread over|Archived locally|Selectable|Today already has|Not planned: the day has ended)|falls before the/.test(u.reason) ? 'hidden' : /^(Review starts|Starts \d+ days)/.test(u.reason) ? 'later' : 'action');
 
 /**
  * The daily planning page (preview → adjust → approve, after Morgen; weekly goals after Reclaim; the workload warning after
@@ -52,6 +55,14 @@ export function Plan({ params }: { params: URLSearchParams }) {
     // Once everything is approved, the approved version stays here so it can be withdrawn until the write starts.
     || (!ok.length ? approvals.find((a) => a.status === 'prepared' && a.approval && a.value.some((x) => live.some((p) => p.id === x.id))) : undefined);
 
+  // The whole week: every open, passing block of the next PLAN_DAYS days in one version.
+  const week = new Set(days.slice(0, PLAN_DAYS));
+  const weekLive = d.proposals.filter((p) => week.has(f.dayKey(p.start)) && !dismissed(p));
+  const weekOk = weekLive.filter((p) => !started(p.id) && !versionOf(p)?.approval && !weekLive.some((x) => x.id !== p.id && Date.parse(x.start) < Date.parse(p.end) && Date.parse(p.start) < Date.parse(x.end)) && !Phase2.errors(p, d, now, []).length);
+  const weekFp = JSON.stringify(Object.fromEntries(weekOk.map((p) => [p.id, Phase2.fingerprint(p)])));
+  const weekVersion = approvals.find((a) => a.status === 'prepared' && JSON.stringify(a.fingerprints) === weekFp);
+  const multiDay = new Set(weekOk.map((p) => f.dayKey(p.start))).size > 1;
+
   const regenerate = async () => { setBusy(true); await run(() => source.generatePlan(date), t.plan.regenerated); setBusy(false); };
   // Today and the next PLAN_DAYS - 1 days, as the morning run does (src/store.cjs generatePlans).
   const regenerateDays = async () => { setBusy(true); await run(() => source.generatePlans(today, PLAN_DAYS), (r) => t.plan.regeneratedDays(r.filter((x) => x.ready).length, PLAN_DAYS)); setBusy(false); };
@@ -60,6 +71,7 @@ export function Plan({ params }: { params: URLSearchParams }) {
   return (
     <>
       <PageHeader title={t.plan.title} subtitle={t.plan.subtitle} />
+      <div className="mb-5"><DeadlineRisks /></div>
       <div className="mb-5 flex flex-wrap gap-1.5" role="tablist" aria-label={t.plan.title}>
         {days.map((day) => (
           <button key={day} type="button" role="tab" aria-selected={day === date} onClick={() => setDate(day)}
@@ -90,6 +102,12 @@ export function Plan({ params }: { params: URLSearchParams }) {
 
           {params.get('calendar') && <p role="status" className={`rounded-lg p-3 text-sm ${params.get('calendar') === 'connected' ? 'bg-ok-soft text-ok' : 'bg-warn-soft text-warn'}`}>{params.get('calendar') === 'connected' ? t.review.calendarConnected : t.review.calendarDenied}</p>}
           <ApproveDay ok={ok} failing={open.length - ok.length} version={dayVersion} />
+          {multiDay && (
+            <section className="rounded-[14px] border border-line p-4">
+              {weekVersion ? <ApproveButton approval={weekVersion} /> : <button type="button" className="btn w-full" onClick={() => run(() => source.prepare(weekOk.map((p) => p.id)))}>{t.plan.approveWeek(weekOk.length)}</button>}
+              <p className="mt-1.5 text-xs text-muted">{t.plan.approveWeekNote}</p>
+            </section>
+          )}
 
           <Section title={t.plan.blocks}>
             {live.length ? (
@@ -104,17 +122,38 @@ export function Plan({ params }: { params: URLSearchParams }) {
             )}
           </Section>
 
-          {!!summary?.unscheduled?.length && (
-            <Section title={t.plan.unfit} aside={t.plan.unfitNote}>
-              <ul className="list-disc space-y-1 pl-5 text-sm text-muted">{summary.unscheduled.filter((u) => !/^(Already covered|Spread over)/.test(u.reason)).map((u, i) => <li key={i}><span className="text-ink">{u.title}</span>: {u.reason}</li>)}</ul>
-            </Section>
-          )}
+          <Unplanned items={summary?.unscheduled ?? []} />
 
           <Goals date={date} />
           <Rules />
         </div>
       </div>
     </>
+  );
+}
+
+/** What the last generation left out: what needs the owner first, what starts later folded away, the rest not shown. */
+function Unplanned({ items }: { items: Unscheduled[] }) {
+  const { f } = useApp();
+  const { t } = useI18n();
+  const action = items.filter((u) => groupOf(u) === 'action');
+  const later = items.filter((u) => groupOf(u) === 'later').sort((a, b) => (a.startsOn ?? '').localeCompare(b.startsOn ?? ''));
+  if (!action.length && !later.length) return null;
+  return (
+    <Section title={t.plan.unfit} aside={t.plan.unfitNote}>
+      {action.length > 0 && (
+        <>
+          <h4 className="text-sm font-semibold">{t.plan.needsYou}</h4>
+          <ul className="mt-1 list-disc space-y-1 pl-5 text-sm text-muted">{action.map((u, i) => <li key={i}><span className="text-ink">{u.title}</span>: {u.reason}</li>)}</ul>
+        </>
+      )}
+      {later.length > 0 && (
+        <details className="mt-3 text-sm">
+          <summary className="cursor-pointer font-semibold">{t.plan.laterGroup(later.length)}</summary>
+          <ul className="mt-1 list-disc space-y-1 pl-5 text-muted">{later.map((u, i) => <li key={i}><span className="text-ink">{u.title}</span>{u.startsOn ? ` · ${t.plan.startsOn(f.day(Core.zonedISO(u.startsOn, '12:00')))}` : `: ${u.reason}`}</li>)}</ul>
+        </details>
+      )}
+    </Section>
   );
 }
 
@@ -224,6 +263,7 @@ function Rules() {
       <summary className="cursor-pointer font-semibold">{t.plan.settings} {!planSettingsSaved && <Tag tone="info">{t.plan.recommended}</Tag>}</summary>
       <p className="mt-1 text-xs text-muted">{t.plan.settingsNote}</p>
       <div className="mt-3 flex flex-wrap gap-4 text-sm">
+        <label className="flex items-center gap-2">{t.plan.maxDailyWork}<input type="number" min={60} max={720} step={15} className="field w-24 py-1" value={v.maxDailyWork ?? ''} onChange={(e) => set({ maxDailyWork: e.target.value === '' ? undefined : Number(e.target.value) })} /></label>
         <label className="flex items-center gap-2">{t.plan.dayStart} {time(v.dayStart, (x) => set({ dayStart: x }), t.plan.dayStart)}</label>
         <label className="flex items-center gap-2">{t.plan.dayEnd} {time(v.dayEnd, (x) => set({ dayEnd: x }), t.plan.dayEnd, true)}</label>
       </div>
@@ -245,6 +285,7 @@ function Rules() {
               <input aria-label={t.plan.goalTitle} className="field w-48 py-1" value={h.title} onChange={(e) => goal(i, { title: e.target.value })} />
               <label className="flex items-center gap-1">{t.plan.minutes}<input type="number" min={15} max={240} step={5} className="field w-20 py-1" value={h.minutes} onChange={(e) => goal(i, { minutes: Number(e.target.value) })} /></label>
               <label className="flex items-center gap-1">{t.plan.perWeek}<input type="number" min={1} max={14} className="field w-16 py-1" value={h.perWeek} onChange={(e) => goal(i, { perWeek: Number(e.target.value) })} /></label>
+              <label className="flex items-center gap-1">{t.plan.perDay}<input type="number" min={1} max={3} className="field w-14 py-1" value={h.perDay ?? 1} onChange={(e) => goal(i, { perDay: Number(e.target.value) })} /></label>
               <label className="flex items-center gap-1"><input type="checkbox" checked={h.enabled} onChange={(e) => goal(i, { enabled: e.target.checked })} />{t.plan.on}</label>
               <label className="flex items-center gap-1">
                 <span aria-hidden="true" className="inline-block size-3 rounded-full" style={{ background: CALENDAR_COLORS[Planner.habitColor(h) as string] }} />
@@ -270,10 +311,12 @@ function Rules() {
               ))}
               {h.windows.length < 3 && <button type="button" className="btn py-0.5 text-xs" onClick={() => goal(i, { windows: [...h.windows, { start: '19:00', end: '21:00' }] })}>{t.plan.addWindow}</button>}
             </div>
+            {h.perWeek > h.days.length * (h.perDay ?? 1) && <p className="mt-1.5 text-xs text-danger">{t.plan.tooMany(h.perWeek, h.days.length, h.perDay ?? 1)}</p>}
+            {h.windows.some((w) => w.start < v.dayStart || (v.dayEnd !== '24:00' && (w.end === '24:00' || w.end > v.dayEnd))) && <p className="mt-1.5 text-xs text-warn">{t.plan.outsideDay}</p>}
           </li>
         ))}
       </ul>
-      {v.habits.length < 12 && <button type="button" className="btn mt-2 py-0.5 text-xs" onClick={() => set({ habits: [...v.habits, { id: 'goal-' + Date.now().toString(36), title: '', minutes: 60, perWeek: 2, days: [1, 2, 3, 4, 5], windows: [{ start: '19:00', end: '21:00' }], enabled: true }] })}>{t.plan.addGoal}</button>}
+      {v.habits.length < 12 && <button type="button" className="btn mt-2 py-0.5 text-xs" onClick={() => set({ habits: [...v.habits, { id: 'goal-' + Date.now().toString(36), title: '', minutes: 60, perWeek: 2, days: [1, 2, 3, 4, 5], windows: [{ start: '19:00', end: '21:00' }], enabled: true, perDay: 1 }] })}>{t.plan.addGoal}</button>}
       <div className="mt-4"><button type="button" className="btn btn-primary" onClick={() => run(() => source.savePlanSettings(v), t.plan.saved)}>{t.plan.save}</button></div>
     </details>
   );
