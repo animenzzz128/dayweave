@@ -17,6 +17,8 @@ interface DemoState {
   outage?: boolean;
   /** The visitor's planning rules; the recommended ones when unset. */
   planSettings?: PlanSettings;
+  /** Today's and tomorrow's drafts were made on the first visit of the day, standing in for the morning collection. */
+  autoPlanned?: boolean;
 }
 
 const fresh = (day: string): DemoState => ({ v: 1, day, progress: {}, proposals: null, approvals: [], receipts: [], nextQ: 12 });
@@ -78,6 +80,12 @@ export class DemoSource implements DataSource {
 
   async load(): Promise<Loaded> {
     const { d, s } = this.build();
+    if (!s.autoPlanned) {
+      const now = new Date(), today = Core.dayKey(now);
+      for (const date of [today, Demo.addDays(today, 1) as string]) this.planDay(d, s, date, now);
+      s.autoPlanned = true;
+      this.save();
+    }
     return { snapshot: d, progress: clone(s.progress), approvals: clone(s.approvals).reverse(), outage: !!s.outage, planSettings: this.settings(), planSettingsSaved: !!s.planSettings };
   }
 
@@ -134,14 +142,20 @@ export class DemoSource implements DataSource {
 
   async generatePlan(date: string): Promise<PlanResult> {
     const { d, s } = this.build();
-    const now = new Date();
+    const result = this.planDay(d, s, date, new Date());
+    this.save();
+    return result;
+  }
+
+  // As on the server: replaceable drafts for the day give way to new ones, and the summary is kept for the Plan page.
+  private planDay(d: Snapshot, s: DemoState, date: string, now: Date): PlanResult {
     const result = Planner.plan({ snapshot: d, date, now, todos: s.progress.todo || {}, archive: s.progress.archive || {}, dismissed: s.progress.dismissed || {}, started: [], settings: this.settings(), emailTriage: s.progress.emailTriage || {} }) as PlanResult;
     const replaced = d.proposals.filter((p) => Planner.replaceable(d, p, date)).map((p) => p.id);
     d.proposals = [...d.proposals.filter((p) => !Planner.replaceable(d, p, date)), ...result.blocks];
     Core.validate(d);
     s.proposals = clone(d.proposals);
     this.invalidate(replaced);
-    this.save();
+    (s.progress.plan ??= {})[date] = { ...Planner.summary(result), replaced };
     return result;
   }
 
