@@ -33,7 +33,8 @@ function createServer(dir,{hosted=null,ingestSecret='',executeSecret='',canvasIc
  if(req.method==='GET'&&u.pathname==='/api/session'){if(hosted)return send(200,{csrf:session.csrf,hosted:true});const id=crypto.randomBytes(24).toString('hex');session={csrf:crypto.randomBytes(24).toString('hex'),at:Date.now()};sessions.set(id,session);res.setHeader('Set-Cookie',`dw=${id}; HttpOnly; SameSite=Strict; Path=/`);return send(200,{csrf:session.csrf});}
  if(u.pathname.startsWith('/api/')){if(!session||!hosted&&Date.now()-session.at>12*3600000)return send(401,{error:'Reload to renew local session'});if(req.method==='POST'&&(req.headers.origin!==origin||req.headers['x-dayweave-token']!==session.csrf))return send(403,{error:'Invalid write origin or session'});
  let body={};if(req.method==='POST'){let raw='';for await(const part of req){raw+=part;if(raw.length>2e6)throw Error('Request too large');}body=JSON.parse(raw||'{}');}
- if(req.method==='GET'&&u.pathname==='/api/snapshot')return send(200,{snapshot:store.snapshot(),progress:store.state()});
+ if(req.method==='GET'&&u.pathname==='/api/snapshot')return send(200,{snapshot:store.snapshot(),progress:store.state(),planSettings:store.planSettings()});
+ if(req.method==='POST'&&u.pathname==='/api/plan/settings')return send(200,{planSettings:store.savePlanSettings(body?.settings)});
  if(req.method==='GET'&&u.pathname==='/api/history')return send(200,store.history({...Object.fromEntries(u.searchParams),query:u.searchParams.get('q')||''}));
  if(req.method==='GET'&&u.pathname==='/api/health')return send(200,{runs:store.runs(),backups:store.backups()});
  if(req.method==='GET'&&u.pathname==='/api/trends')return send(200,store.weeklyTrends(u.searchParams));

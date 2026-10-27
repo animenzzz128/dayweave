@@ -5,7 +5,39 @@
 // evidence and never treats unknown time as free. Its output is ordinary proposals that still need an approved Q version.
 const C=typeof module!=='undefined'?require('./core.cjs'):window.PlannerCore;
 const P=typeof module!=='undefined'?require('./phase2.cjs'):window.PlannerPhase2;
-const SETTINGS=Object.freeze({dayStart:'09:00',maxBlock:90,gap:15,reserve:0.2,step:5,staleHours:26,reminderMinutes:10,maxListed:100});
+const SETTINGS=Object.freeze({dayStart:'09:00',dayEnd:'24:00',breaks:[],habits:[],maxBlock:90,gap:15,reserve:0.2,step:5,staleHours:26,reminderMinutes:10,maxListed:100,urgentHours:72});
+// The owner's planning rules (stored by the server, edited on Week): planning hours, fixed breaks such as meals, and weekly goals
+// ("habits": job search, LinkedIn, gym…) with sessions per week, minutes per session, allowed weekdays (1 = Monday) and time
+// windows. Days never start before 07:00, the sleep window every proposal is checked against.
+// Quizzes and exams get review time before them (an exam's own estimate is its sitting, not the preparation); interview
+// mail the owner or the collector marks `interview` gets preparation time ahead of everything else.
+const REVIEW=Object.freeze([{kind:'exam',re:/\b(exam|midterm)s?\b|\bfinal exam/i,minutes:240,perDay:120,days:5},{kind:'quiz',re:/\bquiz/i,minutes:60,perDay:60,days:2}]);
+const INTERVIEW=Object.freeze({minutes:120,undated:60,perDay:120});
+// Suggested rules used until the owner saves their own (docs/data-contract.md, planning settings).
+const RECOMMENDED=Object.freeze({dayStart:'09:00',dayEnd:'24:00',breaks:[{start:'12:00',end:'13:00'},{start:'18:00',end:'19:00'}],habits:[
+ {id:'gym',title:'Gym',minutes:60,perWeek:3,days:[1,2,3,4,5],windows:[{start:'07:00',end:'09:00'},{start:'17:00',end:'19:00'}]},
+ {id:'job-applications',title:'Job applications',minutes:60,perWeek:4,days:[1,2,3,4,5],windows:[{start:'13:00',end:'18:00'}]},
+ {id:'linkedin',title:'LinkedIn connect',minutes:30,perWeek:5,days:[1,2,3,4,5],windows:[{start:'14:00',end:'18:00'}]}]});
+const HM=/^([01]\d|2[0-3]):[0-5]\d$/,hmMin=x=>x==='24:00'?1440:+x.slice(0,2)*60+ +x.slice(3);
+function planSettings(v){if(!v||typeof v!=='object'||Array.isArray(v))throw Error('Planning settings must be an object.');
+ const time=(x,name,end=false)=>{if(typeof x!=='string'||!(HM.test(x)||end&&x==='24:00'))throw Error(name+' must be a time like 08:00.');return x;};
+ const span=(x,name)=>{if(!x||typeof x!=='object')throw Error(name+' needs a start and an end.');const a=time(x.start,name+' start'),b=time(x.end,name+' end',true);if(hmMin(b)<=hmMin(a))throw Error(name+' must end after it starts.');return {start:a,end:b};};
+ const dayStart=time(v.dayStart??'09:00','Day start'),dayEnd=time(v.dayEnd??'24:00','Day end',true);
+ if(hmMin(dayStart)<420)throw Error('Day start cannot be before 07:00 (sleep window).');if(hmMin(dayEnd)-hmMin(dayStart)<120)throw Error('The planning day must be at least two hours long.');
+ const breaks=v.breaks??[];if(!Array.isArray(breaks)||breaks.length>6)throw Error('Use at most 6 breaks.');
+ const habits=v.habits??[];if(!Array.isArray(habits)||habits.length>12)throw Error('Use at most 12 weekly goals.');const ids=new Set();
+ return {dayStart,dayEnd,breaks:breaks.map((b,i)=>span(b,'Break '+(i+1))),habits:habits.map((h,i)=>{const name='Weekly goal '+(i+1);if(!h||typeof h!=='object')throw Error(name+' is invalid.');
+  const id=String(h.id||'');if(!/^[a-z0-9][a-z0-9-]{0,39}$/.test(id)||ids.has(id))throw Error(name+' needs a unique short ID.');ids.add(id);
+  const title=String(h.title||'').trim();if(!title||title.length>80)throw Error(name+' needs a title of at most 80 characters.');
+  const minutes=Number(h.minutes),perWeek=Number(h.perWeek);if(!Number.isInteger(minutes)||minutes<15||minutes>240||minutes%5)throw Error(title+': minutes per session must be 15–240 in steps of 5.');
+  if(!Number.isInteger(perWeek)||perWeek<1||perWeek>14)throw Error(title+': sessions per week must be 1–14.');
+  const days=[...new Set(h.days||[])].map(Number).sort();if(!days.length||days.some(x=>!Number.isInteger(x)||x<1||x>7))throw Error(title+': choose at least one weekday.');
+  const windows=(h.windows||[]).map((w,j)=>span(w,title+' window '+(j+1)));if(!windows.length||windows.length>3)throw Error(title+': use one to three time windows.');
+  if(windows.some(w=>hmMin(w.start)<420))throw Error(title+': windows cannot start before 07:00 (sleep window).');
+  if(windows.every(w=>hmMin(w.end)-hmMin(w.start)<minutes))throw Error(title+': a window must fit one '+minutes+'-minute session.');
+  return {id,title,minutes,perWeek,days,windows,enabled:h.enabled!==false};})};}
+const isoDay=k=>new Date(Date.parse(k+'T12:00:00Z')).getUTCDay()||7;
+const addDays=(k,n)=>new Date(Date.parse(k+'T12:00:00Z')+n*86400000).toISOString().slice(0,10);
 const MIN=60000,DONE=['submitted','graded','excused'],ATTEMPTED=['pending','unverified','executed'];
 const validDate=k=>typeof k==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(k)&&Number.isFinite(Date.parse(k+'T00:00:00Z'))&&new Date(Date.parse(k+'T00:00:00Z')).toISOString().slice(0,10)===k;
 const nextDay=k=>new Date(Date.parse(k+'T12:00:00Z')+86400000).toISOString().slice(0,10);
@@ -32,21 +64,28 @@ function sourceProblem(d,id,now,settings=SETTINGS){
  return null;
 }
 // Coursework that is required, not submitted, from an eligible source and has a positive estimate; everything else is listed with a reason.
-function candidates(d,todos,archive,now=new Date(),settings=SETTINGS){
+function candidates(d,todos,archive,now=new Date(),settings=SETTINGS,emailTriage={}){
  const tasks=[],skipped=[];
  for(const a of d.assignments||[]){
   if(a.archivedFromSource||DONE.includes(a.status))continue;
-  const ref={kind:'assignment',id:a.id,title:a.title},skip=reason=>skipped.push({...ref,reason});
+  const ref={kind:'assignment',id:a.id,title:a.title},skip=reason=>skipped.push({...ref,reason}),review=REVIEW.find(r=>r.re.test(a.title||''));
   if(archive?.[a.id]){skip('Archived locally; not planned.');continue;}
   if(a.requirement==='choice'){skip('Selectable (choice) work is never scheduled automatically.');continue;}
   const problem=sourceProblem(d,a.sourceId,now,settings);if(problem){skip(problem);continue;}
   if(a.requirement!=='required'){skip('Requirement uncertain. Verify it first.');continue;}
+  // Review needs only the date: an in-class exam has no online submission, so its status can stay unknown.
+  if(review){if(!a.dueAt||!Number.isFinite(Date.parse(a.dueAt))){skip('No valid '+review.kind+' date, so review time cannot be placed.');continue;}
+   tasks.push({...ref,dueAt:a.dueAt,minutes:review.minutes,estimateMinutes:a.estimateMinutes,source:a.source||'',course:a.course||'',review:review.kind,perDay:review.perDay,earliest:Date.parse(a.dueAt)-review.days*86400000});continue;}
   if(a.status!=='not_submitted'){skip('Submission status unknown. Verify it first.');continue;}
   if(!(Number.isFinite(a.estimateMinutes)&&a.estimateMinutes>0)){skip('No duration estimate. Add one before planning.');continue;}
   if(a.dueAt&&!Number.isFinite(Date.parse(a.dueAt))){skip('Deadline is invalid. Verify it first.');continue;}
   tasks.push({...ref,dueAt:a.dueAt||null,minutes:Math.round(a.estimateMinutes),estimateMinutes:a.estimateMinutes,source:a.source||'',course:a.course||''});
  }
  for(const t of Object.values(todos||{}))if(t&&t.status==='open')tasks.push({kind:'todo',id:t.id,title:t.title,dueAt:t.dueAt||null,minutes:t.durationMinutes,version:t.version});
+ // Interview mail (collector triage or the owner's override), not handled: preparation before the stated time, or an hour today.
+ if(d.email?.enabled)for(const m of d.email.messages||[]){const o=emailTriage?.[m.id]||{};if((o.category||m.triage?.category)!=='interview'||o.handled)continue;
+  const at=m.triage?.dueAt?Date.parse(m.triage.dueAt):NaN;if(Number.isFinite(at)&&at<=+now)continue;
+  tasks.push({kind:'email',id:m.id,title:String(m.triage?.summary||m.subject||'Interview').slice(0,120),dueAt:Number.isFinite(at)?m.triage.dueAt:null,minutes:Number.isFinite(at)?INTERVIEW.minutes:INTERVIEW.undated,perDay:INTERVIEW.perDay,interview:true});}
  const due=x=>x.dueAt?Date.parse(x.dueAt):Infinity;
  tasks.sort((x,y)=>due(x)-due(y)||(x.kind<y.kind?-1:x.kind>y.kind?1:0)||(x.id<y.id?-1:x.id>y.id?1:0));
  return {tasks,skipped};
@@ -76,15 +115,16 @@ function ownEvents(d,copies,occ){
 }
 const local=x=>new Intl.DateTimeFormat('en-US',{timeZone:C.TZ,month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(x));
 const plural=(n,w)=>n+' '+w+(n===1?'':'s');
-function plan({snapshot:d,date,now=new Date(),todos={},archive={},dismissed={},started=[],settings={}}){
+function plan({snapshot:d,date,now=new Date(),todos={},archive={},dismissed={},started=[],settings={},emailTriage={}}){
  const s={...SETTINGS,...settings};now=new Date(now);
  if(!validDate(date))throw Error('Choose a valid date (YYYY-MM-DD).');
  if(!d)throw Error('No snapshot');C.configure(d.timezone);
- const from=Date.parse(C.zonedISO(date,s.dayStart)),to=Date.parse(C.zonedISO(nextDay(date),'00:00')),start=Math.max(from,+now);
+ const at=(k,x)=>Date.parse(x==='24:00'?C.zonedISO(nextDay(k),'00:00'):C.zonedISO(k,x));
+ const from=at(date,s.dayStart),to=at(date,s.dayEnd),start=Math.max(from,+now);
  const cov=d.calendarCoverage||{},result={date,timezone:d.timezone,generatedAt:now.toISOString(),window:{start:new Date(from).toISOString(),end:new Date(to).toISOString()},ready:false,blocks:[],unscheduled:[],gaps:[],
-  assumptions:[`Planning window ${s.dayStart}–24:00 ${d.timezone}; 00:00–${s.dayStart} stays free.`,`Focus blocks are at most ${s.maxBlock} minutes with ${s.gap}-minute rest gaps around blocks and busy events.`,`At least ${Math.round(s.reserve*100)}% of usable time stays unallocated.`,'Durations come only from your todo durations and source estimates; recorded actual minutes are not subtracted.','Busy calendar events, including all-day events and expanded recurring occurrences, block time; events marked free do not.','Work is ordered by deadline (undated last). Blocks must end before the deadline.','Nothing is written to any calendar. Blocks are proposals; only an exact Q version approved in chat can be executed.'],
+  assumptions:[`Planning window ${s.dayStart}–${s.dayEnd} ${d.timezone}; the rest of the day stays free except weekly-goal windows you set earlier.`,...(s.breaks.length?['Breaks kept free: '+s.breaks.map(b=>b.start+'–'+b.end).join(', ')+'.']:[]),...(s.habits.some(h=>h.enabled)?[`Weekly goals are placed in their own windows after coursework due within ${s.urgentHours} hours, spread over the allowed days left this week (Monday–Sunday).`]:[]),`Focus blocks are at most ${s.maxBlock} minutes with ${s.gap}-minute rest gaps around blocks and busy events.`,`At least ${Math.round(s.reserve*100)}% of usable time stays unallocated.`,'Durations come only from your todo durations and source estimates; recorded actual minutes are not subtracted.',`Quizzes get ${REVIEW[1].minutes} minutes of review in the ${REVIEW[1].days} days before; exams get ${REVIEW[0].minutes} minutes over the ${REVIEW[0].days} days before, at most ${REVIEW[0].perDay} a day.`,`Interview emails come first: ${INTERVIEW.minutes} minutes of preparation before the stated time (${INTERVIEW.undated} today when no time is stated), at most ${INTERVIEW.perDay} a day.`,'Busy calendar events, including all-day events and expanded recurring occurrences, block time; events marked free do not.','Work is ordered by deadline (undated last). Blocks must end before the deadline.','Nothing is written to any calendar. Blocks are proposals; only an exact Q version you approve can be written.'],
   usable:{minutes:0,budget:0,allocated:0}};
- const {tasks,skipped}=candidates(d,todos,archive,now,s);result.unscheduled.push(...skipped);
+ const {tasks,skipped}=candidates(d,todos,archive,now,s,emailTriage);result.unscheduled.push(...skipped);
  if(to<=+now){result.gaps.push('This day has already ended.');result.unscheduled.push(...tasks.map(t=>({kind:t.kind,id:t.id,title:t.title,reason:'Not planned: the day has ended.'})));return result;}
  result.gaps.push(...gaps(d,from,to,now,s));
  if(result.gaps.length){result.unscheduled.push(...tasks.map(t=>({kind:t.kind,id:t.id,title:t.title,reason:'Not planned: calendar coverage is not verified for this day.'})));return result;}
@@ -112,28 +152,52 @@ function plan({snapshot:d,date,now=new Date(),todos={},archive={},dismissed={},s
  // Usable time comes from other calendar events only. Kept and started blocks, including started blocks that have since been
  // imported as events, already allocate part of it, so the reserve holds across repeated generation and refreshes:
  // budget = (1 - reserve) x usable - already allocated.
- const usable=minutesFree(start,to,events),already=usable-minutesFree(start,to,busy),budget=Math.max(0,Math.floor(usable*(1-s.reserve))-already);
+ const breaks=s.breaks.map(b=>[at(date,b.start),at(date,b.end)]);
+ const usable=minutesFree(start,to,[...events,...breaks]),already=usable-minutesFree(start,to,[...busy,...breaks]),budget=Math.max(0,Math.floor(usable*(1-s.reserve))-already);
  result.usable={minutes:usable,budget,allocated:0,alreadyAllocated:already};result.ready=true;
- const blocked=busy.map(([a,b])=>[a-s.gap*MIN,b+s.gap*MIN]);let allocated=0;
- for(const t of tasks){
+ const blocked=[...busy.map(([a,b])=>[a-s.gap*MIN,b+s.gap*MIN]),...breaks];let allocated=0;
+ const reserveNote=()=>`Keeping ${Math.round(s.reserve*100)}% of usable time unallocated${already?` (${already} minutes already allocated to existing blocks)`:''}.`;
+ // Weekly goals: sessions already planned or written this week (other days, kept blocks, started copies) count toward the goal.
+ const monday=addDays(date,1-isoDay(date)),week=new Set(Array.from({length:7},(_,i)=>addDays(monday,i)));
+ const placeHabit=h=>{if(!h.enabled||!h.days.includes(isoDay(date)))return;const ref={kind:'habit',id:h.id,title:h.title};
+  const done=kept.filter(p=>p.sourceRefs?.some(r=>r.kind==='habit'&&r.id===h.id)&&week.has(C.dayKey(p.start))).length,left=h.perWeek-done;if(left<=0)return;
+  const daysLeft=[...week].filter(k=>k>=date&&h.days.includes(isoDay(k))).length,today=Math.min(2,Math.ceil(left/Math.max(1,daysLeft)));let placed=0,why='';
+  for(let i=0;i<today;i++){if(allocated+h.minutes>budget){why=reserveNote();break;}let t0=null;
+   for(const w of h.windows){const ws=Math.max(+now,at(date,w.start)),we=Math.min(to,at(date,w.end));if(we-ws<h.minutes*MIN)continue;t0=slot(h.minutes*MIN,ws,we,merge(blocked),s.step);if(t0!==null)break;}
+   if(t0===null){why='No free '+h.minutes+'-minute slot in its windows ('+h.windows.map(w=>w.start+'–'+w.end).join(', ')+') today.';break;}
+   const b={start:new Date(t0).toISOString(),end:new Date(t0+h.minutes*MIN).toISOString()},title=h.title.slice(0,200),id='plan-'+date+'-'+hash(['habit',h.id,b.start,b.end,title,cov.account,cov.calendarId].join('|'));
+   const p={id,title,start:b.start,end:b.end,status:'proposed',action:'create',provider:'google',account:cov.account,calendar:cov.calendar,calendarId:cov.calendarId,timezone:d.timezone,recurrence:'One time',attendees:[],location:'',busy:true,reminderMinutes:s.reminderMinutes,
+    body:`Dayweave block for the weekly goal "${h.title}".`,source:'',origin:'planner',planDate:date,sourceRefs:[{kind:'habit',id:h.id}],
+    reason:`Weekly goal: session ${done+placed+1} of ${h.perWeek} this week · ${h.minutes} minutes.`};
+   const errs=P.errors(p,{...d,proposals:[]},now,[...startedCopies.values()]);if(errs.length){why='Rejected by calendar checks: '+errs.join(' ');break;}
+   result.blocks.push(p);blocked.push([t0-s.gap*MIN,t0+(h.minutes+s.gap)*MIN]);allocated+=h.minutes;placed++;}
+  if(placed<today)result.unscheduled.push({...ref,reason:(placed?`Placed ${placed} of ${today} sessions today. `:'')+why});};
+ // Order: interview preparation, then work due within urgentHours, then weekly goals, then everything else by deadline.
+ const urgent=t=>!t.interview&&t.dueAt&&Date.parse(t.dueAt)<=+now+s.urgentHours*3600000;
+ for(const t of [...tasks.filter(t=>t.interview),...tasks.filter(urgent),null,...tasks.filter(t=>!t.interview&&!urgent(t))]){
+  if(t===null){for(const h of s.habits)placeHabit(h);continue;}
   const ref={kind:t.kind,id:t.id,title:t.title},have=covered.get(refKey(t))||0,need=t.minutes-have,deadline=t.dueAt?Date.parse(t.dueAt):Infinity,until=Math.min(to,deadline);
   if(need<=0){result.unscheduled.push({...ref,reason:`Already covered by ${have} minutes of proposed or approved blocks.`});continue;}
   if(deadline<=+now){result.unscheduled.push({...ref,reason:'Deadline has passed. Decide whether it still matters.'});continue;}
   if(deadline<=start){result.unscheduled.push({...ref,reason:'Deadline ('+local(deadline)+') falls before the '+s.dayStart+' start of '+date+'. Plan it on an earlier day.'});continue;}
-  const parts=chunks(need,s.maxBlock);let placed=0,why='';
+  if(t.earliest>to){result.unscheduled.push({...ref,reason:`Review starts ${REVIEW.find(r=>r.kind===t.review).days} days before the ${t.review} (${local(deadline)}).`});continue;}
+  // Review and interview preparation are spread: at most perDay minutes on one day, counting this day's kept blocks.
+  const today=t.perDay?t.perDay-kept.filter(p=>p.sourceRefs?.some(r=>refKey(r)===refKey(t))&&C.dayKey(p.start)===date).reduce((n,p)=>n+Math.round((Date.parse(p.end)-Date.parse(p.start))/MIN),0):need;
+  if(today<=0){result.unscheduled.push({...ref,reason:`Today already has ${t.perDay} minutes for it; the rest goes on other days.`});continue;}
+  const want=Math.min(need,today),parts=chunks(want,s.maxBlock);let placed=0,why='';
   for(const [i,len] of parts.entries()){
-   if(allocated+len>budget){why=`Keeping ${Math.round(s.reserve*100)}% of usable time unallocated${already?` (${already} minutes already allocated to existing blocks)`:''}.`;break;}
+   if(allocated+len>budget){why=reserveNote();break;}
    const at=slot(len*MIN,start,until,merge(blocked),s.step);if(at===null){why=until<to?'No free slot that ends before the deadline.':'No free slot of '+len+' minutes left today.';break;}
    const b={start:new Date(at).toISOString(),end:new Date(at+len*MIN).toISOString()};
-   const title=('Focus: '+t.title).slice(0,200),id='plan-'+date+'-'+hash([t.kind,t.id,t.version??'',b.start,b.end,title,cov.account,cov.calendarId].join('|'));
+   const title=((t.interview?'Interview prep: ':t.review?'Review: ':'Focus: ')+t.title).slice(0,200),id='plan-'+date+'-'+hash([t.kind,t.id,t.version??'',b.start,b.end,title,cov.account,cov.calendarId].join('|'));
    const p={id,title,start:b.start,end:b.end,status:'proposed',action:'create',provider:'google',account:cov.account,calendar:cov.calendar,calendarId:cov.calendarId,timezone:d.timezone,recurrence:'One time',attendees:[],location:'',busy:true,reminderMinutes:s.reminderMinutes,
-    body:`Dayweave focus block for ${t.kind==='todo'?'todo':'assignment'} "${t.title}".`,source:t.kind==='assignment'?t.source:'',origin:'planner',planDate:date,
-    sourceRefs:[{kind:t.kind,id:t.id,...(t.kind==='todo'?{version:t.version}:{dueAt:t.dueAt,estimateMinutes:t.estimateMinutes})}],
-    reason:`${t.kind==='todo'?'Todo':'Required coursework'}${t.dueAt?' due '+local(t.dueAt):' with no deadline'} · block ${i+1} of ${parts.length} · ${len} of ${need} remaining minutes${have?` (${have} already planned)`:''}.`};
+    body:t.interview?'Dayweave preparation block for an interview email.':`Dayweave ${t.review?'review':'focus'} block for ${t.kind==='todo'?'todo':'assignment'} "${t.title}".`,source:t.kind==='assignment'?t.source:'',origin:'planner',planDate:date,
+    sourceRefs:[{kind:t.kind,id:t.id,...(t.kind==='todo'?{version:t.version}:t.kind==='email'?{}:{dueAt:t.dueAt,estimateMinutes:t.estimateMinutes})}],
+    reason:`${t.interview?'Interview preparation'+(t.dueAt?' before '+local(t.dueAt):' (interview time not stated)'):t.review?'Review for the '+t.review+' on '+local(t.dueAt):(t.kind==='todo'?'Todo':'Required coursework')+(t.dueAt?' due '+local(t.dueAt):' with no deadline')} · block ${i+1} of ${parts.length} · ${len} of ${need} remaining minutes${have?` (${have} already planned)`:''}.`};
    const errs=P.errors(p,{...d,proposals:[]},now,[...startedCopies.values()]);if(errs.length){why='Rejected by calendar checks: '+errs.join(' ');break;}
    result.blocks.push(p);blocked.push([at-s.gap*MIN,at+(len+s.gap)*MIN]);allocated+=len;placed+=len;
   }
-  if(placed<need)result.unscheduled.push({...ref,reason:(placed?`Partly planned: ${placed} of ${need} minutes. `:'')+why});
+  if(placed<want)result.unscheduled.push({...ref,reason:(placed?`Partly planned: ${placed} of ${want} minutes. `:'')+why});
  }
  result.usable.allocated=allocated;return result;
 }
@@ -146,6 +210,6 @@ function keep(old,result){
  const fine=p=>p.provider===C.calendarProvider(cov)&&p.account===cov.account&&p.calendarId===cov.calendarId&&(p.sourceRefs||[]).every(r=>{if(r.kind!=='assignment')return true;const a=assignments.get(r.id);return a&&!a.archivedFromSource&&!sourceProblem(result,a.sourceId,gen)&&a.requirement==='required'&&a.status==='not_submitted'&&(a.dueAt||null)===(r.dueAt||null)&&(!('estimateMinutes' in r)||a.estimateMinutes===r.estimateMinutes);});
  return (old.proposals||[]).filter(p=>p.origin==='planner'&&!ids.has(p.id)&&(attempted(old,p.id)||(Date.parse(p.end)>gen&&fine(p))));
 }
-const api={SETTINGS,validDate,nextDay,hash,chunks,merge,minutesFree,slot,sourceProblem,candidates,gaps,plan,summary,keep,replaceable,attempted,ATTEMPTED};
+const api={SETTINGS,RECOMMENDED,REVIEW,INTERVIEW,validDate,nextDay,hash,chunks,merge,minutesFree,slot,sourceProblem,candidates,gaps,plan,summary,keep,replaceable,attempted,ATTEMPTED,planSettings,isoDay};
 if(typeof module!=='undefined')module.exports=api;else window.PlannerPlanner=api;
 })();
