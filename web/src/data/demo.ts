@@ -125,7 +125,7 @@ export class DemoSource implements DataSource {
   async generatePlan(date: string): Promise<PlanResult> {
     const { d, s } = this.build();
     const now = new Date();
-    const result = Planner.plan({ snapshot: d, date, now, todos: s.progress.todo || {}, archive: s.progress.archive || {}, dismissed: s.progress.dismissed || {}, started: [] }) as PlanResult;
+    const result = Planner.plan({ snapshot: d, date, now, todos: s.progress.todo || {}, archive: s.progress.archive || {}, dismissed: s.progress.dismissed || {}, started: [], settings: Planner.planSettings(Planner.RECOMMENDED), emailTriage: s.progress.emailTriage || {} }) as PlanResult;
     const replaced = d.proposals.filter((p) => Planner.replaceable(d, p, date)).map((p) => p.id);
     d.proposals = [...d.proposals.filter((p) => !Planner.replaceable(d, p, date)), ...result.blocks];
     Core.validate(d);

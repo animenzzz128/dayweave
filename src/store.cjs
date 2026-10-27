@@ -63,8 +63,11 @@ class Store{
   if(i<0){let live=false;try{live=P.occurrences(c).some(o=>Date.parse(o.end)>+now);}catch{live=true;}if(live){d.proposals.push(c);changed.push(c.id);}}else if(P.fingerprint(d.proposals[i])!==P.fingerprint(c)){d.proposals[i]=c;changed.push(c.id);}}return changed;}
  // Explicit user action only: replaces this date's never-attempted planner blocks with a fresh deterministic plan. Writes local
  // proposals and the plan explanation; it never contacts a calendar.
+ // The owner's planning rules (planner.planSettings), kept apart from the source snapshot so collection never touches them.
+ planSettings(){const row=this.db.prepare("SELECT value FROM meta WHERE key='planSettings'").get();return row?JSON.parse(row.value):null;}
+ savePlanSettings(v){const PL=require('./planner.cjs'),clean=PL.planSettings(v);this.db.prepare("INSERT OR REPLACE INTO meta VALUES('planSettings',?)").run(JSON.stringify(clean));this.log('plan','settings','planSettings',{habits:clean.habits.length});return clean;}
  generatePlan(date,now=new Date()){const PL=require('./planner.cjs');return this.transaction(()=>{const d=this.snapshot();if(!d)throw Error('No database snapshot');const st=this.state();
-  const result=PL.plan({snapshot:d,date,now,todos:st.todo,archive:st.archive,dismissed:st.dismissed,started:this.startedCopies(d)}),ids=new Set(result.blocks.map(b=>b.id)),replaced=d.proposals.filter(p=>PL.replaceable(d,p,date)).map(p=>p.id).filter(id=>!ids.has(id));
+  const result=PL.plan({snapshot:d,date,now,todos:st.todo,archive:st.archive,dismissed:st.dismissed,started:this.startedCopies(d),settings:this.planSettings()||PL.planSettings(PL.RECOMMENDED),emailTriage:st.emailTriage}),ids=new Set(result.blocks.map(b=>b.id)),replaced=d.proposals.filter(p=>PL.replaceable(d,p,date)).map(p=>p.id).filter(id=>!ids.has(id));
   d.proposals=[...d.proposals.filter(p=>!PL.replaceable(d,p,date)),...result.blocks];C.validate(d);this.writeSnapshot(d);
   this.db.prepare('INSERT OR REPLACE INTO progress VALUES(?,?,?,?)').run('plan',date,JSON.stringify({...PL.summary(result),replaced}),result.generatedAt);
   this.db.prepare("DELETE FROM progress WHERE kind='plan' AND id<?").run(new Date(+new Date(now)-30*86400000).toISOString().slice(0,10));

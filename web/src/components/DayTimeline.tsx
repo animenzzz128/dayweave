@@ -6,13 +6,14 @@ import type { CalendarEvent, Proposal } from '../data/types';
 
 interface Block { id: string; title: string; start: number; end: number; kind: 'event' | 'proposal' | 'done'; meta?: string }
 
-const DAY_START = '09:00';
-
-/** The 09:00–24:00 planning day: hatched = free, grey = calendar, dashed blue = AI proposal, solid blue = approved. */
+/** The 09:00–24:00 planning day (from 07:00 when a weekly-goal block sits earlier): hatched = free, grey = calendar, dashed blue = AI proposal, solid blue = approved. */
 export function DayTimeline({ date, scale = 0.9, compact = false }: { date: string; scale?: number; compact?: boolean }) {
   const { snapshot: d, f, now, started, progress } = useApp();
   const { t } = useI18n();
-  const from = Date.parse(Core.zonedISO(date, DAY_START));
+  const at = (hm: string) => Date.parse(Core.zonedISO(date, hm));
+  const early = d.proposals.some((p) => !progress.dismissed?.[p.id] && Date.parse(p.start) < at('09:00') && Date.parse(p.end) > at('07:00'));
+  const startHour = early ? 7 : 9;
+  const from = at(startHour === 7 ? '07:00' : '09:00');
   const to = Date.parse(Core.zonedISO(Demo.addDays(date, 1), '00:00'));
   const inDay = (e: CalendarEvent) => Date.parse(e.end) > from && Date.parse(e.start) < to;
   const clamp = (e: CalendarEvent) => ({ start: Math.max(from, Date.parse(e.start)), end: Math.min(to, Date.parse(e.end)) });
@@ -27,7 +28,7 @@ export function DayTimeline({ date, scale = 0.9, compact = false }: { date: stri
 
   const height = Math.round(((to - from) / 60000) * scale);
   const y = (ms: number) => Math.round(((ms - from) / 60000) * scale);
-  const hours = Array.from({ length: 16 }, (_, i) => i).filter((i) => !compact || i % 3 === 0);
+  const hours = Array.from({ length: 24 - startHour }, (_, i) => i).filter((i) => !compact || i % 3 === 0);
   const busy = blocks.reduce((sum, b) => sum + (b.end - b.start), 0);
   const freePct = Math.max(0, Math.round((1 - busy / (to - from)) * 100));
   const nowY = +now > from && +now < to ? y(+now) : null;
@@ -45,7 +46,7 @@ export function DayTimeline({ date, scale = 0.9, compact = false }: { date: stri
       <div className="relative flex" style={{ height }}>
         <div className={`relative ${compact ? 'w-0' : 'w-14'} shrink-0`} aria-hidden="true">
           {!compact && hours.map((i) => (
-            <span key={i} className="absolute right-2 -translate-y-1/2 font-mono text-[11px] text-muted" style={{ top: y(from + i * 3600000) }}>{String(9 + i).padStart(2, '0')}:00</span>
+            <span key={i} className="absolute right-2 -translate-y-1/2 font-mono text-[11px] text-muted" style={{ top: y(from + i * 3600000) }}>{String(startHour + i).padStart(2, '0')}:00</span>
           ))}
         </div>
         <ol className={`${known ? 'hatch' : 'bg-soft'} relative flex-1 overflow-hidden rounded-lg border ${known ? 'border-line' : 'border-dashed border-warn-edge'}`} aria-label={f.long(Date.parse(Core.zonedISO(date, '12:00')))}>

@@ -35,7 +35,7 @@ export interface EmailMessage {
   triage?: { category: TriageCategory; priority: 'high' | 'medium' | 'low'; summary: string; action: string; dueAt: string | null; assignmentId?: string };
 }
 
-export type TriageCategory = 'reply' | 'action' | 'info' | 'promo';
+export type TriageCategory = 'interview' | 'reply' | 'action' | 'info' | 'promo';
 
 export interface Role {
   id: string; title: string; market: string; source?: string; evidence?: string; checkedAt?: string;

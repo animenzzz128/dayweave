@@ -68,14 +68,14 @@ test('work already covered by kept blocks or collector proposals is not schedule
  a.notDeepEqual(PL.plan({snapshot:d,date,now,todos:{t:{...todos.t,version:2}}}).blocks.find(b=>b.sourceRefs[0].id==='t').id,tb.id,'an edited todo gets new block IDs');
 });
 
-test('DST days keep the 09:00–24:00 local window and blocks may end exactly at midnight',()=>{
+test('DST days keep the 09:00–24:00 default window, blocks may end exactly at midnight, and nothing starts before 07:00',()=>{
  for(const [date,startZ,endZ] of [['2026-11-01','2026-11-01T14:00:00.000Z','2026-11-02T05:00:00.000Z'],['2026-03-08','2026-03-08T13:00:00.000Z','2026-03-09T04:00:00.000Z']]){
   const now=C.zonedISO(date,'07:00'),r=PL.plan({snapshot:snap(date,now,d=>{d.events=[];d.assignments=[];return d;}),date,now,todos:{t:todo('t',30)}});
   a.deepEqual(r.window,{start:startZ,end:endZ});a.equal(r.usable.minutes,900);a.equal(r.blocks[0].start,startZ);a.equal(local(r.blocks[0].start),'09:00');}
  C.configure(TZ);const cov={complete:true,start:'2026-10-14T04:00:00Z',end:'2026-10-16T04:00:00Z'},p={id:'x',title:'x',start:C.zonedISO('2026-10-14','23:00'),end:C.zonedISO('2026-10-15','00:00')};
  a.deepEqual(C.proposalErrors(p,{events:[],calendarCoverage:cov},'2026-10-14T12:00:00Z'),[]);
  a.match(C.proposalErrors({...p,end:C.zonedISO('2026-10-15','00:30')},{events:[],calendarCoverage:cov},'2026-10-14T12:00:00Z').join(),/sleep/);
- a.match(C.proposalErrors({...p,start:C.zonedISO('2026-10-14','08:30'),end:C.zonedISO('2026-10-14','09:30')},{events:[],calendarCoverage:cov},'2026-10-14T12:00:00Z').join(),/sleep/);
+ a.match(C.proposalErrors({...p,start:C.zonedISO('2026-10-14','06:30'),end:C.zonedISO('2026-10-14','07:30')},{events:[],calendarCoverage:cov},'2026-10-14T12:00:00Z').join(),/sleep/);
  // 75 usable minutes after a 21:30–22:45 event (budget 60); the 15-minute gap puts the hour at 23:00–24:00.
  const late=PL.plan({snapshot:snap('2026-10-14',C.zonedISO('2026-10-14','22:00'),d=>{d.events=[{id:'e',title:'Late class',start:C.zonedISO('2026-10-14','21:30'),end:C.zonedISO('2026-10-14','22:45'),busy:true}];d.assignments=[];return d;}),date:'2026-10-14',now:C.zonedISO('2026-10-14','22:00'),todos:{t:todo('t',60)}});a.equal(late.usable.minutes,75);
  const tooLate=PL.plan({snapshot:snap('2026-10-14',C.zonedISO('2026-10-14','22:58'),d=>{d.events=[];d.assignments=[];return d;}),date:'2026-10-14',now:C.zonedISO('2026-10-14','22:58'),todos:{t:todo('t',60)}});a.deepEqual(tooLate.blocks,[]);a.match(reasons(tooLate).t,/Keeping 20%/,'62 usable minutes cannot hold an hour and keep the reserve');

@@ -17,9 +17,9 @@ function link(x){if(x==null||x==='')return null;let u;try{u=new URL(x);}catch{th
 // Triage written by the collecting assistant after reading the message (read-only). It is a labelled AI judgment: a
 // category, a priority, a one-line summary and suggested action, and a due time only when the mail states one. The body
 // itself is never stored. `assignmentId` links a message (such as a submission receipt) to coursework as a hint only.
-const CATEGORIES=['reply','action','info','promo'],PRIORITIES=['high','medium','low'];
+const CATEGORIES=['interview','reply','action','info','promo'],PRIORITIES=['high','medium','low'];
 function triage(t){if(t==null)return null;if(!plain(t))throw Error('Invalid email triage');
- if(!CATEGORIES.includes(t.category))throw Error('Email triage category must be reply, action, info or promo');
+ if(!CATEGORIES.includes(t.category))throw Error('Email triage category must be interview, reply, action, info or promo');
  if(!PRIORITIES.includes(t.priority))throw Error('Email triage priority must be high, medium or low');
  if(t.dueAt!=null&&!instant(t.dueAt))throw Error('Email triage dueAt needs an explicit offset');
  if(t.assignmentId!=null&&!stableId(t.assignmentId))throw Error('Invalid email triage assignment');

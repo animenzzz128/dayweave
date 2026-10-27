@@ -9,7 +9,7 @@ import { emailHealth } from './Today';
 import type { EmailMessage, TriageCategory } from '../data/types';
 import { CATEGORIES, toHandle, triaged, type Triaged } from '../lib/triage';
 
-const CATEGORY_TONE: Record<TriageCategory, Tone> = { reply: 'danger', action: 'warn', info: 'info', promo: 'neutral' };
+const CATEGORY_TONE: Record<TriageCategory, Tone> = { interview: 'danger', reply: 'danger', action: 'warn', info: 'info', promo: 'neutral' };
 
 export function EmailPage() {
   const { snapshot: d, now, f, progress } = useApp();
