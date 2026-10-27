@@ -31,7 +31,9 @@ function planSettings(v){if(!v||typeof v!=='object'||Array.isArray(v))throw Erro
  if(hmMin(dayStart)<420)throw Error('Day start cannot be before 07:00 (sleep window).');if(hmMin(dayEnd)-hmMin(dayStart)<120)throw Error('The planning day must be at least two hours long.');
  const breaks=v.breaks??[];if(!Array.isArray(breaks)||breaks.length>6)throw Error('Use at most 6 breaks.');
  const habits=v.habits??[];if(!Array.isArray(habits)||habits.length>12)throw Error('Use at most 12 weekly goals.');const ids=new Set();
- return {dayStart,dayEnd,breaks:breaks.map((b,i)=>span(b,'Break '+(i+1))),habits:habits.map((h,i)=>{const name='Weekly goal '+(i+1);if(!h||typeof h!=='object')throw Error(name+' is invalid.');
+ // Optional daily cap on coursework minutes (assignments, review and todos); null leaves only the 20% reserve.
+ const maxDailyWork=v.maxDailyWork==null||v.maxDailyWork===''?null:Number(v.maxDailyWork);if(maxDailyWork!==null&&(!Number.isInteger(maxDailyWork)||maxDailyWork<60||maxDailyWork>720||maxDailyWork%15))throw Error('Daily coursework limit must be 60–720 minutes in steps of 15, or empty.');
+ return {dayStart,dayEnd,breaks:breaks.map((b,i)=>span(b,'Break '+(i+1))),...(maxDailyWork!==null?{maxDailyWork}:{}),habits:habits.map((h,i)=>{const name='Weekly goal '+(i+1);if(!h||typeof h!=='object')throw Error(name+' is invalid.');
   const id=String(h.id||'');if(!/^[a-z0-9][a-z0-9-]{0,39}$/.test(id)||ids.has(id))throw Error(name+' needs a unique short ID.');ids.add(id);
   const title=String(h.title||'').trim();if(!title||title.length>80)throw Error(name+' needs a title of at most 80 characters.');
   const minutes=Number(h.minutes),perWeek=Number(h.perWeek);if(!Number.isInteger(minutes)||minutes<15||minutes>240||minutes%5)throw Error(title+': minutes per session must be 15–240 in steps of 5.');
@@ -41,7 +43,11 @@ function planSettings(v){if(!v||typeof v!=='object'||Array.isArray(v))throw Erro
   if(windows.some(w=>hmMin(w.start)<420))throw Error(title+': windows cannot start before 07:00 (sleep window).');
   if(windows.every(w=>hmMin(w.end)-hmMin(w.start)<minutes))throw Error(title+': a window must fit one '+minutes+'-minute session.');
   if(h.color!=null&&!COLOR_IDS.includes(String(h.color)))throw Error(title+': choose one of the calendar colours.');
-  return {id,title,minutes,perWeek,days,windows,enabled:h.enabled!==false,...(h.color!=null?{color:String(h.color)}:{})};})};}
+  const perDay=Number(h.perDay??1);if(!Number.isInteger(perDay)||perDay<1||perDay>3)throw Error(title+': sessions per day must be 1–3.');
+  if(perWeek>days.length*perDay)throw Error(`${title}: ${perWeek} sessions a week do not fit ${days.length} allowed days at ${perDay} a day. Allow more days or lower the sessions per week.`);
+  // The planning day bounds every block, so at least one window must hold a session inside it.
+  if(windows.every(w=>Math.min(hmMin(w.end),hmMin(dayEnd))-Math.max(hmMin(w.start),hmMin(dayStart))<minutes))throw Error(`${title}: no window fits a ${minutes}-minute session inside the planning day (${dayStart}–${dayEnd}).`);
+  return {id,title,minutes,perWeek,perDay,days,windows,enabled:h.enabled!==false,...(h.color!=null?{color:String(h.color)}:{})};})};}
 const isoDay=k=>new Date(Date.parse(k+'T12:00:00Z')).getUTCDay()||7;
 const addDays=(k,n)=>new Date(Date.parse(k+'T12:00:00Z')+n*86400000).toISOString().slice(0,10);
 const MIN=60000,DONE=['submitted','graded','excused'],ATTEMPTED=['pending','unverified','executed'];
@@ -75,9 +81,9 @@ function candidates(d,todos,archive,now=new Date(),settings=SETTINGS,emailTriage
  const tasks=[],skipped=[];
  for(const a of d.assignments||[]){
   if(a.archivedFromSource||DONE.includes(a.status))continue;
-  const ref={kind:'assignment',id:a.id,title:a.title},skip=reason=>skipped.push({...ref,reason}),review=REVIEW.find(r=>r.re.test(a.title||''));
-  if(archive?.[a.id]){skip('Archived locally; not planned.');continue;}
-  if(a.requirement==='choice'){skip('Selectable (choice) work is never scheduled automatically.');continue;}
+  const ref={kind:'assignment',id:a.id,title:a.title},skip=(reason,group='action')=>skipped.push({...ref,reason,group}),review=REVIEW.find(r=>r.re.test(a.title||''));
+  if(archive?.[a.id]){skip('Archived locally; not planned.','hidden');continue;}
+  if(a.requirement==='choice'){skip('Selectable (choice) work is never scheduled automatically.','hidden');continue;}
   const problem=sourceProblem(d,a.sourceId,now,settings);if(problem){skip(problem);continue;}
   if(a.requirement!=='required'){skip('Requirement uncertain. Verify it first.');continue;}
   // Review needs only the date: an in-class exam has no online submission, so its status can stay unknown.
@@ -132,12 +138,12 @@ function plan({snapshot:d,date,now=new Date(),todos={},archive={},dismissed={},s
  const at=(k,x)=>Date.parse(x==='24:00'?C.zonedISO(nextDay(k),'00:00'):C.zonedISO(k,x));
  const from=at(date,s.dayStart),to=at(date,s.dayEnd),start=Math.max(from,+now);
  const cov=d.calendarCoverage||{},result={date,timezone:d.timezone,generatedAt:now.toISOString(),window:{start:new Date(from).toISOString(),end:new Date(to).toISOString()},ready:false,blocks:[],unscheduled:[],gaps:[],
-  assumptions:[`Planning window ${s.dayStart}–${s.dayEnd} ${d.timezone}; the rest of the day stays free except weekly-goal windows you set earlier.`,...(s.breaks.length?['Breaks kept free: '+s.breaks.map(b=>b.start+'–'+b.end).join(', ')+'.']:[]),...(s.habits.some(h=>h.enabled)?[`Weekly goals are placed in their own windows after coursework due within ${s.urgentHours} hours, spread over the allowed days left this week (Monday–Sunday).`]:[]),`Focus blocks are at most ${s.maxBlock} minutes with ${s.gap}-minute rest gaps around blocks and busy events.`,`At least ${Math.round(s.reserve*100)}% of usable time stays unallocated.`,'Durations come only from your todo durations and source estimates; recorded actual minutes are not subtracted.',`Quizzes get ${REVIEW[1].minutes} minutes of review in the ${REVIEW[1].days} days before; exams get ${REVIEW[0].minutes} minutes over the ${REVIEW[0].days} days before, at most ${REVIEW[0].perDay} a day.`,`Interview emails come first: ${INTERVIEW.minutes} minutes of preparation before the stated time (${INTERVIEW.undated} today when no time is stated), at most ${INTERVIEW.perDay} a day.`,'Busy calendar events, including all-day events and expanded recurring occurrences, block time; events marked free do not.','Work is ordered by deadline (undated last). Blocks must end before the deadline.','Nothing is written to any calendar. Blocks are proposals; only an exact Q version you approve can be written.'],
+  assumptions:[`Planning window ${s.dayStart}–${s.dayEnd} ${d.timezone}; every block, weekly goals included, stays inside it.`,...(s.breaks.length?['Breaks kept free: '+s.breaks.map(b=>b.start+'–'+b.end).join(', ')+'.']:[]),...(s.habits.some(h=>h.enabled)?[`Weekly goals are placed in their own windows after coursework due within ${s.urgentHours} hours, spread evenly over the allowed days left this week (Monday–Sunday), at most their sessions per day.`]:[]),`Focus blocks are at most ${s.maxBlock} minutes with ${s.gap}-minute rest gaps around blocks and busy events.`,`At least ${Math.round(s.reserve*100)}% of usable time stays unallocated.`,'Durations come only from your todo durations and source estimates; recorded actual minutes are not subtracted.',`Quizzes get ${REVIEW[1].minutes} minutes of review in the ${REVIEW[1].days} days before; exams get ${REVIEW[0].minutes} minutes over the ${REVIEW[0].days} days before, at most ${REVIEW[0].perDay} a day.`,`Interview emails come first: ${INTERVIEW.minutes} minutes of preparation before the stated time (${INTERVIEW.undated} today when no time is stated), at most ${INTERVIEW.perDay} a day.`,'Busy calendar events, including all-day events and expanded recurring occurrences, block time; events marked free do not.','Work is ordered by deadline (undated last). Blocks must end before the deadline.','Nothing is written to any calendar. Blocks are proposals; only an exact Q version you approve can be written.'],
   usable:{minutes:0,budget:0,allocated:0}};
  const {tasks,skipped}=candidates(d,todos,archive,now,s,emailTriage);result.unscheduled.push(...skipped);
- if(to<=+now){result.gaps.push('This day has already ended.');result.unscheduled.push(...tasks.map(t=>({kind:t.kind,id:t.id,title:t.title,reason:'Not planned: the day has ended.'})));return result;}
+ if(to<=+now){result.gaps.push('This day has already ended.');result.unscheduled.push(...tasks.map(t=>({kind:t.kind,id:t.id,title:t.title,reason:'Not planned: the day has ended.',group:'hidden'})));return result;}
  result.gaps.push(...gaps(d,from,to,now,s));
- if(result.gaps.length){result.unscheduled.push(...tasks.map(t=>({kind:t.kind,id:t.id,title:t.title,reason:'Not planned: calendar coverage is not verified for this day.'})));return result;}
+ if(result.gaps.length){result.unscheduled.push(...tasks.map(t=>({kind:t.kind,id:t.id,title:t.title,reason:'Not planned: calendar coverage is not verified for this day.',group:'action'})));return result;}
  // Started actions (pending, unverified or executed) are canonical protections: their frozen approval copy (`started`, supplied by
  // the store) or snapshot copy keeps occupying time and covering work even after a source failure or a restore dropped the proposal.
  // Only a copy whose fingerprint matches the frozen receipt counts; a stale same-ID copy (an older restore or collector version) never does.
@@ -148,7 +154,7 @@ function plan({snapshot:d,date,now=new Date(),todos={},archive={},dismissed={},s
  // Kept proposals (anything this run does not replace) occupy every occurrence and cover part of some work.
  const kept=[...(d.proposals||[]).filter(p=>!attempted(d,p.id)&&!replaceable(d,p,date)&&!dismissed?.[p.id]),...startedCopies.values()],occ=new Map();
  for(const p of kept){try{occ.set(p.id,P.occurrences(p).map(o=>[Date.parse(o.start),Date.parse(o.end)]));}catch(e){result.gaps.push('Proposal "'+String(p.title||p.id).slice(0,80)+'" could not be expanded into occurrences, so its time is unknown: '+e.message);}}
- if(result.gaps.length){result.unscheduled.push(...tasks.map(t=>({kind:t.kind,id:t.id,title:t.title,reason:'Not planned: existing proposals or actions could not be placed in time.'})));return result;}
+ if(result.gaps.length){result.unscheduled.push(...tasks.map(t=>({kind:t.kind,id:t.id,title:t.title,reason:'Not planned: existing proposals or actions could not be placed in time.',group:'action'})));return result;}
  const covered=new Map(),counted=new Set();
  const add=(id,refs,minutes)=>{if(counted.has(id)||!(minutes>0))return;counted.add(id);for(const r of refs||[])covered.set(refKey(r),(covered.get(refKey(r))||0)+minutes);};
  // Proposals from the collector carry no sourceRefs; an exact assignment source URL links them to that assignment.
@@ -171,10 +177,12 @@ function plan({snapshot:d,date,now=new Date(),todos={},archive={},dismissed={},s
  const monday=addDays(date,1-isoDay(date)),week=new Set(Array.from({length:7},(_,i)=>addDays(monday,i)));
  const placeHabit=h=>{if(!h.enabled||!h.days.includes(isoDay(date)))return;const ref={kind:'habit',id:h.id,title:h.title};
   const mine=kept.filter(p=>p.sourceRefs?.some(r=>r.kind==='habit'&&r.id===h.id)&&week.has(C.dayKey(p.start))),had=mine.filter(p=>C.dayKey(p.start)===date).length,done=mine.length,left=h.perWeek-(done-had);if(left<=0)return;
-  // Today's share of what the other days have not covered, minus the sessions already kept on this day.
-  const daysLeft=[...week].filter(k=>k>=date&&h.days.includes(isoDay(k))).length,today=Math.min(2,Math.ceil(left/Math.max(1,daysLeft)))-had;if(today<=0)return;let placed=0,why='';
+  // The sessions still owed this week go evenly over the allowed days left (session i on day floor((i + 0.5) x days / left)),
+  // so three sessions from Monday land Monday, Wednesday and Friday. Today takes its share, at most perDay, minus kept sessions.
+  const daysLeft=[...week].filter(k=>k>=date&&h.days.includes(isoDay(k))).length,mine0=Array.from({length:left},(_,i)=>Math.floor((i+0.5)*daysLeft/left)).filter(x=>x===0).length;
+  const today=Math.min(h.perDay||1,mine0)-had;if(today<=0)return;let placed=0,why='';
   for(let i=0;i<today;i++){if(allocated+h.minutes>budget){why=reserveNote();break;}let t0=null;
-   for(const w of h.windows){const ws=Math.max(+now,at(date,w.start)),we=Math.min(to,at(date,w.end));if(we-ws<h.minutes*MIN)continue;t0=slot(h.minutes*MIN,ws,we,merge(blocked),s.step);if(t0!==null)break;}
+   for(const w of h.windows){const ws=Math.max(start,at(date,w.start)),we=Math.min(to,at(date,w.end));if(we-ws<h.minutes*MIN)continue;t0=slot(h.minutes*MIN,ws,we,merge(blocked),s.step);if(t0!==null)break;}
    if(t0===null){why='No free '+h.minutes+'-minute slot in its windows ('+h.windows.map(w=>w.start+'–'+w.end).join(', ')+') today.';break;}
    const b={start:new Date(t0).toISOString(),end:new Date(t0+h.minutes*MIN).toISOString()},title=h.title.slice(0,200),id='plan-'+date+'-'+hash(['habit',h.id,b.start,b.end,title,cov.account,cov.calendarId].join('|'));
    const p={id,title,start:b.start,end:b.end,status:'proposed',action:'create',provider:'google',account:cov.account,calendar:cov.calendar,calendarId:cov.calendarId,timezone:d.timezone,recurrence:'One time',attendees:[],location:'',busy:true,reminderMinutes:s.reminderMinutes,color:habitColor(h),
@@ -182,28 +190,32 @@ function plan({snapshot:d,date,now=new Date(),todos={},archive={},dismissed={},s
     reason:`Weekly goal: session ${done+placed+1} of ${h.perWeek} this week · ${h.minutes} minutes.`};
    const errs=P.errors(p,{...d,proposals:[]},now,[...startedCopies.values()]);if(errs.length){why='Rejected by calendar checks: '+errs.join(' ');break;}
    result.blocks.push(p);blocked.push([t0-s.gap*MIN,t0+(h.minutes+s.gap)*MIN]);allocated+=h.minutes;placed++;}
-  if(placed<today)result.unscheduled.push({...ref,reason:(placed?`Placed ${placed} of ${today} sessions today. `:'')+why});};
+  if(placed<today)result.unscheduled.push({...ref,group:'action',reason:(placed?`Placed ${placed} of ${today} sessions today. `:'')+why});};
+ // Coursework minutes on this day (kept blocks for assignments and todos), against the owner's optional daily limit.
+ const workRef=r=>r&&(r.kind==='assignment'||r.kind==='todo');
+ let work=kept.filter(p=>p.sourceRefs?.some(workRef)&&C.dayKey(p.start)===date).reduce((n,p)=>n+Math.round((Date.parse(p.end)-Date.parse(p.start))/MIN),0);
  // Order: interview preparation, then work due within urgentHours, then weekly goals, then everything else by deadline.
  const urgent=t=>!t.interview&&t.dueAt&&Date.parse(t.dueAt)<=+now+s.urgentHours*3600000;
  for(const t of [...tasks.filter(t=>t.interview),...tasks.filter(urgent),null,...tasks.filter(t=>!t.interview&&!urgent(t))]){
   if(t===null){for(const h of s.habits)placeHabit(h);continue;}
   const ref={kind:t.kind,id:t.id,title:t.title},have=covered.get(refKey(t))||0,need=t.minutes-have,deadline=t.dueAt?Date.parse(t.dueAt):Infinity,until=Math.min(to,deadline);
-  if(need<=0){result.unscheduled.push({...ref,reason:`Already covered by ${have} minutes of proposed or approved blocks.`});continue;}
-  if(deadline<=+now){result.unscheduled.push({...ref,reason:'Deadline has passed. Decide whether it still matters.'});continue;}
-  if(deadline<=start){result.unscheduled.push({...ref,reason:'Deadline ('+local(deadline)+') falls before the '+s.dayStart+' start of '+date+'. Plan it on an earlier day.'});continue;}
-  if(t.earliest>to){result.unscheduled.push({...ref,reason:`Review starts ${REVIEW.find(r=>r.kind===t.review).days} days before the ${t.review} (${local(deadline)}).`});continue;}
+  if(need<=0){result.unscheduled.push({...ref,group:'hidden',reason:`Already covered by ${have} minutes of proposed or approved blocks.`});continue;}
+  if(deadline<=+now){result.unscheduled.push({...ref,group:'action',reason:'Deadline has passed. Decide whether it still matters.'});continue;}
+  if(deadline<=start){result.unscheduled.push({...ref,group:'hidden',reason:'Deadline ('+local(deadline)+') falls before the '+s.dayStart+' start of '+date+'. Plan it on an earlier day.'});continue;}
+  if(t.earliest>to){result.unscheduled.push({...ref,group:'later',startsOn:C.dayKey(t.earliest),reason:`Review starts ${REVIEW.find(r=>r.kind===t.review).days} days before the ${t.review} (${local(deadline)}).`});continue;}
   // Review and interview preparation are spread: at most perDay minutes on one day, counting this day's kept blocks. Work due
   // after urgentHours is spread the same way over the days left up to its deadline day (at least minDaily minutes a day), and
   // starts only within twice the days it needs at minDaily, so distant work does not fill a day that nearer work may need.
   const daysLeft=Number.isFinite(deadline)?Math.max(1,Math.round((Date.parse(C.dayKey(deadline)+'T12:00:00Z')-Date.parse(date+'T12:00:00Z'))/86400000)):0;
   const paced=!t.perDay&&!t.interview&&!urgent(t)&&daysLeft>0,lead=2*Math.ceil(need/s.minDaily);
-  if(paced&&daysLeft>lead){result.unscheduled.push({...ref,reason:`Starts ${lead} days before its deadline (${local(deadline)}), twice the days it needs at ${s.minDaily} minutes a day.`});continue;}
+  if(paced&&daysLeft>lead){result.unscheduled.push({...ref,group:'later',startsOn:addDays(C.dayKey(deadline),-lead),reason:`Starts ${lead} days before its deadline (${local(deadline)}), twice the days it needs at ${s.minDaily} minutes a day.`});continue;}
   const perDay=t.perDay||(paced?Math.max(s.minDaily,Math.ceil(need/daysLeft/s.step)*s.step):0);
   const today=perDay?perDay-kept.filter(p=>p.sourceRefs?.some(r=>refKey(r)===refKey(t))&&C.dayKey(p.start)===date).reduce((n,p)=>n+Math.round((Date.parse(p.end)-Date.parse(p.start))/MIN),0):need;
-  if(today<=0){result.unscheduled.push({...ref,reason:`Today already has ${perDay} minutes for it; the rest goes on other days.`});continue;}
-  const want=Math.min(need,today),parts=chunks(want,s.maxBlock);let placed=0,why='';
+  if(today<=0){result.unscheduled.push({...ref,group:'hidden',reason:`Today already has ${perDay} minutes for it; the rest goes on other days.`});continue;}
+  const want=Math.min(need,today),parts=chunks(want,s.maxBlock);let placed=0,why='',limited=false;
   for(const [i,len] of parts.entries()){
    if(allocated+len>budget){why=reserveNote();break;}
+   if(s.maxDailyWork&&!t.interview&&work+len>s.maxDailyWork){why=`Daily coursework limit (${s.maxDailyWork} minutes) reached; the rest goes on other days.`;limited=true;break;}
    const at=slot(len*MIN,start,until,merge(blocked),s.step);if(at===null){why=until<to?'No free slot that ends before the deadline.':'No free slot of '+len+' minutes left today.';break;}
    const b={start:new Date(at).toISOString(),end:new Date(at+len*MIN).toISOString()};
    const title=((t.interview?'Interview prep: ':t.review?'Review: ':'Focus: ')+t.title).slice(0,200),id='plan-'+date+'-'+hash([t.kind,t.id,t.version??'',b.start,b.end,title,cov.account,cov.calendarId].join('|'));
@@ -213,13 +225,28 @@ function plan({snapshot:d,date,now=new Date(),todos={},archive={},dismissed={},s
     sourceRefs:[{kind:t.kind,id:t.id,...(t.kind==='todo'?{version:t.version}:t.kind==='email'?{}:{dueAt:t.dueAt,estimateMinutes:t.estimateMinutes})}],
     reason:`${t.interview?'Interview preparation'+(t.dueAt?' before '+local(t.dueAt):' (interview time not stated)'):t.review?'Review for the '+t.review+' on '+local(t.dueAt):(t.kind==='todo'?'Todo':'Required coursework')+(t.dueAt?' due '+local(t.dueAt):' with no deadline')+(t.unread?' · submission status not read: remove this block if it is already submitted':'')} · block ${i+1} of ${parts.length} · ${len} of ${need} remaining minutes${have?` (${have} already planned)`:''}.`};
    const errs=P.errors(p,{...d,proposals:[]},now,[...startedCopies.values()]);if(errs.length){why='Rejected by calendar checks: '+errs.join(' ');break;}
-   result.blocks.push(p);blocked.push([at-s.gap*MIN,at+(len+s.gap)*MIN]);allocated+=len;placed+=len;
+   result.blocks.push(p);blocked.push([at-s.gap*MIN,at+(len+s.gap)*MIN]);allocated+=len;placed+=len;if(!t.interview)work+=len;
   }
-  if(placed<want)result.unscheduled.push({...ref,reason:(placed?`Partly planned: ${placed} of ${want} minutes. `:'')+why});
-  else if(paced&&want<need)result.unscheduled.push({...ref,reason:`Spread over the ${daysLeft} days to its deadline: ${placed} of ${need} minutes today, the rest on later days.`});
+  if(placed<want)result.unscheduled.push({...ref,group:limited?'hidden':'action',reason:(placed?`Partly planned: ${placed} of ${want} minutes. `:'')+why});
+  else if(paced&&want<need)result.unscheduled.push({...ref,group:'hidden',reason:`Spread over the ${daysLeft} days to its deadline: ${placed} of ${need} minutes today, the rest on later days.`});
  }
  result.usable.allocated=allocated;return result;
 }
+// Deadline risk (owner request 2026-10-27, after Motion): required work due in the next `days` days whose planned minutes
+// before its deadline fall short of what it needs. Planned = occurrences of non-dismissed blocks for it that end by the
+// deadline and are started or still ahead, plus attempted receipts without a copy. It reads the snapshot only.
+function risks({snapshot:d,now=new Date(),days=7,todos={},archive={},dismissed={},settings={},emailTriage={}}){
+ const s={...SETTINGS,...settings};now=new Date(now);C.configure(d.timezone);
+ const until=Date.parse(C.zonedISO(addDays(C.dayKey(now),days),'00:00')),{tasks}=candidates(d,todos,archive,now,s,emailTriage),out=[];
+ // As in plan(): a collector proposal without sourceRefs belongs to the assignment whose source URL it carries.
+ const bySource=new Map((d.assignments||[]).filter(a=>a.source).map(a=>[a.source,a.id])),refsOf=p=>p.sourceRefs||(bySource.has(p.source)?[{kind:'assignment',id:bySource.get(p.source)}]:[]);
+ for(const t of tasks){const due=t.dueAt?Date.parse(t.dueAt):NaN;if(!(due>+now&&due<=until))continue;
+  const mine=r=>refKey(r)===refKey(t);let planned=0;const seen=new Set();
+  for(const p of d.proposals||[]){if(dismissed?.[p.id]||!refsOf(p).some(mine))continue;let occ;try{occ=P.occurrences(p);}catch{continue;}seen.add(p.id);
+   const started=attempted(d,p.id);for(const o of occ){const a=Date.parse(o.start),b=Date.parse(o.end);if(b<=due&&(started||b>+now))planned+=Math.round((b-a)/MIN);}}
+  for(const h of d.actionHistory||[])if(!seen.has(h.id)&&ATTEMPTED.includes(h.status)&&(h.sourceRefs||[]).some(mine)&&Number.isFinite(h.minutes))planned+=h.minutes;
+  if(planned<t.minutes)out.push({kind:t.kind,id:t.id,title:t.title,dueAt:t.dueAt,...(t.review?{review:t.review}:{}),needed:t.minutes,planned,missing:t.minutes-planned});}
+ return out.sort((a,b)=>Date.parse(a.dueAt)-Date.parse(b.dueAt));}
 // Bounded plan explanation for storage: at most maxListed unscheduled items, with the full count kept.
 function summary(result,settings=SETTINGS){return {...result,unscheduled:result.unscheduled.slice(0,settings.maxListed),unscheduledTotal:result.unscheduled.length,blocks:result.blocks.map(b=>b.id)};}
 // On a source import, keep unstarted planner blocks only while their identity and evidence still hold (the planning source
@@ -237,6 +264,6 @@ function ownEventIds(d){const receipt=new Map((d.actionHistory||[]).filter(h=>AT
  // An event found only by its receipt, with no copy left to draw in its place, stays visible.
  const refs=new Map((d.actionHistory||[]).filter(h=>h.status==='executed'&&h.remoteRef).map(h=>[h.remoteRef,h.id])),ref=e=>refs.get(e.remoteRef)??refs.get(e.id)??(e.calendarId&&e.id?refs.get(e.calendarId+'/'+e.id):undefined);
  return new Set([...ownEvents(d,copies,occ)].filter(e=>{const id=ref(e);return id===undefined||copies.has(id);}).map(e=>e.id));}
-const api={addDays,SETTINGS,RECOMMENDED,COLORS,HABIT_COLOR,HABIT_COLORS,COLOR_IDS,habitColor,REVIEW,INTERVIEW,validDate,nextDay,hash,chunks,merge,minutesFree,slot,sourceProblem,candidates,gaps,plan,summary,keep,replaceable,attempted,ATTEMPTED,planSettings,isoDay,ownEventIds};
+const api={risks,addDays,SETTINGS,RECOMMENDED,COLORS,HABIT_COLOR,HABIT_COLORS,COLOR_IDS,habitColor,REVIEW,INTERVIEW,validDate,nextDay,hash,chunks,merge,minutesFree,slot,sourceProblem,candidates,gaps,plan,summary,keep,replaceable,attempted,ATTEMPTED,planSettings,isoDay,ownEventIds};
 if(typeof module!=='undefined')module.exports=api;else window.PlannerPlanner=api;
 })();

@@ -31,7 +31,7 @@ function createServer(dir,{hosted=null,ingestSecret='',executeSecret='',canvasIc
   let raw='';for await(const part of req){raw+=part;if(raw.length>5e6)throw Error('Request too large');}const incoming=JSON.parse(raw||'null');
   if(u.searchParams.get('dryRun')==='1')return send(200,{ok:true,dryRun:true,...store.previewImport(incoming)});
   const archived=store.previewImport(incoming).archived,d=store.importSnapshot(incoming);
-  // Drafts for the rest of today and the next four days follow every collection (docs/data-contract.md, daily plan). Locked blocks stay.
+  // Drafts for the rest of today and the next six days follow every collection (docs/data-contract.md, daily plan). Locked blocks stay.
   return send(200,{ok:true,generatedAt:d.generatedAt,assignments:d.assignments.length,events:d.events.length,archived,plans:store.autoPlan()});}
  // The calendar executor (docs/cloud-execute.md) uses its own bearer secret and only acts on versions the owner approved here.
  if(u.pathname==='/api/execute'||u.pathname.startsWith('/api/execute/')){if(!allow('execute:'+ip,60,3600000))return send(429,{error:'Too many requests'});if(!H.ingestAuthorized(req,executeSecret))return send(401,{error:'Invalid executor credentials'});

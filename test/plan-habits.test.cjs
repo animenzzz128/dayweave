@@ -33,7 +33,7 @@ test('weekly goals count sessions already planned this week, skip disallowed day
  const planned=d=>{for(const k of ['2026-10-12','2026-10-13','2026-10-16'])d.proposals.push({id:'g-'+k,title:'Gym',start:C.zonedISO(k,'07:00'),end:C.zonedISO(k,'08:00'),provider:'google',account:d.calendarCoverage.account,calendarId:d.calendarCoverage.calendarId,calendar:d.calendarCoverage.calendar,timezone:TZ,action:'create',recurrence:'One time',attendees:[],location:'',busy:true,origin:'planner',planDate:k,sourceRefs:[{kind:'habit',id:'gym'}]});return d;};
  const full=PL.plan({snapshot:snap(date,now,planned),date,now,settings:PL.planSettings({...settings,habits:[gym]})});
  a.equal(full.blocks.filter(b=>b.sourceRefs[0].kind==='habit').length,0,'three sessions this week already: none today');
- const weekend=PL.plan({snapshot:snap(date,now),date,now,settings:PL.planSettings({...settings,habits:[{...gym,days:[6,7]}]})});a.equal(weekend.blocks.filter(b=>b.sourceRefs[0].kind==='habit').length,0);
+ const weekend=PL.plan({snapshot:snap(date,now),date,now,settings:PL.planSettings({...settings,habits:[{...gym,perWeek:2,days:[6,7]}]})});a.equal(weekend.blocks.filter(b=>b.sourceRefs[0].kind==='habit').length,0);
  const busy=PL.plan({snapshot:snap(date,now,d=>{d.assignments=[];d.events.push({id:'all',title:'Workshop',start:C.zonedISO(date,'07:00'),end:C.zonedISO(date,'20:00'),busy:true,sourceId:'google-calendar'});return d;}),date,now,settings:PL.planSettings({...settings,habits:[gym]})});
  a.match(busy.unscheduled.find(u=>u.id==='gym').reason,/No free 60-minute slot in its windows \(07:00–09:00, 17:00–19:00\)/);
  const off=PL.plan({snapshot:snap(date,now),date,now,settings:PL.planSettings({...settings,habits:[{...gym,enabled:false}]})});a.equal(off.blocks.filter(b=>b.sourceRefs[0].kind==='habit').length,0,'a paused goal is not planned');});
@@ -69,3 +69,21 @@ test('interview email gets preparation first; handled or past interviews do not'
  a.equal(PL.plan({snapshot:snap(date,now,mail({})),date,now,settings:only,emailTriage:{'m-int':{handled:true}}}).blocks.filter(b=>b.sourceRefs[0].kind==='email').length,0,'handled');
  a.equal(PL.plan({snapshot:snap(date,now,mail({category:'info'})),date,now,settings:only,emailTriage:{'m-int':{category:'interview'}}}).blocks.filter(b=>b.sourceRefs[0].kind==='email').length,1,'the owner can mark mail as an interview');
  a.equal(PL.plan({snapshot:snap(date,now,mail({dueAt:C.zonedISO('2026-10-13','15:00')})),date,now,settings:only}).blocks.filter(b=>b.sourceRefs[0].kind==='email').length,0,'past interview');});
+
+test('goals stay inside the planning day, at most perDay a day, spread evenly over the week',()=>{
+ const monday='2026-10-12',now=C.zonedISO(monday,'06:00'),rules=PL.planSettings({dayStart:'09:00',dayEnd:'24:00',breaks:[],habits:[gym]});
+ const week=d=>{d.assignments=[];d.events=[];d.calendarCoverage.end=C.zonedISO('2026-10-19','00:00');return d;},d=snap(monday,now,week),days=[];
+ // Plan Monday to Sunday in order, each day keeping the blocks of the days before, as a week run does.
+ for(let k=monday,i=0;i<7;i++,k=PL.nextDay(k)){const r=PL.plan({snapshot:d,date:k,now,settings:rules});d.proposals.push(...r.blocks);days.push(r.blocks.filter(b=>b.sourceRefs[0].kind==='habit').map(b=>local(b.start)));}
+ a.deepEqual(days,[['17:00'],[],['17:00'],[],['17:00'],[],[]],'three sessions land Monday, Wednesday and Friday, in the window inside 09:00–24:00');
+ const twice=PL.planSettings({habits:[{...gym,perWeek:7,perDay:2}]});a.equal(twice.habits[0].perDay,2);
+ for(const [bad,re] of [[{...gym,perWeek:7},/7 sessions a week do not fit 5 allowed days at 1 a day/],[{...gym,perDay:4},/1–3/],[{...gym,windows:[{start:'07:00',end:'09:00'}]},/inside the planning day \(09:00–24:00\)/]])
+  a.throws(()=>PL.planSettings({habits:[bad]}),re,JSON.stringify(bad));
+ a.equal(PL.planSettings({dayStart:'07:00',habits:[{...gym,windows:[{start:'07:00',end:'09:00'}]}]}).habits.length,1,'an earlier day start allows the morning window');});
+
+test('not-scheduled items say whether they need the owner, come later, or are only for the record',()=>{
+ const date='2026-10-14',now=C.zonedISO(date,'06:00');
+ const d=snap(date,now,x=>{const base=x.assignments[0];x.assignments.push({...base,id:'done',title:'Done essay'},{...base,id:'noest',title:'No estimate',estimateMinutes:undefined},{...base,id:'quiz',title:'Quiz 4',dueAt:C.zonedISO('2026-10-30','10:00')});return x;});
+ const r=PL.plan({snapshot:d,date,now,archive:{done:true},settings:PL.planSettings(settings)}),of=id=>r.unscheduled.find(u=>u.id===id);
+ a.equal(of('done').group,'hidden');a.equal(of('noest').group,'action');a.equal(of('quiz').group,'later');a.equal(of('quiz').startsOn,'2026-10-28');
+ for(const u of r.unscheduled)a.ok(['action','later','hidden'].includes(u.group),JSON.stringify(u));});

@@ -25,16 +25,16 @@ test('blocks in a version the owner approved stay through regeneration and keep 
  const r=s.generatePlan(date);const now=planned(s,date),have=new Set(now.flatMap(p=>p.sourceRefs).filter(x=>x.kind==='habit').map(x=>x.id));
  a.ok(!r.unscheduled.some(u=>u.kind==='habit'&&have.has(u.id)),'a goal already met today is not reported as not fitting');a.ok(ids.every(id=>now.some(p=>p.id===id&&p.locked)),'approved blocks stay, locked');a.equal(A.read(s,q.reference).status,'prepared');}));
 
-test('after a collection, drafts are made for today and the next four days; a day that cannot be planned keeps its blocks',()=>withStore(s=>{
+test('after a collection, drafts are made for today and the next six days; a day that cannot be planned keeps its blocks',()=>withStore(s=>{
  const real=Date.now();s.importSnapshot(snap(real));const date=tomorrowOf(real),r=s.autoPlan(new Date(real));
- a.deepEqual(r.map(x=>x.date),[0,1,2,3,4].map(i=>PL.addDays(C.dayKey(real),i)));a.ok(r[1].ready);a.equal(r[3].ready,false,'the checked calendar window ends after day 3');a.ok(planned(s,date).length>0);const before=planned(s,date).map(p=>p.id);
+ a.deepEqual(r.map(x=>x.date),[0,1,2,3,4,5,6].map(i=>PL.addDays(C.dayKey(real),i)));a.ok(r[1].ready);a.equal(r[3].ready,false,'the checked calendar window ends after day 3');a.ok(planned(s,date).length>0);const before=planned(s,date).map(p=>p.id);
  s.importSnapshot(snap(real+1000,d=>{d.calendarCoverage.complete=false;return d;}));const r2=s.autoPlan(new Date(real+1000));
  a.equal(r2[1].ready,false);a.ok(before.every(id=>planned(s,date).some(p=>p.id===id)),'nothing cleared');}));
 
-test('five days are planned in one go without counting old drafts twice; each block carries its calendar colour',()=>withStore(s=>{
+test('a week is planned in one go without counting old drafts twice; each block carries its calendar colour',()=>withStore(s=>{
  const real=Date.now();s.importSnapshot(snap(real));const today=C.dayKey(real),date=tomorrowOf(real),total=()=>s.snapshot().proposals.filter(p=>p.origin==='planner'&&p.sourceRefs[0].id==='case').reduce((n,p)=>n+(Date.parse(p.end)-Date.parse(p.start))/60000,0);
  s.generatePlan(date);a.equal(total(),120);
- const r=s.generatePlans(today,5,new Date(real));a.equal(r.length,5);a.equal(total(),120,'old drafts on later days are cleared first, so the work is planned once');
+ const r=s.generatePlans(today,7,new Date(real));a.equal(r.length,7);a.equal(total(),120,'old drafts on later days are cleared first, so the work is planned once');
  const blocks=s.snapshot().proposals.filter(p=>p.origin==='planner');a.ok(blocks.length);
  for(const p of blocks)a.equal(p.color,p.sourceRefs[0].kind==='habit'?PL.habitColor(PL.RECOMMENDED.habits.find(h=>h.id===p.sourceRefs[0].id)):PL.COLORS.coursework,p.title);
- a.throws(()=>s.generatePlans(today,6),/1 to 5 days/);a.throws(()=>s.generatePlans('nope'),/valid date/);}));
+ a.throws(()=>s.generatePlans(today,8),/1 to 7 days/);a.throws(()=>s.generatePlans('nope'),/valid date/);}));

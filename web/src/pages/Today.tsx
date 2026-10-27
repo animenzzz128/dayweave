@@ -3,6 +3,7 @@ import { useApp } from '../data/AppData';
 import { useI18n } from '../i18n/I18n';
 import { DayTimeline } from '../components/DayTimeline';
 import { Brief } from '../components/Brief';
+import { DeadlineRisks } from '../components/DeadlineRisks';
 import { Dot, Empty, Tag, sourceTone, type Tone } from '../components/ui';
 import { Core, Demo, Email, Phase3, Workload } from '../lib/shared';
 import { href } from '../lib/router';
@@ -52,6 +53,8 @@ export function Today() {
         <Kpi href={href('review')} label={t.today.kpiProposals} value={waiting.length} tone={waiting.length ? 'info' : 'neutral'} note={t.today.kpiProposalsNote} />
         <Kpi href={href('email')} label={t.today.kpiEmail} value={handleCount} tone={handleCount ? 'info' : 'neutral'} note={'shown' in inbox ? t.today.kpiUnread(inbox.unread as number) : t.email.disabled} />
       </div>
+
+      <DeadlineRisks />
 
       <div className="flex flex-wrap gap-6">
         <section aria-labelledby="day" className="panel min-w-0 flex-[1_1_340px] p-4 max-md:order-2">

@@ -1,7 +1,7 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),{DatabaseSync}=require('node:sqlite');
 const C=require('./core.cjs'),R=require('./routine.cjs'),E=require('./effort.cjs'),W=require('./workload.cjs'),T=require('./trends.cjs');
-const collections=['courses','assignments','events','proposals','sources'],MAX_SNAPSHOT_READ=1000,MAX_OPEN_TODOS=200,PLAN_DAYS=5;
+const collections=['courses','assignments','events','proposals','sources'],MAX_SNAPSHOT_READ=1000,MAX_OPEN_TODOS=200,PLAN_DAYS=7;
 const validId=id=>typeof id==='string'&&!!id&&id.length<=1000&&!['__proto__','constructor','prototype'].includes(id);
 class Store{
  constructor(dir){this.dir=dir;fs.mkdirSync(dir,{recursive:true});this.file=path.join(dir,'dayweave.sqlite');this.open();}
@@ -92,7 +92,7 @@ class Store{
   this.db.prepare('INSERT OR REPLACE INTO progress VALUES(?,?,?,?)').run('plan',date,JSON.stringify({...PL.summary(result),replaced}),result.generatedAt);
   this.db.prepare("DELETE FROM progress WHERE kind='plan' AND id<?").run(new Date(+new Date(now)-30*86400000).toISOString().slice(0,10));
   this.invalidate();this.log('plan','generated',date,{blocks:result.blocks.map(b=>b.id),replaced,unscheduled:result.unscheduled.length,gaps:result.gaps});return result;}
- // After each collection: drafts for today (the time left) and the next PLAN_DAYS-1 days. A day that cannot be planned keeps its blocks.
+ // After each collection: drafts for today (the time left) and the next PLAN_DAYS-1 days (a rolling week). A day that cannot be planned keeps its blocks.
  autoPlan(now=new Date()){const d=this.snapshot();if(!d)return [];C.configure(d.timezone);const today=C.dayKey(now);
   try{return this.generatePlans(today,PLAN_DAYS,now,{auto:true});}catch(e){return [{date:today,ready:false,error:e.message}];}}
  migrateProgress(local){if(this.db.prepare("SELECT 1 FROM meta WHERE key='browser-migrated'").get())return false;this.dailyBackup();for(const kind of ['checks','actual','career','help','archive','dismissed'])for(const [id,value] of Object.entries(local[kind]||{})){if(this.db.prepare('SELECT 1 FROM progress WHERE kind=? AND id=?').get(kind,id))continue;this.saveState(kind,id,value);}this.db.prepare("INSERT INTO meta VALUES('browser-migrated',?)").run(new Date().toISOString());return true;}

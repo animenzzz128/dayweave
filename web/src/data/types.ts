@@ -88,16 +88,18 @@ export interface Approval {
   approval?: { channel: string; text: string; at: string; by: string } | null;
 }
 
+/** Why something was not planned: `action` needs the owner, `later` starts on `startsOn`, `hidden` is only for the record. */
+export interface Unscheduled { id: string; title: string; reason: string; kind?: string; group?: 'action' | 'later' | 'hidden'; startsOn?: string }
 /** One day of a multi-day generation. */
 export interface PlanDay { date: string; ready: boolean; blocks: number; gaps: number; error?: string }
 export interface PlanResult {
-  date: string; ready?: boolean; blocks: Proposal[]; unscheduled: { id: string; title: string; reason: string; kind?: string }[]; unscheduledTotal?: number;
+  date: string; ready?: boolean; blocks: Proposal[]; unscheduled: Unscheduled[]; unscheduledTotal?: number;
   gaps: string[]; assumptions: string[]; usable: { minutes: number; budget: number; allocated: number };
 }
 
-export interface Habit { id: string; title: string; minutes: number; perWeek: number; days: number[]; windows: { start: string; end: string }[]; enabled: boolean; color?: string }
+export interface Habit { id: string; title: string; minutes: number; perWeek: number; days: number[]; windows: { start: string; end: string }[]; enabled: boolean; color?: string; perDay?: number }
 /** The owner's planning rules (planner.planSettings); the recommended ones until the owner saves their own. */
-export interface PlanSettings { dayStart: string; dayEnd: string; breaks: { start: string; end: string }[]; habits: Habit[] }
+export interface PlanSettings { dayStart: string; dayEnd: string; breaks: { start: string; end: string }[]; habits: Habit[]; maxDailyWork?: number }
 
 /** Hosted only: whether the owner connected Google Calendar for direct writes (docs/google-direct.md). */
 export interface CalendarWrite { available: boolean; connected?: boolean; account?: string; connectedAt?: string | null }
