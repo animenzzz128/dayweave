@@ -34,10 +34,14 @@ async function fetchSite(site,{fetch:doFetch=globalThis.fetch,now=Date.now()}={}
 // rows have the same fields as the API's plus each assignment's instructions (`body`). Never grades or write tools.
 // Submission reads (`submissions` from get_my_submissions, `quizSubmissions` from a GET of quiz_submissions) are reduced here to
 // which assignment slugs have a filled-in field and which quiz IDs were taken: submitted values themselves are not kept.
+// A quiz submission last touched before that quiz opened belongs to an earlier use of the same quiz ID (the site reassigns IDs to
+// new meetings), so it does not count as taking the current quiz.
 const MAX_BODY=4000,clip=t=>t.length>MAX_BODY?t.slice(0,MAX_BODY-1).trimEnd()+'…':t;
 function submittedFrom(r){const out={};
  if(Array.isArray(r.submissions))out.assignments=[...new Set(r.submissions.filter(x=>x&&x.assignment_slug&&(x.fields||[]).some(f=>String(f?.body??'').trim())).map(x=>String(x.assignment_slug)))];
- if(Array.isArray(r.quizSubmissions))out.quizzes=[...new Set(r.quizSubmissions.filter(x=>x&&x.quiz_id!=null).map(x=>String(x.quiz_id)))];
+ const opens=new Map((Array.isArray(r.quizzes)?r.quizzes:[]).filter(q=>q&&q.id!=null).map(q=>[String(q.id),Date.parse(q.open_at)]));
+ const current=x=>{const o=opens.get(String(x.quiz_id)),t=Date.parse(x.updated_at??x.created_at);return !(Number.isFinite(o)&&Number.isFinite(t)&&t<o);};
+ if(Array.isArray(r.quizSubmissions))out.quizzes=[...new Set(r.quizSubmissions.filter(x=>x&&x.quiz_id!=null&&current(x)).map(x=>String(x.quiz_id)))];
  return Object.keys(out).length?out:null;}
 function withConnectorReads(sites,reads){if(!Array.isArray(reads)||!reads.length)return sites;const key=c=>String(c||'').toLowerCase().replace(/\s+/g,' ').trim(),out=(sites||[]).map(s=>({...s}));
  for(const r of reads){if(!r||!r.course)continue;let s=out.find(x=>key(x.course)===key(r.course));if(!s){s={course:r.course,url:r.url||null,status:'failed',error:'No schedule read for this course'};out.push(s);}

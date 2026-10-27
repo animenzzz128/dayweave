@@ -90,5 +90,11 @@ test('connector instructions become descriptions and submission reads set status
  const next=structuredClone(r.snapshot);next.assignments.find(x=>x.id==='brief-a').description='My notes.';
  const [later]=S.withConnectorReads([sched],[{...read,assignments:read.assignments.map(x=>x.slug==='brief'?{...x,body:'Site text.'}:x),submissions:[]}]);
  const again=Object.fromEntries(buildSnapshot(next,{courseSites:[later]},{now:NOW}).snapshot.assignments.map(x=>[x.id,x]));a.equal(again['brief-a'].description,'My notes.');a.equal(again['brief-a'].status,'submitted');
+ // A quiz submission from before the quiz opened is an earlier use of that quiz ID: it does not count, and it corrects an
+ // earlier read that counted it. Rows without times keep counting.
+ const reused={...read,quizzes:read.quizzes.map(q=>q.id===7?{...q,open_at:'2026-10-10T18:00:00+00:00'}:q),quizSubmissions:[{quiz_id:7,created_at:'2026-10-01T00:00:00+00:00',updated_at:'2026-10-01T00:00:00+00:00'}]};
+ const [early]=S.withConnectorReads([sched],[reused]);a.deepEqual(early.submitted.quizzes,[]);
+ a.deepEqual(S.withConnectorReads([sched],[{...reused,quizSubmissions:[{quiz_id:7,created_at:'2026-10-11T00:00:00+00:00'}]}])[0].submitted.quizzes,['7']);
+ a.equal(buildSnapshot(structuredClone(r.snapshot),{courseSites:[early]},{now:NOW}).snapshot.assignments.find(x=>x.id==='coursea-quiz-7').status,'not_submitted');
  const [plain]=S.withConnectorReads([sched],[{course:'COURSE A',status:'ok',assignments,quizzes}]);a.equal(plain.submitted,undefined);
  a.equal(buildSnapshot(base(),{courseSites:[plain]},{now:NOW}).snapshot.assignments.find(x=>x.id==='coursea-sprint').status,'unknown','no submission read, no status');});
