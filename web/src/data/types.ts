@@ -34,7 +34,7 @@ export interface EmailMessage {
   id: string; threadId: string; receivedAt: string; from: string; subject: string; snippet?: string;
   labels?: string[]; unread?: boolean; hasAttachments?: boolean; attachmentCount?: number | null; link?: string;
   /** AI triage written by the collecting assistant; the owner's `emailTriage` progress overrides it. */
-  triage?: { category: TriageCategory; priority: 'high' | 'medium' | 'low'; summary: string; action: string; dueAt: string | null; assignmentId?: string };
+  triage?: { category: TriageCategory; priority: 'high' | 'medium' | 'low'; summary: string; action: string; dueAt: string | null; assignmentId?: string; zh?: { summary: string; action: string } };
 }
 
 export type TriageCategory = 'interview' | 'reply' | 'action' | 'info' | 'promo';
