@@ -1,31 +1,53 @@
 # Dayweave
 
-**Turn coursework and calendar evidence into a clear, reviewable daily plan.**
+**Turn coursework, calendar and email evidence into a clear, reviewable daily plan.**
 
-Dayweave is a local Node.js + SQLite web app for deadlines, assignment checklists, focused work blocks, and proposed calendar changes. It keeps the distinction between **what a source says**, **what the assistant recommends**, and **what you approve** visible.
+Dayweave is a Node.js + SQLite planner for one student. It runs locally or as a single-owner private web instance, collects the day's sources once a day in the cloud, drafts a full day plan, and writes to Google Calendar only after the owner approves an exact version. It keeps the distinction between **what a source says**, **what the assistant recommends**, and **what you approve** visible.
 
 The repository contains reusable application code and fictional examples only. Personal records, account connections, rendered private dashboards, and automation state belong outside Git.
 
+**Public demo:** https://animenzzz128.github.io/dayweave/ (fictional student, English and Chinese, runs in the browser).
+
+## Highlights (October 2026)
+
+- **In daily use as a private instance.** Deployed on Fly.io behind Google sign-in for one allowlisted account, with an encrypted volume and daily backups ([private instance](docs/private-instance.md)).
+- **Daily cloud collection, no laptop needed.** A Claude cloud scheduled task reads Google Calendar, school mail (Gmail `label:Yale`), the Canvas feed and two course sites through read-only connectors every morning, builds the next snapshot, dry-runs it and imports it ([cloud collection](docs/cloud-collection.md)). Failed reads keep earlier records and show as stale, never as empty.
+- **A full day plan, not just a task list.** The planner fills the day from the owner's rules: interview prep first, then work due within 72 hours, weekly goals (gym, job applications, LinkedIn outreach), quiz and exam review, with meals kept free and 20% of the day left open. The Plan page lets you drag, resize and lock blocks, shows planned against free minutes, and approves the day as one version.
+- **Approval-gated calendar writes.** Approve Q-N on the site; a separate cloud executor re-reads the live calendar, records pending, creates each event once, reads it back and records the result. The instance never holds Google write credentials, and nothing is retried blindly ([calendar executor](docs/cloud-execute.md)).
+- **AI where it can be checked.** Cited daily briefs, assignment breakdowns, email triage (reply, action, info, interview) and effort estimates from assignment instructions are validated against their evidence; owner edits always win. The 21-case evaluation re-scored 61/63 after a validator fix ([In-product AI](#in-product-ai-in-the-demo)).
+- **Cost near zero.** The site and the daily collection make no model API calls (the collection runs inside a Claude cloud session). Only the offline demo scripts call the API, defaulting to Claude Haiku 5.5 with a US$0.25 cap per run, down from US$1.71 for one Opus evaluation run ([decision](docs/decisions.md)).
+- **Tested guardrails.** 247 automated tests cover deadlines and time zones, overlap and coverage checks, failure retention, approval binding and the calendar write journal; CI also runs a privacy scan of tracked files and the demo build.
+
+## Features
 ## Features
 
 - Shows three daily priorities, assignments due within 72 hours, a seven-day preview, and items needing verification.
 - Separates submitted work, required work, and selectable response opportunities.
 - Provides expandable requirements, local checklists, and estimated/actual effort tracking.
 - Displays verified calendar events beside editable study proposals.
-- Prepares an immutable Q-number for explicit confirmation in assistant chat. **The dashboard itself never writes to a calendar or learning platform.**
+- Prepares an immutable Q-number for explicit approval, on the private instance's Review or Plan page or in assistant chat. **The app never writes to a calendar or learning platform itself;** approved Google Calendar creates go through a separate executor that verifies and records each step.
 - Rejects proposals that overlap known commitments, fall outside verified coverage, occur in the past, or reuse an executed action ID.
 - Retains source records on collection failure, marks stale snapshots, and keeps 30 days of local snapshots.
 - Recommends daily focus blocks from your todos and required coursework on request: deterministic, inside fresh complete Google Calendar coverage, 09:00–24:00, at most 90 minutes each with rest gaps and at least 20% left free. Recommendations are proposals; nothing is written without an approved Q version.
 - Keeps explicit local todos; an email becomes a todo only when you adopt it and confirm its title, due date and duration.
 - Shows the last collected read-only Gmail snapshot (inbox, last seven days, at most 50 messages) with its collection time and coverage. Nothing is sent, deleted or labelled.
 - Includes a reusable operating prompt for an assistant-driven refresh workflow.
+- Sorts mail into To handle, For reading, Promotions and Handled with AI triage labelled as AI; the owner can reclassify or mark handled, and adopting mail as a todo is prefilled for confirmation.
 - Explains the day with AI only where it can be checked: cited briefs, assignment breakdowns and one-line proposals are validated against their evidence and fall back to rules when they fail (see [In-product AI](#in-product-ai-in-the-demo)).
 
 Career cards now support source-backed roles and networking candidates, eligibility gaps, local save/dismiss/status tracking, draft requests, progress import and a seven-day activity summary. Research is supplied by the assistant, not by a background scraper. Drafts are never sent. See [Phase 3](docs/phase-3.md).
 
+## Daily plan (Plan page)
+
+- **Rules.** Working hours, kept-free breaks and weekly goals (count, length, allowed days and hours) are saved on the Plan page. Recommended defaults: 09:00–24:00, lunch and dinner free, Gym 3×60, Job applications 4×60, LinkedIn connect 5×30.
+- **Order.** Interview prep (from email triaged as `interview`), then work due within 72 hours, then weekly goals, then the rest. Quizzes get 60 minutes of review over the two days before; exams 240 minutes over five days, at most 120 a day.
+- **Editing.** Drag to move, drag the lower edge to resize, ±15-minute nudges. An edited block is locked, so regenerating keeps it; blocks of an approved version are locked too, so a refresh never invalidates an approval before the write.
+- **Drafts every morning.** After each import the server drafts today (the time left) and tomorrow. A day with a planning gap, such as incomplete calendar coverage, keeps its blocks.
+- **Estimates.** The collection task estimates open work from the instructions it already reads; these are labelled "AI estimate from the instructions", fill only empty or earlier AI estimates, and change only when the instructions change.
+
 ## Web demo (new front end)
 
-The `web/` folder holds the new bilingual front end. Its public demo runs entirely in the browser on a fictional student, Luna; nothing connects to an account and visitor changes stay in that browser.
+The `web/` folder holds the bilingual front end used by both the public demo and the private instance. Its public demo runs entirely in the browser on a fictional student, Luna; nothing connects to an account and visitor changes stay in that browser.
 
 ```sh
 cd web
@@ -112,7 +134,7 @@ Checklist progress, edited proposals, and review selections stay in browser-loca
 
 ## Scheduling and integrations
 
-The application is provider-independent at the file boundary. The reference workflow reads Canvas, syllabus-linked course sites, Gmail (read-only) and Google Calendar through an external assistant's authorized connectors ([Google procedure](docs/google.md)). Legacy Outlook snapshots remain readable. **No OAuth client, token store, scraping service, or scheduler is included.**
+The application is provider-independent at the file boundary. The reference workflow reads the Canvas calendar feed, course sites (public schedules plus each course's claude.ai connector), Gmail `label:Yale` (read-only) and Google Calendar through authorized connectors ([Google procedure](docs/google.md), [cloud collection](docs/cloud-collection.md)). Legacy Outlook snapshots remain readable. The repository includes no Google OAuth token store, scraping service or scheduler; the daily run is a Claude cloud scheduled task configured by the owner.
 
 Configure a recurring task in your assistant using the operating prompt. A local task needs the machine and relevant app/browser session available. A successful interactive run does not establish unattended reliability; test the first scheduled run and report failures explicitly.
 
