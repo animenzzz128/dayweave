@@ -21,7 +21,7 @@ const en = {
     outageEnded: 'Outage ended: all sources read normally again.',
     outageNote: 'Google Calendar and Gmail failed in the last read (simulated).',
   },
-  local: { banner: 'Local mode: connected to the Dayweave server on this computer.', hosted: 'Private instance: your own data, signed in with Google.', classic: 'Classic view', signOut: 'Sign out' },
+  local: { banner: 'Local mode: connected to the Dayweave server on this computer.', hosted: 'Private instance: your own data, signed in with Google.', signOut: 'Sign out' },
   ai: {
     aiTag: 'AI', rulesTag: 'Rules',
     generated: (model: string, day: string) => `Written by ${model} on ${day}, then checked against today’s sources in this browser.`,
@@ -360,7 +360,7 @@ const zh: Messages = {
     about: '这个项目是怎么做的',
     simulated: '演示中为模拟执行，没有写入任何日历。',
   },
-  local: { banner: '本地模式：已连接这台电脑上的 Dayweave 服务。', hosted: '私人实例：你自己的数据，已用 Google 登录。', classic: '旧版界面', signOut: '退出登录' },
+  local: { banner: '本地模式：已连接这台电脑上的 Dayweave 服务。', hosted: '私人实例：你自己的数据，已用 Google 登录。', signOut: '退出登录' },
   ai: {
     aiTag: 'AI', rulesTag: '规则',
     generated: (model: string, day: string) => `由 ${model} 于 ${day} 生成，并已在本浏览器中对照今天的来源重新校验。`,

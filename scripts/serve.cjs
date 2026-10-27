@@ -1,7 +1,7 @@
 'use strict';
 const {build}=require('../src/app-server.cjs'),{hostedConfig}=require('../src/hosted.cjs'),{dataDir}=require('./paths.cjs');const hosted=hostedConfig(),ingestSecret=process.env.DAYWEAVE_INGEST_SECRET||'',executeSecret=process.env.DAYWEAVE_EXECUTE_SECRET||'';
 const canvasIcsUrl=require('../src/canvas.cjs').canvasUrl(process.env.DAYWEAVE_CANVAS_ICS_URL||''),courseSites=require('../src/coursesite.cjs').sitesFromEnv();
-// DAYWEAVE_WEB_DIST names a built web/ front end to serve at / (the Docker image sets it); unset keeps the classic UI.
+// DAYWEAVE_WEB_DIST names a built web/ front end to serve at / (the Docker image sets it); unset uses web/dist-server.
 const canvasToken=String(process.env.DAYWEAVE_CANVAS_TOKEN||'').trim();
 const server=build(dataDir,{hosted,ingestSecret,executeSecret,canvasIcsUrl,canvasToken,courseSites,webDist:process.env.DAYWEAVE_WEB_DIST||''});const port=Number(process.env.PORT||8767);
 // Hosted mode listens on all interfaces for the platform proxy (which terminates HTTPS); local mode stays on loopback.

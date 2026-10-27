@@ -194,7 +194,7 @@ function History() {
       <div className="panel space-y-3 p-4 text-sm">
         <p className="text-muted">{t.health.historyNote}</p>
         <form className="flex flex-wrap items-end gap-2" onSubmit={submit}>
-          <label className="min-w-0 flex-1"><span className="label">{t.health.search}</span><input name="q" className="field" defaultValue={filter.q} /></label>
+          <label className="block w-full"><span className="label">{t.health.search}</span><input name="q" type="search" className="field w-full" defaultValue={filter.q} /></label>
           <label><span className="label">{t.health.from}</span><input name="from" type="date" className="field" defaultValue={filter.from} /></label>
           <label><span className="label">{t.health.to}</span><input name="to" type="date" className="field" defaultValue={filter.to} /></label>
           <label><span className="label">{t.health.statusCol}</span><select name="status" className="field" defaultValue={filter.status}><option value="">{t.health.allStatuses}</option>{STATUSES.map((s) => <option key={s}>{s}</option>)}</select></label>

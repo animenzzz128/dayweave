@@ -1,10 +1,13 @@
 'use strict';
 const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),{Store}=require('./store.cjs'),H=require('./hosted.cjs'),X=require('./execute.cjs'),GC=require('./gcal.cjs'),Canvas=require('./canvas.cjs'),Sites=require('./coursesite.cjs');
 // options.hosted (from hostedConfig) switches from the 127.0.0.1-only local session to Google sign-in for one account.
-// options.webDist is a built web/ front end (`npm run build:server` in web/): it then serves / and its assets, and the classic
-// UI stays reachable at its own routes (/classic leads there).
+// options.webDist is the built web/ front end it serves at / with its assets; it defaults to web/dist-server (`npm run
+// build:server` in web/); null turns the default off. Without a build, / explains how to make one. The classic UI was retired; its old paths lead to the
+// matching page of the web front end.
 const MIME={'.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.woff2':'font/woff2','.svg':'image/svg+xml','.png':'image/png','.json':'application/json'};
-function loadWeb(dist){if(!dist)return null;const root=path.resolve(dist),html=fs.readFileSync(path.join(root,'index.html'),'utf8');
+const DEFAULT_WEB=path.join(__dirname,'..','web','dist-server');
+const LEGACY={'/home':'today','/coursework':'coursework','/timetable':'week','/review':'review','/career':'career','/email':'email','/settings':'health','/classic':''};
+function loadWeb(dist){if(dist===null)return null;if(!dist&&fs.existsSync(path.join(DEFAULT_WEB,'index.html')))dist=DEFAULT_WEB;if(!dist)return null;const root=path.resolve(dist),html=fs.readFileSync(path.join(root,'index.html'),'utf8');
  // The page's inline theme script (it avoids a light flash before the app loads) is allowed by its hash, not by 'unsafe-inline'.
  const hashes=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>"'sha256-"+crypto.createHash('sha256').update(m[1]).digest('base64')+"'");
  return {root,html,csp:`default-src 'self'; script-src 'self' ${hashes.join(' ')}; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`};}
@@ -64,14 +67,14 @@ function createServer(dir,{hosted=null,ingestSecret='',executeSecret='',canvasIc
  if(server.actionRoute&&await server.actionRoute({req,res,u,body,store,send}))return;
  return send(404,{error:'Unknown API route'});}
  if(req.method!=='GET')return send(405,{error:'Method not allowed'});
- if(web){if(u.pathname==='/'||u.pathname==='/index.html'){res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':web.csp});return res.end(web.html);}
-  if(u.pathname==='/classic'){res.writeHead(302,{Location:'/home','Cache-Control':'no-store'});return res.end();}
-  if(u.pathname.startsWith('/assets/')){const file=path.resolve(web.root,'.'+decodeURIComponent(u.pathname)),type=MIME[path.extname(file)];
-   if(!type||!file.startsWith(web.root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile())return send(404,{error:'Page not found'});
-   // Built asset names carry a content hash, so a cached copy is never stale.
-   res.writeHead(200,{'Content-Type':type,'Cache-Control':'public, max-age=31536000, immutable','X-Content-Type-Options':'nosniff'});return res.end(fs.readFileSync(file));}}
- const routes=['/','/home','/coursework','/timetable','/review','/career','/email','/settings'];const assets={'/app.js':'web/app.js','/app.css':'web/app.css','/core.js':'core.cjs','/phase2.js':'phase2.cjs','/phase3.js':'phase3.cjs','/effort.js':'effort.cjs','/workload.js':'workload.cjs','/email.js':'email.cjs'};const asset=routes.includes(u.pathname)?'web/index.html':assets[u.pathname];if(!asset)return send(404,{error:'Page not found'});
- const mime=asset.endsWith('.html')?'text/html':asset.endsWith('.css')?'text/css':'text/javascript';res.writeHead(200,{'Content-Type':mime+'; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"});res.end(fs.readFileSync(path.join(__dirname,asset)));
+ if(Object.hasOwn(LEGACY,u.pathname)){res.writeHead(302,{Location:'/'+(LEGACY[u.pathname]?'#/'+LEGACY[u.pathname]:''),'Cache-Control':'no-store'});return res.end();}
+ if(u.pathname==='/'||u.pathname==='/index.html'){res.writeHead(200,{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Content-Security-Policy':web?web.csp:"default-src 'none'; frame-ancestors 'none'; base-uri 'none'"});
+  return res.end(web?web.html:'<!doctype html><meta charset="utf-8"><title>Dayweave</title><p>The Dayweave web front end is not built yet. Run <code>npm ci</code> and <code>npm run build:server</code> in <code>web/</code>, then reload.</p>');}
+ if(web&&u.pathname.startsWith('/assets/')){const file=path.resolve(web.root,'.'+decodeURIComponent(u.pathname)),type=MIME[path.extname(file)];
+  if(!type||!file.startsWith(web.root+path.sep)||!fs.existsSync(file)||!fs.statSync(file).isFile())return send(404,{error:'Page not found'});
+  // Built asset names carry a content hash, so a cached copy is never stale.
+  res.writeHead(200,{'Content-Type':type,'Cache-Control':'public, max-age=31536000, immutable','X-Content-Type-Options':'nosniff'});return res.end(fs.readFileSync(file));}
+ return send(404,{error:'Page not found'});
  }catch(e){send(400,{error:e.message});}
  });server.store=store;server.on('close',()=>store.close());return server;}
 module.exports={createServer};

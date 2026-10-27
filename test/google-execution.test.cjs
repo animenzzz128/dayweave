@@ -196,16 +196,3 @@ test('operator CLI shows the profile, verifies and reports without writing; usag
  const again=new Store(dir);try{a.equal(again.snapshot().actionHistory.length,0,'verify and status record nothing');}finally{again.close();}
  s.open();
 }));
-
-test('page-order scripts show prepared, pending, unverified and executed receipts with evidence and source IDs',async()=>{
- let D,S,V;withStore(s=>{const {d,p,q,k}=setup(s);G.pending(s,q.reference,p.id,{...ok(q),text:'Approve '+q.reference},ARGS,liveRead(d,p));D=s.snapshot();S=s.state();V=A.list(s);
-  D.__executed=(()=>{G.readback(s,q.reference,p.id,back(p,saved(p,k,{reminders:{use_default:true,overrides:null},summary:'<b>now</b>'})));return {d:s.snapshot(),v:A.list(s)};})();G.readback(s,q.reference,p.id,back(p,saved(p,k)));D.__final={d:s.snapshot(),v:A.list(s)};});
- const order=[...fs.readFileSync('src/web/index.html','utf8').matchAll(/<script src="\/([\w.]+)"><\/script>/g)].map(m=>m[1]),files={'core.js':'src/core.cjs','phase2.js':'src/phase2.cjs','phase3.js':'src/phase3.cjs','effort.js':'src/effort.cjs','workload.js':'src/workload.cjs','email.js':'src/email.cjs','app.js':'src/web/app.js'};
- const nodes=new Map(),node=k=>{if(!nodes.has(k))nodes.set(k,{textContent:'',innerHTML:''});return nodes.get(k);};let snap=D,versions=V;
- const ctx=vm.createContext({URL,URLSearchParams,Date,Intl,console,encodeURIComponent,window:{addEventListener(){}},document:{querySelector:node,querySelectorAll:()=>[],addEventListener(){}},location:{pathname:'/review',search:''},history:{pushState(){}},fetch:async url=>({ok:true,json:async()=>url.endsWith('session')?{csrf:'t'}:url.includes('approvals')?versions:{snapshot:snap,progress:S}})});
- for(const f of order)vm.runInContext(fs.readFileSync(files[f],'utf8'),ctx,{filename:files[f]});await new Promise(r=>setImmediate(r));
- let html=node('#page').innerHTML;a.match(html,/<h2>In progress<\/h2>/);a.match(html,/data-status="pending"/);a.match(html,/Pending · write started or outcome not yet read back/);a.match(html,/Source: todo todo-[0-9a-f]+ v1/);a.match(html,/Approve Q-\d+/);a.match(html,/It never writes to a calendar/);a.equal(vm.runInContext('fmtFull("not a time")',ctx),'Invalid time','a malformed legacy approval time renders instead of throwing');
- snap=D.__executed.d;versions=D.__executed.v;await vm.runInContext('render()',ctx);html=node('#page').innerHTML;a.match(html,/data-status="unverified"/);a.match(html,/reminder differs/);a.doesNotMatch(html,/<b>now/);
- snap=D.__final.d;versions=D.__final.v;ctx.location.search='?tab=history';await vm.runInContext('render()',ctx);html=node('#page').innerHTML;
- a.match(html,/data-status="executed"/);a.match(html,/Executed · read back and verified/);a.match(html,/remote event student@example\.com\/evt[0-9a-f]{10}/);a.match(html,/key d0[0-9a-f]{30}/);a.match(html,/Earlier states \(2\)/);a.match(html,/the compared approved fields matched/);
-});

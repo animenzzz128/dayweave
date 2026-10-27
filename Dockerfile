@@ -14,8 +14,8 @@ WORKDIR /app
 COPY package.json ./
 COPY src ./src
 COPY scripts ./scripts
-COPY --from=web /build/web/dist ./web/dist
-ENV NODE_ENV=production DAYWEAVE_DATA_DIR=/data PORT=8080 DAYWEAVE_WEB_DIST=/app/web/dist
+COPY --from=web /build/web/dist-server ./web/dist-server
+ENV NODE_ENV=production DAYWEAVE_DATA_DIR=/data PORT=8080 DAYWEAVE_WEB_DIST=/app/web/dist-server
 EXPOSE 8080
 # The platform mounts the data volume owned by root; hand it to the unprivileged node user, then drop root.
 CMD ["sh","-c","mkdir -p /data && chown -R node:node /data && exec setpriv --reuid=node --regid=node --init-groups node scripts/serve.cjs"]

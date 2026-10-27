@@ -7,5 +7,6 @@
 !web/
 web/node_modules/
 web/dist/
+web/dist-server/
 !examples/luna-demo.json
 !examples/luna-ai.json

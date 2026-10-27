@@ -69,16 +69,3 @@ test('plan and todo endpoints require session, Origin and CSRF',async()=>{const 
   const plan=await (await fetch(base+'/api/plan/generate',{method:'POST',headers:h,body:JSON.stringify({date:tomorrow})})).json();a.equal(plan.ready,true);
   a.equal((await fetch(base+'/api/todos/complete',{method:'POST',headers:h,body:JSON.stringify({id:saved.todo.id,done:'yes'})})).status,400);
  }finally{await new Promise(r=>srv.close(r));fs.rmSync(dir,{recursive:true,force:true});}});
-
-test('page-order scripts render todos, email adoption and the daily plan panel with escaped content',async()=>{
- const order=[...fs.readFileSync('src/web/index.html','utf8').matchAll(/<script src="\/([\w.]+)"><\/script>/g)].map(m=>m[1]),files={'core.js':'src/core.cjs','phase2.js':'src/phase2.cjs','phase3.js':'src/phase3.cjs','effort.js':'src/effort.cjs','workload.js':'src/workload.cjs','email.js':'src/email.cjs','app.js':'src/web/app.js'};
- const evil='<img src=x onerror=alert(1)>',{d,tomorrow}=fresh();let D,S;withStore(s=>{s.importSnapshot(d);s.saveTodo(input({title:evil,notes:evil}));s.saveTodo(input({title:'From mail',origin:{type:'email',messageId:d.email.messages[0].id}}));s.generatePlan(tomorrow);D=s.snapshot();S=s.state();});
- const nodes=new Map(),node=k=>{if(!nodes.has(k))nodes.set(k,{textContent:'',innerHTML:''});return nodes.get(k);};
- const ctx=vm.createContext({URL,URLSearchParams,Date,Intl,console,encodeURIComponent,window:{addEventListener(){}},document:{querySelector:node,querySelectorAll:()=>[],addEventListener(){}},location:{pathname:'/coursework',search:'?tab=todos'},history:{pushState(){}},fetch:async url=>({ok:true,json:async()=>url.endsWith('session')?{csrf:'t'}:url.includes('approvals')?[]:{snapshot:D,progress:S}})});
- for(const f of order)vm.runInContext(fs.readFileSync(files[f],'utf8'),ctx,{filename:files[f]});await new Promise(r=>setImmediate(r));
- let html=node('#page').innerHTML;a.match(html,/id="todoForm"/);a.match(html,/No due date/);a.match(html,/&lt;img src=x/);a.doesNotMatch(html,/<img/);a.match(html,/Adopted from email “Presentation roles”/);a.match(html,/class="active" href="\/coursework\?tab=todos"/);
- ctx.location.pathname='/email';ctx.location.search='';await vm.runInContext('render()',ctx);html=node('#page').innerHTML;a.match(html,/Adopted as todo/);a.match(html,/class="todoAdopt" data-message="msg-002"/);a.match(html,/does not read deadlines or tasks from the email/);
- ctx.location.pathname='/timetable';ctx.location.search='?date='+tomorrow;await vm.runInContext('render()',ctx);html=node('#page').innerHTML;
- a.match(html,/id="daily-plan"/);a.match(html,/nothing is written to your calendar/);a.match(html,/id="plan-blocks"/);a.match(html,/id="plan-unscheduled"/);a.match(html,/Selectable \(choice\) work is never scheduled automatically/);a.match(html,/At least 20% of usable time stays unallocated/);a.match(html,/Regenerate for /);a.doesNotMatch(html,/<img/);
- ctx.location.search='?date='+tomorrow+'&view=week';await vm.runInContext('render()',ctx);a.doesNotMatch(node('#page').innerHTML,/id="daily-plan"/,'week view has no plan panel');
-});
