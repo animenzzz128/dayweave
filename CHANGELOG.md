@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — Demo: pipeline, interview prep and follow-up rhythm
+
+- Career → Pipeline (demo preview): a five-column board (saved, applied, interviewing, offer, closed) with applications in the last 7 days against the weekly goal, reply rate, interviews, and a next-steps list. An application with no reply 10 days after it went out gets a follow-up nudge naming the contact. Moving a card also updates Job match.
+- Interview prep pack for the demo's interview email: format, what to know, five likely questions tied to the posting's requirements, a STAR outline per question that cites the resume line it rests on, and questions to ask. The Plan page's interview prep block links to it.
+- People to contact: relationship stage (not contacted, request sent, connected, chatted, referred) with the next step for each, a thank-you draft after a chat, and a mark for sending it. Requests unanswered for 7 days and chats 7 days old are followed up.
+
 ## Unreleased — Demo update: job match and people previews
 
 - Public demo, Career page: two "coming soon" previews with fictional data written in advance. Job match ranks roles by an explainable score (40% skills, 30% experience, 20% eligibility, 10% timing; unknown counts as a gap), lists each requirement as met, partly, missing or unknown with its evidence, and reveals resume fixes on Generate. People to contact shows a summary, shared ground, a side-by-side path with meeting points, and three outreach drafts (connection note with a 300-character counter, coffee chat, referral ask) to copy. Nothing is sent or fetched. Statuses and todos stay in the browser. The private instance shows only the assistant's research.

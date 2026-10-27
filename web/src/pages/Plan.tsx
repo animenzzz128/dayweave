@@ -9,6 +9,8 @@ import { ApproveButton } from './Review';
 import type { Approval, Habit, PlanSettings, Proposal } from '../data/types';
 
 const MIN = 60000;
+// The demo's interview email has a prep pack on the Career page (a preview; the private instance has none yet).
+const PREP_EMAIL = 'msg-recruiter';
 const minutes = (p: { start: string; end: string }) => Math.round((Date.parse(p.end) - Date.parse(p.start)) / MIN);
 const iso = (ms: number) => new Date(ms).toISOString();
 const isoDay = (k: string) => new Date(Date.parse(k + 'T12:00:00Z')).getUTCDay() || 7;
@@ -135,6 +137,7 @@ function BlockRow({ p, version, problem }: { p: Proposal; version?: Approval; pr
         <div className="min-w-0">
           <span className="font-mono text-xs text-muted">{f.hm(p.start)}–{f.hm(p.end)}</span> <span className="font-medium">{p.title}</span>
           {p.reason && <span className="block text-xs text-muted">{p.reason}</span>}
+          {source.mode === 'demo' && p.sourceRefs?.some((r) => r.kind === 'email' && r.id === PREP_EMAIL) && <a className="text-xs" href={href('career', { tab: 'pipeline', id: 'prep' })}>{t.career.prepLink} →</a>}
           {problem && !done && <span className="block text-xs text-danger">{problem}</span>}
         </div>
         <div className="flex items-center gap-1.5">
