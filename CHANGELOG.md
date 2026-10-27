@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — Demo update: job match and people previews
+
+- Public demo, Career page: two "coming soon" previews with fictional data written in advance. Job match ranks roles by an explainable score (40% skills, 30% experience, 20% eligibility, 10% timing; unknown counts as a gap), lists each requirement as met, partly, missing or unknown with its evidence, and reveals resume fixes on Generate. People to contact shows a summary, shared ground, a side-by-side path with meeting points, and three outreach drafts (connection note with a 300-character counter, coffee chat, referral ask) to copy. Nothing is sent or fetched. Statuses and todos stay in the browser. The private instance shows only the assistant's research.
+- Demo data shows Phase 6 features: two AI time estimates with their basis (shown in Coursework details) and the recruiter email triaged as an interview, so the Plan page adds interview preparation.
+- Case study: current numbers (8 views, 247 tests), the site approval and executor write path, the Plan page and weekly goals, time estimates, and a roadmap with the private instance and daily collection shipped.
+
 ## Unreleased — Canvas work without submission status
 
 - Canvas feed work with no readable submission status (no Canvas token) is marked `statusUnread`, counted as required and listed by its due time with a "Status not read" tag, instead of filling Needs verification. Its status stays `unknown`; Mark done records completion. Owner decision 2026-10-27.

@@ -123,6 +123,8 @@
       "sourceId": "lms-prod540",
       "source": "https://example.com/lms/prod540/synthesis",
       "estimateMinutes": 120,
+      "estimateSource": "ai",
+      "estimateBasis": "Five interviews to affinity-map plus three written insights with quotes: about 20 minutes per interview and 20 for the write-up.",
       "evidence": "Posted on the LMS with rubric.",
       "description": "Affinity-map five interviews and present three insights with quotes.",
       "checklist": [
@@ -193,6 +195,8 @@
       "sourceId": "econ512-site",
       "source": "https://example.com/econ512/exercise",
       "estimateMinutes": 60,
+      "estimateSource": "ai",
+      "estimateBasis": "One pricing exercise with a short spreadsheet and a paragraph of interpretation.",
       "evidence": "Last read from the course website yesterday; this morning's read timed out.",
       "description": "Spreadsheet exercise on network effects.",
       "checklist": [
@@ -342,7 +346,7 @@
     "request": { "query": "in:inbox newer_than:7d", "windowDays": 7, "limit": 50, "from": "@now-10100", "to": "@now-20" },
     "coverage": { "status": "complete", "morePages": false, "errors": [], "note": "Fictional single page; no further pages reported." },
     "messages": [
-      { "id": "msg-recruiter", "threadId": "thr-recruiter", "receivedAt": "@-1T16:20", "from": "Priya at Fictional Fintech <recruiting@example.com>", "subject": "Coffee chat next week?", "snippet": "Thanks for stopping by our booth! Could you send three 30-minute windows next week that work for you?", "labels": ["INBOX"], "unread": true, "hasAttachments": false, "attachmentCount": null, "triage": { "category": "reply", "priority": "high", "summary": "A recruiter asks for three 30-minute windows next week.", "action": "Reply with three times from next week's free blocks.", "dueAt": null } },
+      { "id": "msg-recruiter", "threadId": "thr-recruiter", "receivedAt": "@-1T16:20", "from": "Priya at Fictional Fintech <recruiting@example.com>", "subject": "Coffee chat next week?", "snippet": "Thanks for stopping by our booth! Could you send three 30-minute windows next week that work for you?", "labels": ["INBOX"], "unread": true, "hasAttachments": false, "attachmentCount": null, "triage": { "category": "interview", "priority": "high", "summary": "Screening chat with the fintech recruiter: send three windows for next week.", "action": "Reply with three windows from next week's free blocks, then prepare for the screen.", "dueAt": null } },
       { "id": "msg-team", "threadId": "thr-team", "receivedAt": "@-1T21:05", "from": "Campus Eats Team <team@example.com>", "subject": "Who is submitting the memo?", "snippet": "I can submit the market sizing memo Thursday unless someone already did. Luna, can you check the numbers in section 2?", "labels": ["INBOX"], "unread": true, "hasAttachments": false, "attachmentCount": null, "triage": { "category": "reply", "priority": "high", "summary": "A teammate offers to submit the memo and asks Luna to check section 2.", "action": "Check the section 2 numbers and confirm who submits.", "dueAt": "@+3T12:00", "assignmentId": "prod540-memo" } },
       { "id": "msg-ta", "threadId": "thr-ta", "receivedAt": "@-2T11:40", "from": "STAT 610 TA <ta@example.com>", "subject": "PS4 hint for Q5", "snippet": "Several of you asked about Q5: start from the donor-pool weights in the starter notebook.", "labels": ["INBOX"], "unread": false, "hasAttachments": false, "attachmentCount": null, "triage": { "category": "info", "priority": "medium", "summary": "Hint for Problem Set 4, question 5.", "action": "Read before starting Q5.", "dueAt": null, "assignmentId": "stat610-ps4" } },
       { "id": "msg-library", "threadId": "thr-library", "receivedAt": "@-3T09:15", "from": "Library Desk <library@example.com>", "subject": "Study room confirmed", "snippet": "Your study room is booked. No action needed if the time still works.", "labels": ["INBOX"], "unread": false, "hasAttachments": false, "attachmentCount": null, "triage": { "category": "info", "priority": "low", "summary": "Study room booking confirmed; nothing to do.", "action": "", "dueAt": null } },

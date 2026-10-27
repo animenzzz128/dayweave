@@ -31,7 +31,7 @@ function Routed() {
     coursework: <Coursework params={params} />,
     week: <Week params={params} />,
     review: <Review params={params} />,
-    career: <CareerPage />,
+    career: <CareerPage params={params} />,
     email: <EmailPage />,
     health: <Health />,
     'case-study': <CaseStudy />,

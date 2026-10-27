@@ -1,22 +1,44 @@
-import type { ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { useApp } from '../data/AppData';
 import { useI18n } from '../i18n/I18n';
-import { Empty, External, PageHeader, Section, Tag } from '../components/ui';
+import { Empty, External, PageHeader, Section, Tabs, Tag } from '../components/ui';
+import { JobsPanel, PeoplePanel, SoonBanner } from './CareerPreview';
 import { Phase3 } from '../lib/shared';
 import type { Person, Role } from '../data/types';
 
-export function CareerPage() {
+const TABS = ['jobs', 'people', 'research'] as const;
+type Tab = (typeof TABS)[number];
+
+// The public demo previews the planned job match and people panels; the private instance shows only the assistant's research.
+export function CareerPage({ params }: { params: URLSearchParams }) {
+  const { source } = useApp();
+  const { t } = useI18n();
+  const asked = params.get('tab') as Tab | null;
+  const [tab, setTab] = useState<Tab>(asked && TABS.includes(asked) ? asked : 'jobs');
+  if (source.mode !== 'demo') return <><PageHeader title={t.career.title} subtitle={t.career.subtitle} /><Research /></>;
+  const focus = params.get('id');
+  return (
+    <>
+      <PageHeader title={t.career.title} subtitle={t.career.subtitle} />
+      <Tabs label={t.career.title} value={tab} onChange={setTab} items={TABS.map((x) => [x, t.career.tabs[x]] as [Tab, string])} />
+      {tab === 'jobs' && <><SoonBanner intro={t.career.jobsIntro} /><JobsPanel focus={focus} /></>}
+      {tab === 'people' && <><SoonBanner intro={t.career.peopleIntro} /><PeoplePanel focus={focus} /></>}
+      {tab === 'research' && <Research />}
+    </>
+  );
+}
+
+function Research() {
   const { snapshot: d, progress, f, now } = useApp();
   const { t } = useI18n();
   const c = d.career;
-  if (!c?.enabled) return <><PageHeader title={t.career.title} subtitle={t.career.subtitle} /><Empty>{t.career.disabled}</Empty></>;
+  if (!c?.enabled) return <Empty>{t.career.disabled}</Empty>;
   const status = (x: { id: string }) => progress.career?.[x.id]?.status;
   const roles: Role[] = Phase3.feedbackOrder(c.roles || [], status);
   const people: Person[] = Phase3.feedbackOrder(c.candidates || [], status);
 
   return (
     <>
-      <PageHeader title={t.career.title} subtitle={t.career.subtitle} />
       {c.note && <p className="-mt-3 mb-6 text-sm text-muted">{c.note}</p>}
       <div className="grid gap-8 [grid-template-columns:repeat(auto-fit,minmax(320px,1fr))]">
         <div className="space-y-8">
