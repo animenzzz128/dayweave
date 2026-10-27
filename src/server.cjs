@@ -1,5 +1,5 @@
 'use strict';
-const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),{Store}=require('./store.cjs'),H=require('./hosted.cjs'),Canvas=require('./canvas.cjs'),Sites=require('./coursesite.cjs');
+const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),{Store}=require('./store.cjs'),H=require('./hosted.cjs'),X=require('./execute.cjs'),Canvas=require('./canvas.cjs'),Sites=require('./coursesite.cjs');
 // options.hosted (from hostedConfig) switches from the 127.0.0.1-only local session to Google sign-in for one account.
 // options.webDist is a built web/ front end (`npm run build:server` in web/): it then serves / and its assets, and the classic
 // UI stays reachable at its own routes (/classic leads there).
@@ -8,7 +8,7 @@ function loadWeb(dist){if(!dist)return null;const root=path.resolve(dist),html=f
  // The page's inline theme script (it avoids a light flash before the app loads) is allowed by its hash, not by 'unsafe-inline'.
  const hashes=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>"'sha256-"+crypto.createHash('sha256').update(m[1]).digest('base64')+"'");
  return {root,html,csp:`default-src 'self'; script-src 'self' ${hashes.join(' ')}; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`};}
-function createServer(dir,{hosted=null,ingestSecret='',canvasIcsUrl='',canvasToken='',canvasFetch,courseSites=[],siteFetch,fetch,webDist=''}={}){const web=loadWeb(webDist),store=new Store(dir),sessions=new Map(),auth=hosted&&H.createAuth(hosted,{fetch}),allow=H.limiter();const server=http.createServer(async(req,res)=>{
+function createServer(dir,{hosted=null,ingestSecret='',executeSecret='',canvasIcsUrl='',canvasToken='',canvasFetch,courseSites=[],siteFetch,fetch,webDist=''}={}){const web=loadWeb(webDist),store=new Store(dir),sessions=new Map(),auth=hosted&&H.createAuth(hosted,{fetch}),allow=H.limiter();const server=http.createServer(async(req,res)=>{
  const send=(status,value)=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(value));};
  try{const host=hosted?hosted.host:'127.0.0.1:'+server.address().port,origin=hosted?hosted.origin:'http://'+host;if(hosted)for(const [k,v] of Object.entries(H.securityHeaders))res.setHeader(k,v);
  if(req.headers.host!==host)return send(403,{error:hosted?'Unknown host':'Local requests only'});
@@ -24,6 +24,10 @@ function createServer(dir,{hosted=null,ingestSecret='',canvasIcsUrl='',canvasTok
   let raw='';for await(const part of req){raw+=part;if(raw.length>5e6)throw Error('Request too large');}const incoming=JSON.parse(raw||'null');
   if(u.searchParams.get('dryRun')==='1')return send(200,{ok:true,dryRun:true,...store.previewImport(incoming)});
   const archived=store.previewImport(incoming).archived,d=store.importSnapshot(incoming);return send(200,{ok:true,generatedAt:d.generatedAt,assignments:d.assignments.length,events:d.events.length,archived});}
+ // The calendar executor (docs/cloud-execute.md) uses its own bearer secret and only acts on versions the owner approved here.
+ if(u.pathname==='/api/execute'||u.pathname.startsWith('/api/execute/')){if(!allow('execute:'+ip,60,3600000))return send(429,{error:'Too many requests'});if(!H.ingestAuthorized(req,executeSecret))return send(401,{error:'Invalid executor credentials'});
+  if(req.method==='GET'&&u.pathname==='/api/execute')return send(200,X.context(store));if(req.method!=='POST')return send(405,{error:'Method not allowed'});
+  let raw='';for await(const part of req){raw+=part;if(raw.length>2e6)throw Error('Request too large');}return await X.executorRoute(store,u,JSON.parse(raw||'{}'),send);}
  if(hosted){if(u.pathname.startsWith('/auth/')){if(!allow('auth:'+ip,30,600000))return send(429,{error:'Too many sign-in attempts'});if(await auth.handle(req,res,u))return;return send(404,{error:'Unknown sign-in route'});}
   if(!session){if(u.pathname.startsWith('/api/'))return send(401,{error:'Sign in again',signIn:'/auth/login'});if(req.method!=='GET')return send(405,{error:'Method not allowed'});res.writeHead(302,{Location:'/auth/login','Cache-Control':'no-store'});return res.end();}}
  if(req.method==='GET'&&u.pathname==='/api/session'){if(hosted)return send(200,{csrf:session.csrf,hosted:true});const id=crypto.randomBytes(24).toString('hex');session={csrf:crypto.randomBytes(24).toString('hex'),at:Date.now()};sessions.set(id,session);res.setHeader('Set-Cookie',`dw=${id}; HttpOnly; SameSite=Strict; Path=/`);return send(200,{csrf:session.csrf});}
@@ -41,6 +45,8 @@ function createServer(dir,{hosted=null,ingestSecret='',canvasIcsUrl='',canvasTok
  if(req.method==='POST'&&u.pathname==='/api/plan/generate')return send(200,store.generatePlan(body?.date));
  if(req.method==='POST'&&u.pathname==='/api/workload-mode')return send(200,{mode:store.setWorkloadMode(body?.mode)});
  if(req.method==='POST'&&u.pathname==='/api/migrate-progress')return send(200,{migrated:store.migrateProgress(body)});
+ if(req.method==='POST'&&u.pathname==='/api/approvals/approve')return send(200,{approval:X.approve(store,body?.reference,hosted?session.email:'local owner')});
+ if(req.method==='POST'&&u.pathname==='/api/approvals/withdraw')return send(200,X.revoke(store,body?.reference));
  if(req.method==='POST'&&u.pathname==='/api/backup')return send(200,{name:store.backup()});
  if(req.method==='POST'&&u.pathname==='/api/restore'){store.restore(body.name);return send(200,{ok:true});}
  if(req.method==='GET'&&u.pathname==='/api/export'){res.setHeader('Content-Disposition','attachment; filename="dayweave-export.json"');return send(200,{snapshot:store.snapshot(),progress:store.state()});}

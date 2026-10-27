@@ -39,8 +39,10 @@ function actionErrors(p,d){const out=[],cal=(d.calendarCoverage?.calendars||[]).
  return out;}
 // Human approval evidence: the person's own chat message that is exactly "Approve Q-N" (case-insensitive, optional final
 // period or exclamation mark), sent after the version was prepared. Anything else, including negations, goes back to the human.
+// Two channels: the human's own chat message (operator CLI), or the owner's approval the server recorded from the signed-in page
+// (src/execute.cjs; the executor API never accepts it from a caller).
 function evidence(h,ref,preparedAt,now=new Date()){if(!plain(h))return ['Record the human chat approval as {channel:"chat", text, at}.'];const out=[];
- if(h.channel!=='chat')out.push('Approval must be the human\'s own chat message.');
+ if(h.channel!=='chat'&&!(h.channel==='web'&&typeof h.by==='string'&&h.by))out.push('Approval must be the human\'s own chat message or the owner\'s approval on the page.');
  if(typeof h.text!=='string'||!new RegExp('^\\s*approve\\s+'+ref.replace('-','\\-')+'\\s*[.!]?\\s*$','i').test(h.text))out.push('The approval message must be exactly "Approve '+ref+'"; anything else needs the human to clarify.');
  if(!instant(h.at)||Date.parse(h.at)<Date.parse(preparedAt)||Date.parse(h.at)>+new Date(now)+60000)out.push('Approval time must be after the version was prepared and not in the future.');
  return out;}

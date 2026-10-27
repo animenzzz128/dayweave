@@ -13,6 +13,9 @@ function hostedConfig(env=process.env){
  const weak=v=>v.length<32||new Set(v).size<12;
  if(weak(env.DAYWEAVE_SESSION_SECRET))throw Error('DAYWEAVE_SESSION_SECRET must be at least 32 random characters');
  if(env.DAYWEAVE_INGEST_SECRET&&weak(env.DAYWEAVE_INGEST_SECRET))throw Error('DAYWEAVE_INGEST_SECRET must be at least 32 random characters');
+ // The executor records calendar-write receipts, so it gets its own secret: the read-only collector's secret cannot record them.
+ if(env.DAYWEAVE_EXECUTE_SECRET&&weak(env.DAYWEAVE_EXECUTE_SECRET))throw Error('DAYWEAVE_EXECUTE_SECRET must be at least 32 random characters');
+ if(env.DAYWEAVE_EXECUTE_SECRET&&env.DAYWEAVE_EXECUTE_SECRET===env.DAYWEAVE_INGEST_SECRET)throw Error('DAYWEAVE_EXECUTE_SECRET must differ from DAYWEAVE_INGEST_SECRET');
  return {origin:origin.origin,host:origin.host,clientId:env.DAYWEAVE_GOOGLE_CLIENT_ID,clientSecret:env.DAYWEAVE_GOOGLE_CLIENT_SECRET,email:env.DAYWEAVE_ALLOWED_EMAIL.trim().toLowerCase(),sessionSecret:env.DAYWEAVE_SESSION_SECRET};}
 // Stateless signed values, so a machine restart or Fly auto-stop does not sign the owner out.
 function signer(secret){const mac=v=>crypto.createHmac('sha256',secret).update(v).digest('base64url');
