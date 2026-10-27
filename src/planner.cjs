@@ -5,7 +5,7 @@
 // evidence and never treats unknown time as free. Its output is ordinary proposals that still need an approved Q version.
 const C=typeof module!=='undefined'?require('./core.cjs'):window.PlannerCore;
 const P=typeof module!=='undefined'?require('./phase2.cjs'):window.PlannerPhase2;
-const SETTINGS=Object.freeze({dayStart:'09:00',dayEnd:'24:00',breaks:[],habits:[],maxBlock:90,gap:15,reserve:0.2,step:5,staleHours:26,reminderMinutes:10,maxListed:100,urgentHours:72});
+const SETTINGS=Object.freeze({dayStart:'09:00',dayEnd:'24:00',breaks:[],habits:[],maxBlock:90,gap:15,reserve:0.2,step:5,staleHours:26,reminderMinutes:10,maxListed:100,urgentHours:72,minDaily:60});
 // The owner's planning rules (stored by the server, edited on Week): planning hours, fixed breaks such as meals, and weekly goals
 // ("habits": job search, LinkedIn, gym…) with sessions per week, minutes per session, allowed weekdays (1 = Monday) and time
 // windows. Days never start before 07:00, the sleep window every proposal is checked against.
@@ -77,10 +77,13 @@ function candidates(d,todos,archive,now=new Date(),settings=SETTINGS,emailTriage
   // Review needs only the date: an in-class exam has no online submission, so its status can stay unknown.
   if(review){if(!a.dueAt||!Number.isFinite(Date.parse(a.dueAt))){skip('No valid '+review.kind+' date, so review time cannot be placed.');continue;}
    tasks.push({...ref,dueAt:a.dueAt,minutes:review.minutes,estimateMinutes:a.estimateMinutes,source:a.source||'',course:a.course||'',review:review.kind,perDay:review.perDay,earliest:Date.parse(a.dueAt)-review.days*86400000});continue;}
-  if(a.status!=='not_submitted'){skip('Submission status unknown. Verify it first.');continue;}
+  // Work whose source cannot report submission (statusUnread, owner decision 2026-10-27) is planned like open work; its blocks
+  // say so, and the owner removes them once it is submitted.
+  const unread=a.status==='unknown'&&a.statusUnread===true;
+  if(a.status!=='not_submitted'&&!unread){skip('Submission status unknown. Verify it first.');continue;}
   if(!(Number.isFinite(a.estimateMinutes)&&a.estimateMinutes>0)){skip('No duration estimate. Add one before planning.');continue;}
   if(a.dueAt&&!Number.isFinite(Date.parse(a.dueAt))){skip('Deadline is invalid. Verify it first.');continue;}
-  tasks.push({...ref,dueAt:a.dueAt||null,minutes:Math.round(a.estimateMinutes),estimateMinutes:a.estimateMinutes,source:a.source||'',course:a.course||''});
+  tasks.push({...ref,dueAt:a.dueAt||null,minutes:Math.round(a.estimateMinutes),estimateMinutes:a.estimateMinutes,source:a.source||'',course:a.course||'',...(unread?{unread:true}:{})});
  }
  for(const t of Object.values(todos||{}))if(t&&t.status==='open')tasks.push({kind:'todo',id:t.id,title:t.title,dueAt:t.dueAt||null,minutes:t.durationMinutes,version:t.version});
  // Interview mail (collector triage or the owner's override), not handled: preparation before the stated time, or an hour today.
@@ -183,9 +186,15 @@ function plan({snapshot:d,date,now=new Date(),todos={},archive={},dismissed={},s
   if(deadline<=+now){result.unscheduled.push({...ref,reason:'Deadline has passed. Decide whether it still matters.'});continue;}
   if(deadline<=start){result.unscheduled.push({...ref,reason:'Deadline ('+local(deadline)+') falls before the '+s.dayStart+' start of '+date+'. Plan it on an earlier day.'});continue;}
   if(t.earliest>to){result.unscheduled.push({...ref,reason:`Review starts ${REVIEW.find(r=>r.kind===t.review).days} days before the ${t.review} (${local(deadline)}).`});continue;}
-  // Review and interview preparation are spread: at most perDay minutes on one day, counting this day's kept blocks.
-  const today=t.perDay?t.perDay-kept.filter(p=>p.sourceRefs?.some(r=>refKey(r)===refKey(t))&&C.dayKey(p.start)===date).reduce((n,p)=>n+Math.round((Date.parse(p.end)-Date.parse(p.start))/MIN),0):need;
-  if(today<=0){result.unscheduled.push({...ref,reason:`Today already has ${t.perDay} minutes for it; the rest goes on other days.`});continue;}
+  // Review and interview preparation are spread: at most perDay minutes on one day, counting this day's kept blocks. Work due
+  // after urgentHours is spread the same way over the days left up to its deadline day (at least minDaily minutes a day), and
+  // starts only within twice the days it needs at minDaily, so distant work does not fill a day that nearer work may need.
+  const daysLeft=Number.isFinite(deadline)?Math.max(1,Math.round((Date.parse(C.dayKey(deadline)+'T12:00:00Z')-Date.parse(date+'T12:00:00Z'))/86400000)):0;
+  const paced=!t.perDay&&!t.interview&&!urgent(t)&&daysLeft>0,lead=2*Math.ceil(need/s.minDaily);
+  if(paced&&daysLeft>lead){result.unscheduled.push({...ref,reason:`Starts ${lead} days before its deadline (${local(deadline)}), twice the days it needs at ${s.minDaily} minutes a day.`});continue;}
+  const perDay=t.perDay||(paced?Math.max(s.minDaily,Math.ceil(need/daysLeft/s.step)*s.step):0);
+  const today=perDay?perDay-kept.filter(p=>p.sourceRefs?.some(r=>refKey(r)===refKey(t))&&C.dayKey(p.start)===date).reduce((n,p)=>n+Math.round((Date.parse(p.end)-Date.parse(p.start))/MIN),0):need;
+  if(today<=0){result.unscheduled.push({...ref,reason:`Today already has ${perDay} minutes for it; the rest goes on other days.`});continue;}
   const want=Math.min(need,today),parts=chunks(want,s.maxBlock);let placed=0,why='';
   for(const [i,len] of parts.entries()){
    if(allocated+len>budget){why=reserveNote();break;}
@@ -195,11 +204,12 @@ function plan({snapshot:d,date,now=new Date(),todos={},archive={},dismissed={},s
    const p={id,title,start:b.start,end:b.end,status:'proposed',action:'create',provider:'google',account:cov.account,calendar:cov.calendar,calendarId:cov.calendarId,timezone:d.timezone,recurrence:'One time',attendees:[],location:'',busy:true,reminderMinutes:s.reminderMinutes,
     body:t.interview?'Dayweave preparation block for an interview email.':`Dayweave ${t.review?'review':'focus'} block for ${t.kind==='todo'?'todo':'assignment'} "${t.title}".`,source:t.kind==='assignment'?t.source:'',origin:'planner',planDate:date,
     sourceRefs:[{kind:t.kind,id:t.id,...(t.kind==='todo'?{version:t.version}:t.kind==='email'?{}:{dueAt:t.dueAt,estimateMinutes:t.estimateMinutes})}],
-    reason:`${t.interview?'Interview preparation'+(t.dueAt?' before '+local(t.dueAt):' (interview time not stated)'):t.review?'Review for the '+t.review+' on '+local(t.dueAt):(t.kind==='todo'?'Todo':'Required coursework')+(t.dueAt?' due '+local(t.dueAt):' with no deadline')} · block ${i+1} of ${parts.length} · ${len} of ${need} remaining minutes${have?` (${have} already planned)`:''}.`};
+    reason:`${t.interview?'Interview preparation'+(t.dueAt?' before '+local(t.dueAt):' (interview time not stated)'):t.review?'Review for the '+t.review+' on '+local(t.dueAt):(t.kind==='todo'?'Todo':'Required coursework')+(t.dueAt?' due '+local(t.dueAt):' with no deadline')+(t.unread?' · submission status not read: remove this block if it is already submitted':'')} · block ${i+1} of ${parts.length} · ${len} of ${need} remaining minutes${have?` (${have} already planned)`:''}.`};
    const errs=P.errors(p,{...d,proposals:[]},now,[...startedCopies.values()]);if(errs.length){why='Rejected by calendar checks: '+errs.join(' ');break;}
    result.blocks.push(p);blocked.push([at-s.gap*MIN,at+(len+s.gap)*MIN]);allocated+=len;placed+=len;
   }
   if(placed<want)result.unscheduled.push({...ref,reason:(placed?`Partly planned: ${placed} of ${want} minutes. `:'')+why});
+  else if(paced&&want<need)result.unscheduled.push({...ref,reason:`Spread over the ${daysLeft} days to its deadline: ${placed} of ${need} minutes today, the rest on later days.`});
  }
  result.usable.allocated=allocated;return result;
 }
@@ -209,7 +219,7 @@ function summary(result,settings=SETTINGS){return {...result,unscheduled:result.
 // eligibility, the same deadline and the same estimate). Started blocks are always kept.
 function keep(old,result){
  const cov=result.calendarCoverage||{},ids=new Set(result.proposals.map(p=>p.id)),gen=Date.parse(result.generatedAt),assignments=new Map(result.assignments.map(a=>[a.id,a]));
- const fine=p=>p.provider===C.calendarProvider(cov)&&p.account===cov.account&&p.calendarId===cov.calendarId&&(p.sourceRefs||[]).every(r=>{if(r.kind!=='assignment')return true;const a=assignments.get(r.id);return a&&!a.archivedFromSource&&!sourceProblem(result,a.sourceId,gen)&&a.requirement==='required'&&a.status==='not_submitted'&&(a.dueAt||null)===(r.dueAt||null)&&(!('estimateMinutes' in r)||a.estimateMinutes===r.estimateMinutes);});
+ const fine=p=>p.provider===C.calendarProvider(cov)&&p.account===cov.account&&p.calendarId===cov.calendarId&&(p.sourceRefs||[]).every(r=>{if(r.kind!=='assignment')return true;const a=assignments.get(r.id);return a&&!a.archivedFromSource&&!sourceProblem(result,a.sourceId,gen)&&a.requirement==='required'&&(a.status==='not_submitted'||a.status==='unknown'&&a.statusUnread===true)&&(a.dueAt||null)===(r.dueAt||null)&&(!('estimateMinutes' in r)||a.estimateMinutes===r.estimateMinutes);});
  return (old.proposals||[]).filter(p=>p.origin==='planner'&&!ids.has(p.id)&&(attempted(old,p.id)||(Date.parse(p.end)>gen&&fine(p))));
 }
 // Calendar events that are Dayweave's own written blocks, by the ownEvents rule above. A read after a write imports each block
