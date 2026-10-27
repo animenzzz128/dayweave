@@ -92,13 +92,16 @@ function mergeCourseSites(d,sources,sites,at,now){const report=[];let assignment
   const meeting=new Map((s.meetings||[]).map(m=>[m.slug,m.title]));
   const done=s.submitted||{},status=(list,id,dueAt)=>!Array.isArray(list)?null:list.includes(String(id))?'submitted':Date.parse(dueAt)>now?'not_submitted':null;
   const items=[...s.assignments.filter(x=>!x.is_draft&&x.slug&&x.title&&Date.parse(x.effective_closed_at||x.closed_at)).map(x=>({slug:x.slug,title:x.title,dueAt:x.effective_closed_at||x.closed_at,points:x.points_possible,team:!!x.is_team,body:x.body||'',status:status(done.assignments,x.slug,x.effective_closed_at||x.closed_at),read:Array.isArray(done.assignments)})),
-   ...(s.quizzes||[]).filter(q=>!q.is_draft&&q.id!=null&&Date.parse(q.closed_at)).map(q=>({slug:'quiz-'+q.id,title:'Quiz: '+(meeting.get(q.meeting_slug)||q.meeting_slug||'class'),dueAt:q.closed_at,points:q.points_possible,team:false,body:'',status:status(done.quizzes,q.id,q.closed_at),read:Array.isArray(done.quizzes)}))];
+   ...(s.quizzes||[]).filter(q=>!q.is_draft&&q.id!=null&&Date.parse(q.closed_at)).map(q=>({slug:'quiz-'+q.id,title:'Quiz: '+(meeting.get(q.meeting_slug)||q.meeting_slug||'class'),dueAt:q.closed_at,points:q.points_possible,team:false,body:'',status:status(done.quizzes,q.id,q.closed_at),read:Array.isArray(done.quizzes),quiz:true}))];
   const detailed=[];
   for(const x of items){const mine=assignments.filter(a=>a.courseId===course.id);
    let a=mine.find(a=>a.siteSlug===x.slug);
    if(!a){const k=key(x.title),same=mine.filter(a=>!a.siteSlug&&!a.archivedFromSource&&(key(a.title)===k||k.length>=4&&key(a.title).startsWith(k)));if(same.length===1)a=same[0];}
    if(a){if(Date.parse(a.dueAt)!==Date.parse(x.dueAt)){updated.push(a.id);a.dueAt=x.dueAt;}if(a.sourceId!==sourceId){moved.add(a.sourceId);a.sourceId=sourceId;}a.siteSlug=x.slug;delete a.archivedFromSource;
-    const filled=fillDescription(a,x.body);if(applyStatus(a,x.status)||filled)detailed.push(a.id);
+    // A quiz the submission read shows as not taken while it is open was marked submitted only by a row from before it opened
+    // (an earlier read, before such rows were ignored), so the read wins here; other work is never turned back.
+    const retaken=x.quiz&&x.status==='not_submitted'&&a.status==='submitted';if(retaken)a.status='not_submitted';
+    const filled=fillDescription(a,x.body);if(applyStatus(a,x.status)||filled||retaken)detailed.push(a.id);
     if(x.read&&/Submission state is not read\.$/.test(a.evidence||''))a.evidence=a.evidence.replace(/Submission state is not read\.$/,'Submission state read from your submissions.');seen.add(a.id);continue;}
    if(Date.parse(x.dueAt)<from)continue;
    const required=Number(x.points)>0,record={id:prefix+x.slug,courseId:course.id,course:course.code,title:x.title,dueAt:x.dueAt,status:x.status||'unknown',requirement:required?'required':'uncertain',sourceId,source:s.url,siteSlug:x.slug,estimateMinutes:null,
