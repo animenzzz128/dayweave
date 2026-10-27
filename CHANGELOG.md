@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — Classic UI retired
+
+- Data health shows the action history (search, dates, status, details, pages of 20) and the last 30 measured runs.
+- The classic UI (`src/web/`) is removed. The server serves the web build from `DAYWEAVE_WEB_DIST` or `web/dist-server` (where `npm run build:server` now writes); old paths such as `/home`, `/settings` and `/classic` redirect to the matching page. Without a build, `/` explains how to make one.
+- A database with no snapshot offers its backups for restore on the error page.
+
 ## Unreleased — Demo writes the calendar the way the private site does
 
 - The public demo's Review page now follows the private instance's direct Google Calendar write: connect Google Calendar once (simulated consent), then "Approve Q-N and write to Google Calendar". The demo rechecks the prepared version live (connection, approval, failed sources, fingerprints and the planner's checks per block), reports each block as written or skipped with the reason, and keeps receipts marked simulated. Withdrawing an approval works as on the site. No calendar is connected or written.

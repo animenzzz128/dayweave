@@ -1,6 +1,6 @@
 const {test}=require('node:test'),a=require('node:assert/strict'),fs=require('node:fs'),os=require('node:os'),path=require('node:path'),{createServer}=require('../src/server.cjs');
 test('local writes require a session, CSRF token and exact Origin',async()=>{const dir=fs.mkdtempSync(path.join(os.tmpdir(),'dayweave-api-')),s=createServer(dir);await new Promise(r=>s.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+s.address().port;try{s.store.importSnapshot(require('../examples/snapshot.json'));a.equal((await fetch(base+'/api/progress',{method:'POST',body:'{}'})).status,401);const session=await fetch(base+'/api/session'),cookie=session.headers.get('set-cookie').split(';')[0],token=(await session.json()).csrf;const headers={Cookie:cookie,'Content-Type':'application/json','x-dayweave-token':token};a.equal((await fetch(base+'/api/progress',{method:'POST',headers:{...headers,Origin:'https://example.com'},body:'{}'})).status,403);a.equal((await fetch(base+'/api/progress',{method:'POST',headers:{...headers,Origin:base},body:JSON.stringify({kind:'actual',id:'task',value:15})})).status,200);a.equal(s.store.state().actual.task,15);}finally{await new Promise(r=>s.close(r));fs.rmSync(dir,{recursive:true,force:true});}});
-test('a built web front end is served at / with a hashed inline-script CSP, its assets stay inside the build, and /classic leads to the classic UI',async()=>{
+test('a built web front end is served at / with a hashed inline-script CSP, its assets stay inside the build, and the retired classic paths lead to its pages',async()=>{
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'dayweave-web-')),dist=path.join(dir,'dist'),crypto=require('node:crypto');fs.mkdirSync(path.join(dist,'assets'),{recursive:true});
  const inline="document.documentElement.dataset.theme='light'";fs.writeFileSync(path.join(dist,'index.html'),`<!doctype html><script>${inline}</script><script type="module" src="./assets/app.js"></script>`);
  fs.writeFileSync(path.join(dist,'assets','app.js'),'console.log(1)');fs.writeFileSync(path.join(dir,'secret.js'),'private');
@@ -9,6 +9,11 @@ test('a built web front end is served at / with a hashed inline-script CSP, its 
   a.ok(home.headers.get('content-security-policy').includes("'sha256-"+crypto.createHash('sha256').update(inline).digest('base64')+"'"));a.doesNotMatch(home.headers.get('content-security-policy'),/unsafe-inline'[^;]*;\s*style/);
   const js=await fetch(base+'/assets/app.js');a.equal(js.status,200);a.match(js.headers.get('content-type'),/javascript/);a.match(js.headers.get('cache-control'),/immutable/);
   for(const p of ['/assets/..%2f..%2fsecret.js','/assets/missing.js','/assets/app.exe'])a.equal((await fetch(base+p)).status,404,p);
-  const classic=await fetch(base+'/classic',{redirect:'manual'});a.equal(classic.status,302);a.equal(classic.headers.get('location'),'/home');
-  a.match(await (await fetch(base+'/home')).text(),/app\.css/,'the classic UI keeps its routes');
+  for(const [p,to] of [['/classic','/'],['/home','/#/today'],['/timetable','/#/week'],['/settings','/#/health'],['/email','/#/email']]){const r=await fetch(base+p,{redirect:'manual'});a.equal(r.status,302,p);a.equal(r.headers.get('location'),to,p);}
+  for(const p of ['/app.js','/app.css','/core.js','/workload.js'])a.equal((await fetch(base+p)).status,404,p);
+ }finally{await new Promise(r=>s.close(r));fs.rmSync(dir,{recursive:true,force:true});}});
+test('without a web build, / says how to build one and serves no script',async()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'dayweave-noweb-')),s=createServer(dir,{webDist:null});await new Promise(r=>s.listen(0,'127.0.0.1',r));const base='http://127.0.0.1:'+s.address().port;
+ try{const r=await fetch(base+'/');a.equal(r.status,200);a.match(await r.text(),/npm run build:server/);a.match(r.headers.get('content-security-policy'),/default-src 'none'/);
+  a.equal((await fetch(base+'/assets/app.js')).status,404);a.equal((await fetch(base+'/home',{redirect:'manual'})).headers.get('location'),'/#/today');
  }finally{await new Promise(r=>s.close(r));fs.rmSync(dir,{recursive:true,force:true});}});

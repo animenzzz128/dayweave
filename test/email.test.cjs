@@ -87,27 +87,6 @@ test('a Gmail failure keeps prior mail, labels it, and leaves verified Google Ca
  const bad=google();delete bad.sources.find(x=>x.id==='gmail').id;bad.sources=bad.sources.filter(x=>x.id);a.throws(()=>C.validate(bad),/Email sourceId must be listed/);
 });
 
-const page=async(D,pathname)=>{const order=[...fs.readFileSync('src/web/index.html','utf8').matchAll(/<script src="\/([\w.]+)"><\/script>/g)].map(m=>m[1]),files={'core.js':'src/core.cjs','phase2.js':'src/phase2.cjs','phase3.js':'src/phase3.cjs','effort.js':'src/effort.cjs','workload.js':'src/workload.cjs','email.js':'src/email.cjs','app.js':'src/web/app.js'};
- a.deepEqual(order,['core.js','phase2.js','phase3.js','effort.js','workload.js','email.js','app.js']);const nodes=new Map(),node=k=>{if(!nodes.has(k))nodes.set(k,{textContent:'',innerHTML:''});return nodes.get(k);};
- const ctx=vm.createContext({URL,URLSearchParams,Date,Intl,console,encodeURIComponent,window:{addEventListener(){}},document:{querySelector:node,querySelectorAll:()=>[],addEventListener(){}},location:{pathname,search:''},history:{pushState(){}},fetch:async url=>({ok:true,json:async()=>url.endsWith('session')?{csrf:'test'}:{snapshot:D,progress:{}}})});
- for(const f of order)vm.runInContext(fs.readFileSync(files[f],'utf8'),ctx,{filename:files[f]});await new Promise(r=>setImmediate(r));return {html:()=>node('#page').innerHTML,ctx};};
-
-test('page-order scripts render the Gmail snapshot with escaped content, health, access limits and honest empty states',async()=>{
- const evil='<img src=x onerror=alert(1)>',D=C.mergeSnapshot(null,google());D.email.messages[0]={...D.email.messages[0],subject:evil,snippet:evil,from:evil,labels:[evil],link:'https://mail.google.com/mail/#inbox/fictional-1'};
- let p=await page(D,'/email'),html=p.html();
- a.doesNotMatch(html,/<img/);a.match(html,/&lt;img src=x/);a.match(html,/Last collected/);a.match(html,/a snapshot, not live access/);a.match(html,/Stale · over 26 hours old/,'fixed demo dates are stale');
- a.match(html,/Complete for the requested window: 3 messages/);a.match(html,/3 messages in 2 threads/);a.match(html,/Send: disabled/);a.match(html,/Delete: disabled/);a.match(html,/Labels and archive: disabled/);a.match(html,/does not create todos, deadlines or calendar changes from email/);
- a.match(html,/href="https:\/\/mail\.google\.com\/mail\/#inbox\/fictional-1" target="_blank" rel="noopener noreferrer"/);a.match(html,/Attachments \(1\) · not downloaded/);
- D.email.messages[0].link='https://evil.example.com/';await p.ctx.render();a.doesNotMatch(p.html(),/evil\.example/,'a stored non-Gmail link is not rendered');D.email.messages[0].link=null;a.match(html,/query <code>in:inbox newer_than:7d<\/code>/);
- const failed=M.merge(D.email,{...google().email,checkedAt:'2026-10-07T13:00:00Z',request:{...google().email.request,to:'2026-10-07T13:00:00Z'},coverage:{status:'failed',errors:['Fictional <b>error</b>']},messages:[]},[]);D.email=failed;
- await p.ctx.render();html=p.html();a.match(html,/Collection failed/);a.match(html,/Showing 3 messages retained from the collection/);a.match(html,/Retained from an earlier collection/);a.match(html,/Fictional &lt;b&gt;error&lt;\/b&gt;/);
- D.email=M.merge(null,{...google().email,coverage:{status:'failed'},messages:[]},[]);await p.ctx.render();html=p.html();a.match(html,/No messages could be read\. This is not an empty inbox/);a.doesNotMatch(html,/No inbox messages in the requested window/);
- D.email=M.merge(null,{...google().email,coverage:{status:'partial',morePages:null},messages:[]},[]);await p.ctx.render();html=p.html();a.match(html,/whether more pages exist is unknown/);a.match(html,/coverage is partial, so the inbox may not be empty/);
- D.email={enabled:false};await p.ctx.render();a.match(p.html(),/Email is disabled in this snapshot\. No inbox is scanned/);
- delete D.email;await p.ctx.render();a.match(p.html(),/Status unknown/);a.match(p.html(),/This is not an empty inbox/);
- p=await page(C.mergeSnapshot(null,google()),'/home');html=p.html();a.match(html,/id="home-email"/);a.match(html,/3 messages<\/strong> in the last collected snapshot \(1 unread\)/);a.match(html,/not live access/);
-});
-
 test('review fixes: an omitted email record with a down source is failed/retained; enabled must be boolean',()=>{
  const old=C.mergeSnapshot(null,google());
  for(const status of ['failed','unavailable','partial']){const next=google();next.generatedAt='2026-10-08T12:00:00Z';next.sources.find(s=>s.id==='gmail').status=status;delete next.email;

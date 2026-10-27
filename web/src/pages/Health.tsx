@@ -1,9 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type FormEvent } from 'react';
 import { useApp } from '../data/AppData';
 import { useI18n } from '../i18n/I18n';
 import { Dot, External, PageHeader, Section, Tag, sourceTone } from '../components/ui';
 import { Effort } from '../lib/shared';
-import type { Trends, TrendWeek } from '../data/types';
+import type { HistoryPage, Run, Trends, TrendWeek } from '../data/types';
 
 export function Health() {
   const { snapshot: d, f, now, source, run } = useApp();
@@ -36,6 +36,7 @@ export function Health() {
             </div>
           </Section>
           <WeeklyTrends />
+          {source.history && <History />}
         </div>
         <div className="space-y-8">
           <Calibration />
@@ -43,6 +44,7 @@ export function Health() {
             <ol className="list-decimal space-y-2 pl-5 text-sm">{t.health.principleList.map((x) => <li key={x}>{x}</li>)}</ol>
           </Section>
           {source.backups && <Backups />}
+          {source.runs && <Runs />}
           {source.mode === 'demo' && (
             <Section title={t.health.demoData}>
               <div className="panel space-y-3 p-4 text-sm">
@@ -168,6 +170,83 @@ function WeeklyTrends() {
         {c.comparable ? <p className="text-xs text-muted">{t.health.comparable}</p> : (
           <div className="rounded-lg bg-warn-soft p-3 text-[13px] text-warn"><p>{t.health.notComparable}</p><ul className="mt-1 list-disc pl-5">{c.reasons.map((r) => <li key={r}>{r}</li>)}</ul></div>
         )}
+      </div>
+    </Section>
+  );
+}
+
+const STATUSES = ['imported', 'career', 'checks', 'actual', 'confirmed', 'cleared', 'invalidated', 'prepared', 'approved', 'withdrawn', 'executed', 'failed', 'connected', 'disconnected', 'restored'];
+
+// Server only: the audit log, 20 rows a page, filtered by text, status and date (store.history).
+function History() {
+  const { source, f } = useApp();
+  const { t } = useI18n();
+  const [filter, setFilter] = useState({ q: '', status: '', from: '', to: '', page: 1 });
+  const [data, setData] = useState<HistoryPage | null>(null);
+  useEffect(() => { source.history!(filter).then(setData, () => setData({ page: 1, total: 0, items: [] })); }, [source, filter]);
+  const submit = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const v = Object.fromEntries(new FormData(e.currentTarget)) as Record<string, string>;
+    setFilter({ q: v.q || '', status: v.status || '', from: v.from || '', to: v.to || '', page: 1 });
+  };
+  return (
+    <Section title={t.health.history}>
+      <div className="panel space-y-3 p-4 text-sm">
+        <p className="text-muted">{t.health.historyNote}</p>
+        <form className="flex flex-wrap items-end gap-2" onSubmit={submit}>
+          <label className="block w-full"><span className="label">{t.health.search}</span><input name="q" type="search" className="field w-full" defaultValue={filter.q} /></label>
+          <label><span className="label">{t.health.from}</span><input name="from" type="date" className="field" defaultValue={filter.from} /></label>
+          <label><span className="label">{t.health.to}</span><input name="to" type="date" className="field" defaultValue={filter.to} /></label>
+          <label><span className="label">{t.health.statusCol}</span><select name="status" className="field" defaultValue={filter.status}><option value="">{t.health.allStatuses}</option>{STATUSES.map((s) => <option key={s}>{s}</option>)}</select></label>
+          <button type="submit" className="btn">{t.health.filter}</button>
+        </form>
+        {data && (data.items.length ? (
+          <ul className="divide-y divide-line rounded-lg border border-line">
+            {data.items.map((r) => (
+              <li key={r.id} className="px-3 py-2">
+                <details>
+                  <summary className="cursor-pointer"><span className="font-mono text-[12px] text-muted">{f.day(r.at)} {f.time(r.at)}</span> · {r.kind} · <Tag tone={r.status === 'failed' ? 'warn' : 'neutral'}>{r.status}</Tag> <span className="break-all">{r.label}</span></summary>
+                  <pre className="mt-2 max-h-64 overflow-auto rounded bg-soft p-2 text-[11px]">{JSON.stringify(r.value, null, 2)}</pre>
+                </details>
+              </li>
+            ))}
+          </ul>
+        ) : <p>{t.health.noHistory}</p>)}
+        {data && data.total > 0 && (
+          <div className="flex flex-wrap items-center gap-2 text-xs text-muted">
+            <span>{t.health.page(data.page, data.total)}</span>
+            {data.page > 1 && <button type="button" className="btn" onClick={() => setFilter({ ...filter, page: data.page - 1 })}>{t.health.previous}</button>}
+            {data.page * 20 < data.total && <button type="button" className="btn" onClick={() => setFilter({ ...filter, page: data.page + 1 })}>{t.health.next}</button>}
+          </div>
+        )}
+      </div>
+    </Section>
+  );
+}
+
+// Server only: the last 30 measured runs (store.runs), shown as recorded.
+function Runs() {
+  const { source, f } = useApp();
+  const { t } = useI18n();
+  const [runs, setRuns] = useState<Run[] | null>(null);
+  useEffect(() => { source.runs!().then(setRuns, () => setRuns([])); }, [source]);
+  if (!runs) return null;
+  return (
+    <Section title={t.health.runs}>
+      <div className="panel space-y-3 p-4 text-sm">
+        <p className="text-muted">{t.health.runsNote}</p>
+        {runs.length ? (
+          <ul className="divide-y divide-line rounded-lg border border-line">
+            {runs.map((r, i) => (
+              <li key={i} className="px-3 py-2">
+                <details>
+                  <summary className="cursor-pointer">{typeof r.startedAt === 'string' ? `${f.day(r.startedAt)} ${f.time(r.startedAt)}` : '—'} · {String(r.model ?? '—')} · {String(r.status ?? '—')}</summary>
+                  <pre className="mt-2 max-h-64 overflow-auto rounded bg-soft p-2 text-[11px]">{JSON.stringify(r, null, 2)}</pre>
+                </details>
+              </li>
+            ))}
+          </ul>
+        ) : <p>{t.health.noRuns}</p>}
       </div>
     </Section>
   );

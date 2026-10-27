@@ -88,6 +88,5 @@ test('effort endpoints require session, Origin and CSRF and never accept client 
   const exported=await (await fetch(base+'/api/export',{headers:{Cookie:cookie}})).json();a.deepEqual(exported.progress.effortCalibration['task-1'],sample);
   a.deepEqual(await (await post('/api/progress',{kind:'actual',id:'task-1',value:null},ok)).json(),{ok:true,invalidated:true});a.equal(srv.store.state().actual,undefined);
   a.deepEqual(await (await post('/api/effort/clear',{id:'task-1'},ok)).json(),{cleared:false});
-  const asset=await fetch(base+'/effort.js');a.equal(asset.status,200);a.match(asset.headers.get('content-type'),/text\/javascript/);a.match(await asset.text(),/PlannerEffort/);
  }finally{await new Promise(r=>srv.close(r));fs.rmSync(dir,{recursive:true,force:true});}
 });

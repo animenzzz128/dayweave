@@ -118,7 +118,7 @@ function spawnForeign(code,extraEnv={}){
 const foreignHttp=(port,host='127.0.0.1')=>spawnForeign(`require('node:http').createServer((q,r)=>{r.writeHead(200,{'Content-Type':'text/html'});r.end('<title>Dayweave</title>');}).listen(${port},${JSON.stringify(host)},()=>console.log('ready'));`);
 const squatter=(name,mode)=>spawnForeign(`require('node:net').createServer(s=>{s.on('error',()=>{});if(process.env.SQUAT_MODE==='reply')s.on('data',()=>s.write(JSON.stringify({type:'identity',instanceId:process.env.SQUAT_ID,pid:1,identity:{},child:null,serverNonce:'a'.repeat(64),mac:'b'.repeat(64)})+'\\n'));}).listen(process.env.SQUAT_NAME,()=>console.log('ready'));setInterval(()=>{},1e6);`,{SQUAT_NAME:name,SQUAT_MODE:mode,SQUAT_ID:path.basename(name).split('-').pop()});
 const channelAbsent=async name=>{const r=await new Promise(res=>{const s=net.connect(name);s.once('connect',()=>{s.destroy();res('connected');});s.once('error',e=>res(e.code));});return process.platform==='win32'?r==='ENOENT':r==='ECONNREFUSED'||r==='ENOENT';};
-const httpGet=async(port,p='/home')=>{const r=await fetch(`http://127.0.0.1:${port}${p}`);return {status:r.status,type:r.headers.get('content-type'),body:await r.text()};};
+const httpGet=async(port,p='/')=>{const r=await fetch(`http://127.0.0.1:${port}${p}`);return {status:r.status,type:r.headers.get('content-type'),body:await r.text()};};
 
 // ---------- Unit checks ----------
 test('launcher config validation rejects unknown keys, bad types and unsafe paths before anything starts',()=>{
@@ -157,7 +157,7 @@ test('scripts/serve.cjs still serves through the shared app assembly',async t=>{
   owned.add(c);const exited=new Promise(r=>c.on('exit',()=>{owned.delete(c);r();}));
   t.after(async()=>{if(c.exitCode===null)c.kill();await exited;fs.rmSync(dir,{recursive:true,force:true});});
   await new Promise(r=>{let b='';c.stdout.on('data',d=>{b+=d;if(b.includes('Dayweave: http://127.0.0.1:'+port))r();});});
-  a.equal((await httpGet(port,'/home')).status,200);a.ok(fs.existsSync(path.join(dir,'dayweave.sqlite')));
+  a.equal((await httpGet(port,'/')).status,200);a.ok(fs.existsSync(path.join(dir,'dayweave.sqlite')));
 });
 test('launcher helpers: canonical JSON, MAC, argument parsing and deterministic channel names',()=>{
   a.equal(L.canon({b:1,a:{d:[1,{z:1,y:2}],c:null}}),L.canon({a:{c:null,d:[1,{y:2,z:1}]},b:1}));
@@ -460,7 +460,7 @@ test('connections arriving while the Store opens are served after the hand-over;
   const request=port=>new Promise(res=>{
     let data='',fin=r=>{clearTimeout(timer);sock.destroy();res({...r,data});};const sock=net.connect(port,'127.0.0.1');
     const timer=setTimeout(()=>fin({end:'hang'}),15000);
-    sock.on('connect',()=>sock.write('GET /home HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n'));
+    sock.on('connect',()=>sock.write('GET / HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n'));
     sock.on('data',d=>data+=d);sock.on('error',e=>fin({end:e.code}));sock.on('close',()=>fin({end:'closed'}));
   });
   const connectWhileOpening=async env=>{
@@ -495,14 +495,14 @@ test('a revision without src/app-server.cjs falls back to attach(createServer())
   a.ok(logEvents(env).some(e=>e.event==='child.loaded'&&e.fields.assembly==='legacy-serve'));
   a.equal((await run(env,'stop')).code,0);await owner.exited;
 });
-test('real application copy: concurrent launches open one Store, serve /home and /app.js; a foreign listener keeps data untouched',async t=>{
+test('real application copy: concurrent launches open one Store, serve / and redirect /home; a foreign listener keeps data untouched',async t=>{
   const env=await makeEnv(t,{app:'real'});
   const all=Array.from({length:4},()=>launch(env,'start'));
   await waitRunning(env);
   const exits=await losers(all,3);
   a.equal(exits.length,3);a.ok(exits.every(e=>e.code===0));
-  const home=await httpGet(env.port,'/home');a.equal(home.status,200);a.match(home.type,/text\/html/);
-  a.equal((await httpGet(env.port,'/app.js')).status,200);
+  const home=await httpGet(env.port,'/');a.equal(home.status,200);a.match(home.type,/text\/html/);
+  a.equal((await fetch(`http://127.0.0.1:${env.port}/home`,{redirect:'manual'})).headers.get('location'),'/#/today');
   a.ok(fs.existsSync(path.join(env.data,'dayweave.sqlite')));
   a.equal(logEvents(env).filter(e=>e.event==='child.spawned').length,1);
   a.ok(logEvents(env).some(e=>e.event==='child.loaded'&&e.fields.assembly==='app-server'));

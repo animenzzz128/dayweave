@@ -21,7 +21,7 @@ const en = {
     outageEnded: 'Outage ended: all sources read normally again.',
     outageNote: 'Google Calendar and Gmail failed in the last read (simulated).',
   },
-  local: { banner: 'Local mode: connected to the Dayweave server on this computer.', hosted: 'Private instance: your own data, signed in with Google.', classic: 'Classic view', signOut: 'Sign out' },
+  local: { banner: 'Local mode: connected to the Dayweave server on this computer.', hosted: 'Private instance: your own data, signed in with Google.', signOut: 'Sign out' },
   ai: {
     aiTag: 'AI', rulesTag: 'Rules',
     generated: (model: string, day: string) => `Written by ${model} on ${day}, then checked against today’s sources in this browser.`,
@@ -328,6 +328,11 @@ const en = {
     comparison: 'Change', comparable: 'Change between the latest observation of each week. A change is not judged as better or worse.',
     notComparable: 'Not comparable · coverage limited. No change is shown, and a lower count is not an improvement.',
     retention: (days: number) => `Snapshots are kept ${days} days.`,
+    history: 'History', historyNote: 'Every change Dayweave recorded: imports, your marks and edits, approvals, writes, backups. Newest first.',
+    search: 'Search', from: 'From', to: 'To', allStatuses: 'All statuses', filter: 'Filter',
+    statusCol: 'Status', noHistory: 'Nothing recorded for this filter.',
+    page: (p: number, total: number) => `${total} records · page ${p}`, previous: 'Previous', next: 'Next',
+    runs: 'Runs', runsNote: 'The last 30 measured runs. Unknown metrics stay unknown; shared account quota is not a per-run bill.', noRuns: 'No measured runs yet.',
   },
 };
 
@@ -355,7 +360,7 @@ const zh: Messages = {
     about: '这个项目是怎么做的',
     simulated: '演示中为模拟执行，没有写入任何日历。',
   },
-  local: { banner: '本地模式：已连接这台电脑上的 Dayweave 服务。', hosted: '私人实例：你自己的数据，已用 Google 登录。', classic: '旧版界面', signOut: '退出登录' },
+  local: { banner: '本地模式：已连接这台电脑上的 Dayweave 服务。', hosted: '私人实例：你自己的数据，已用 Google 登录。', signOut: '退出登录' },
   ai: {
     aiTag: 'AI', rulesTag: '规则',
     generated: (model: string, day: string) => `由 ${model} 于 ${day} 生成，并已在本浏览器中对照今天的来源重新校验。`,
@@ -662,6 +667,11 @@ const zh: Messages = {
     comparison: '变化', comparable: '两周最后一次观测之间的变化。只描述变化，不评判好坏。',
     notComparable: '无法比较 · 覆盖有限。不显示变化，数字变小也不代表有进步。',
     retention: (days: number) => `快照保留 ${days} 天。`,
+    history: '操作历史', historyNote: 'Dayweave 记录的每一次变化：导入、你的标记和修改、批准、写入、备份。最新的在前。',
+    search: '搜索', from: '从', to: '到', allStatuses: '全部状态', filter: '筛选',
+    statusCol: '状态', noHistory: '这个筛选条件下没有记录。',
+    page: (p: number, total: number) => `共 ${total} 条 · 第 ${p} 页`, previous: '上一页', next: '下一页',
+    runs: '运行记录', runsNote: '最近 30 次有记录的运行。未知的指标保持未知；共享的账户额度不是每次运行的费用。', noRuns: '还没有运行记录。',
   },
 };
 

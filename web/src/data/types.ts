@@ -112,6 +112,10 @@ export interface Trends {
   weeks: [TrendWeek, TrendWeek]; comparison: { comparable: boolean; reasons: string[]; changes: Record<string, number> | null };
 }
 
+/** Server only: one page (20 rows) of the audit log, newest first, and the last 30 measured runs. */
+export interface HistoryPage { page: number; total: number; items: { id: number; at: string; kind: string; status: string; label: string; value: unknown }[] }
+export type Run = Record<string, unknown> & { startedAt?: string; status?: string; model?: string };
+
 export interface Loaded { snapshot: Snapshot; progress: Progress; approvals: Approval[]; outage?: boolean; planSettings: PlanSettings; planSettingsSaved: boolean; calendarWrite?: CalendarWrite }
 
 export interface DataSource {
@@ -139,6 +143,8 @@ export interface DataSource {
   clearEffort?(id: string): Promise<void>;
   /** Server only: weekly evidence trends; `week` is a Monday (YYYY-MM-DD), latest observed week when omitted. */
   trends?(week?: string): Promise<Trends>;
+  history?(filter: { q?: string; status?: string; from?: string; to?: string; page?: number }): Promise<HistoryPage>;
+  runs?(): Promise<Run[]>;
   disconnectCalendar?(): Promise<void>;
   /** Demo only: stands in for the one-time Google consent (the hosted site links to /auth/calendar/connect). */
   connectCalendar?(): Promise<void>;

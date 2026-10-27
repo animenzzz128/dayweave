@@ -41,5 +41,6 @@ export default defineConfig(({ mode }) => ({
       },
     } : undefined,
   },
-  build: { outDir: 'dist', emptyOutDir: true, sourcemap: false },
+  // The server build goes to its own folder, so a demo build in dist/ is never served as the private site.
+  build: { outDir: mode === 'server' ? 'dist-server' : 'dist', emptyOutDir: true, sourcemap: false },
 }));

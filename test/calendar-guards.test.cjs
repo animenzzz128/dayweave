@@ -125,18 +125,6 @@ test('item3: local receipts win over imported copies; legacy Outlook receipts an
   const d3=structuredClone(d);d3.actionHistory=[{id:'g-x',status:'executed',fingerprint:'f',recordedAt:'2026-10-07T12:00:00Z',verifiedAt:'2026-10-07T12:00:00Z',remoteRef:'r',evidence:'e',connector:'google-calendar-connector'}];a.throws(()=>o.importSnapshot(d3),/cannot add Google calendar receipts/);});
 }));
 
-// Item 4: Review says a not_created action is absent only in the searched window.
-test('item4: Review labels not_created as absent in the searched window, with each earlier state\'s version',async()=>{
- let D,S,V;withStore(s=>{const {x,y}=setup(s),q1=A.prepare(s,[x.id,y.id]);G.pending(s,q1.reference,x.id,ok(q1),ARGS,read(s,x));G.reconcile(s,q1.reference,x.id,read(s,x,{before:25,after:25}));
-  const q2=A.prepare(s,[x.id]);G.pending(s,q2.reference,x.id,ok(q2),ARGS,read(s,x));G.reconcile(s,q2.reference,x.id,read(s,x,{before:25,after:25}));D=s.snapshot();S=s.state();V=A.list(s);});
- const order=[...fs.readFileSync('src/web/index.html','utf8').matchAll(/<script src="\/([\w.]+)"><\/script>/g)].map(m=>m[1]),files={'core.js':'src/core.cjs','phase2.js':'src/phase2.cjs','phase3.js':'src/phase3.cjs','effort.js':'src/effort.cjs','workload.js':'src/workload.cjs','email.js':'src/email.cjs','app.js':'src/web/app.js'};
- const nodes=new Map(),node=k=>{if(!nodes.has(k))nodes.set(k,{textContent:'',innerHTML:''});return nodes.get(k);};
- const ctx=vm.createContext({URL,URLSearchParams,Date,Intl,console,encodeURIComponent,window:{addEventListener(){}},document:{querySelector:node,querySelectorAll:()=>[],addEventListener(){}},location:{pathname:'/review',search:'?tab=history'},history:{pushState(){}},fetch:async url=>({ok:true,json:async()=>url.endsWith('session')?{csrf:'t'}:url.includes('approvals')?V:{snapshot:D,progress:S}})});
- for(const f of order)vm.runInContext(fs.readFileSync(files[f],'utf8'),ctx,{filename:files[f]});await new Promise(r=>setImmediate(r));
- const html=node('#page').innerHTML;a.match(html,/data-status="not_created"/);a.match(html,/Not created · absent in searched window/);a.doesNotMatch(html,/verified absent/i);
- a.match(html,/found no event with this action marker in that window/);a.match(html,new RegExp('not_created under '+V.at(-1).reference),'earlier not_created states name their version');
-});
-
 // Review round 1 of #46: unknown hold ranges, holds from incomplete or cross-calendar searches, imported receipts that vouch
 // for themselves, and outcomes of claims that already started.
 const put=(s,id,h)=>s.db.prepare('UPDATE receipts SET value=? WHERE id=?').run(JSON.stringify(h),id);

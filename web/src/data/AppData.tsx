@@ -94,9 +94,32 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
     };
   }, [data, source, now, locale, t, run, reload, notice]);
 
-  if (error && !data) return <div className="p-6 sm:p-10"><ErrorState title={t.common.error} message={error} hint={t.common.errorHint} onRetry={reload} retry={t.common.retry} /></div>;
+  if (error && !data) return <div className="space-y-6 p-6 sm:p-10"><ErrorState title={t.common.error} message={error} hint={t.common.errorHint} onRetry={reload} retry={t.common.retry} />{source.backups && source.restore && <EmptyRestore source={source} onRestored={reload} />}</div>;
   if (!value) return <LoadingShell label={t.common.loading} />;
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
+}
+
+/** A database without a snapshot cannot open the pages, so its backups are offered here (this was the classic UI's job). */
+function EmptyRestore({ source, onRestored }: { source: DataSource; onRestored: () => void }) {
+  const { t } = useI18n();
+  const [list, setList] = useState<string[] | null>(null);
+  const [failure, setFailure] = useState<string | null>(null);
+  useEffect(() => { source.backups!().then(setList, () => setList([])); }, [source]);
+  if (!list?.length) return null;
+  return (
+    <section className="panel mx-auto max-w-xl space-y-3 p-4 text-sm">
+      <h2 className="font-medium">{t.health.backups}</h2>
+      <ul className="divide-y divide-line rounded-lg border border-line">
+        {list.slice(0, 7).map((name) => (
+          <li key={name} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+            <span className="font-mono text-[12px] break-all">{name}</span>
+            <button type="button" className="btn" onClick={() => { if (window.confirm(t.health.restoreConfirm(name))) source.restore!(name).then(onRestored, (e: Error) => setFailure(e.message)); }}>{t.health.restore}</button>
+          </li>
+        ))}
+      </ul>
+      {failure && <p role="alert" className="text-danger">{failure}</p>}
+    </section>
+  );
 }
 
 /** Shaped like the Today page, so the layout does not jump when the data arrives. */

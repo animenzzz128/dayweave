@@ -52,7 +52,7 @@ test('Google redirects back cross-site, so hosted top-level GET navigations pass
  const nav={'Sec-Fetch-Site':'cross-site','Sec-Fetch-Mode':'navigate'};
  const login=await request(port,'/auth/login',{headers:nav}),q=new URL(login.headers.location).searchParams;a.equal(login.status,302);lastNonce=q.get('nonce');lastClaims={};
  const back=await request(port,'/auth/callback?code=c1&state='+q.get('state'),{headers:{...nav,Cookie:jar(login)}});a.equal(back.status,302);a.equal(back.headers.location,'/');
- const cookie=jar(back).split('; ').find(c=>c.startsWith(SESSION_COOKIE+'='));a.equal((await request(port,'/home',{headers:{...nav,Cookie:cookie}})).status,200);
+ const cookie=jar(back).split('; ').find(c=>c.startsWith(SESSION_COOKIE+'='));a.equal((await request(port,'/',{headers:{...nav,Cookie:cookie}})).status,200);
  a.equal((await request(port,'/api/snapshot',{headers:{...nav,Cookie:cookie}})).status,403);a.equal((await request(port,'/api/snapshot',{headers:{'Sec-Fetch-Site':'cross-site','Sec-Fetch-Mode':'cors',Cookie:cookie}})).status,403);
  a.equal((await request(port,'/auth/logout',{method:'POST',headers:{'Sec-Fetch-Site':'cross-site','Sec-Fetch-Mode':'navigate',Origin:origin,Cookie:cookie}})).status,403);}));
 

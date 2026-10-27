@@ -83,7 +83,7 @@ node scripts/serve.cjs
 
 For a supervised start (one verified owner, port reserved before the database opens, bounded restarts, fixed exit codes), see the [launcher guide](docs/launcher.md).
 
-Open http://127.0.0.1:8767/home. Import legacy browser progress under Settings → Backups before retiring the old page. See [migration and recovery](docs/phase-4.md) and the [Luna evaluation set](evals/luna-routine/README.md). Source collection and approved calendar execution still require an authorized assistant; this app has no autonomous external-write channel.
+Build the web front end once (`cd web && npm ci && npm run build:server`), then open http://127.0.0.1:8767/. The server serves `web/dist-server`; the old classic pages (`/home`, `/settings`, …) lead to the matching new page. See [migration and recovery](docs/phase-4.md) and the [Luna evaluation set](evals/luna-routine/README.md). Source collection and approved calendar execution still require an authorized assistant; this app has no autonomous external-write channel.
 
 ## Try the legacy synthetic demo
 
