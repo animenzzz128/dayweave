@@ -1,7 +1,7 @@
 import template from '../../../examples/luna-demo.json';
 import { Core, Demo, Effort, Phase2, Planner, Todos } from '../lib/shared';
 import { trackEvent } from '../lib/analytics';
-import type { Approval, DataSource, Loaded, PlanResult, PlanSettings, Progress, Proposal, Receipt, Snapshot, Todo } from './types';
+import type { Approval, DataSource, Loaded, PlanResult, PlanSettings, Progress, Proposal, Receipt, Snapshot, Todo, WriteResult } from './types';
 
 // The public demo keeps everything in this browser. Nothing is sent anywhere, and Reset returns to the original Luna data.
 const KEY = 'dayweave.demo.v1';
@@ -17,6 +17,10 @@ interface DemoState {
   outage?: boolean;
   /** The visitor's planning rules; the recommended ones when unset. */
   planSettings?: PlanSettings;
+  /** Today's and tomorrow's drafts were made on the first visit of the day, standing in for the morning collection. */
+  autoPlanned?: boolean;
+  /** When the visitor connected the simulated Google Calendar. */
+  calendarConnectedAt?: string;
 }
 
 const fresh = (day: string): DemoState => ({ v: 1, day, progress: {}, proposals: null, approvals: [], receipts: [], nextQ: 12 });
@@ -28,7 +32,7 @@ function read(day: string): DemoState {
     const s = raw ? (JSON.parse(raw) as DemoState) : null;
     if (!s || s.v !== 1) return fresh(day);
     // Dated work (plans, approvals, simulated receipts) belongs to the day it was made; checklists and todos carry over.
-    return s.day === day ? s : { ...fresh(day), progress: s.progress, nextQ: s.nextQ, outage: s.outage, planSettings: s.planSettings };
+    return s.day === day ? s : { ...fresh(day), progress: s.progress, nextQ: s.nextQ, outage: s.outage, planSettings: s.planSettings, calendarConnectedAt: s.calendarConnectedAt };
   } catch {
     return fresh(day);
   }
@@ -78,7 +82,14 @@ export class DemoSource implements DataSource {
 
   async load(): Promise<Loaded> {
     const { d, s } = this.build();
-    return { snapshot: d, progress: clone(s.progress), approvals: clone(s.approvals).reverse(), outage: !!s.outage, planSettings: this.settings(), planSettingsSaved: !!s.planSettings };
+    if (!s.autoPlanned) {
+      const now = new Date(), today = Core.dayKey(now);
+      for (const date of [today, Demo.addDays(today, 1) as string]) this.planDay(d, s, date, now);
+      s.autoPlanned = true;
+      this.save();
+    }
+    return { snapshot: d, progress: clone(s.progress), approvals: clone(s.approvals).reverse(), outage: !!s.outage, planSettings: this.settings(), planSettingsSaved: !!s.planSettings,
+      calendarWrite: { available: true, connected: !!s.calendarConnectedAt, account: d.calendarCoverage?.account, connectedAt: s.calendarConnectedAt ?? null } };
   }
 
   private settings(): PlanSettings { return Planner.planSettings(this.state?.planSettings || Planner.RECOMMENDED); }
@@ -152,14 +163,20 @@ export class DemoSource implements DataSource {
 
   async generatePlan(date: string): Promise<PlanResult> {
     const { d, s } = this.build();
-    const now = new Date();
+    const result = this.planDay(d, s, date, new Date());
+    this.save();
+    return result;
+  }
+
+  // As on the server: replaceable drafts for the day give way to new ones, and the summary is kept for the Plan page.
+  private planDay(d: Snapshot, s: DemoState, date: string, now: Date): PlanResult {
     const result = Planner.plan({ snapshot: d, date, now, todos: s.progress.todo || {}, archive: s.progress.archive || {}, dismissed: s.progress.dismissed || {}, started: [], settings: this.settings(), emailTriage: s.progress.emailTriage || {} }) as PlanResult;
     const replaced = d.proposals.filter((p) => Planner.replaceable(d, p, date)).map((p) => p.id);
     d.proposals = [...d.proposals.filter((p) => !Planner.replaceable(d, p, date)), ...result.blocks];
     Core.validate(d);
     s.proposals = clone(d.proposals);
     this.invalidate(replaced);
-    this.save();
+    (s.progress.plan ??= {})[date] = { ...Planner.summary(result), replaced };
     return result;
   }
 
@@ -204,18 +221,60 @@ export class DemoSource implements DataSource {
     return clone(approval);
   }
 
-  async simulateApproval(approval: Approval) {
-    const { d, s } = this.build();
-    const a = s.approvals.find((x) => x.id === approval.id);
+  // The private instance's direct write (docs/google-direct.md), played out in this browser: connect once, approve an exact
+  // version, then a live recheck and one create per block. No calendar is touched; receipts say "simulated".
+  async connectCalendar() {
+    const { s } = this.build();
+    s.calendarConnectedAt = new Date().toISOString();
+    this.save();
+  }
+
+  async disconnectCalendar() {
+    const { s } = this.build();
+    delete s.calendarConnectedAt;
+    this.save();
+  }
+
+  private version(s: DemoState, reference: string) {
+    const a = s.approvals.find((x) => x.reference === reference);
     if (!a || a.status !== 'prepared') throw new Error('This version is no longer waiting for approval.');
+    return a;
+  }
+
+  async approve(reference: string) {
+    const { s } = this.build();
+    this.version(s, reference).approval = { channel: 'web', text: `Approve ${reference}`, at: new Date().toISOString(), by: 'Luna (demo)' };
+    this.save();
+  }
+
+  async withdraw(reference: string) {
+    const { s } = this.build();
+    this.version(s, reference).approval = null;
+    this.save();
+  }
+
+  async writeCalendar(reference: string): Promise<WriteResult> {
+    const { d, s } = this.build();
+    const a = this.version(s, reference);
+    const stopped: string[] = [];
+    if (!s.calendarConnectedAt) stopped.push('Google Calendar is not connected.');
+    if (!a.approval) stopped.push(`${reference} is not approved.`);
+    if (d.calendarCoverage?.complete === false) stopped.push('The calendar could not be read again, so free time is unknown.');
     for (const p of a.value) {
       const current = d.proposals.find((x) => x.id === p.id);
-      if (!current || Phase2.fingerprint(current) !== a.fingerprints[p.id]) throw new Error('The proposal changed after this version was prepared.');
+      if (!current || Phase2.fingerprint(current) !== a.fingerprints[p.id]) { stopped.push(`${p.title} changed after ${reference} was prepared.`); break; }
     }
-    const at = new Date().toISOString();
-    for (const p of a.value) s.receipts.push({ id: p.id, status: 'executed', fingerprint: a.fingerprints[p.id], reference: a.reference, at, note: 'simulated' });
-    a.status = 'executed';
+    if (stopped.length) return { reference, stopped, actions: [] };
+    const now = new Date(), at = now.toISOString();
+    // The live recheck: a block that now clashes with the calendar or has already passed is skipped (no receipt), never moved.
+    const actions = a.value.map((p) => {
+      const errors = Phase2.errors(p, { ...d, proposals: d.proposals.filter((x) => x.id !== p.id) }, now, []) as string[];
+      return { id: p.id, title: p.title, status: errors.length ? 'skipped' : 'executed', ...(errors.length ? { errors } : {}) };
+    });
+    for (const x of actions) if (x.status === 'executed') s.receipts.push({ id: x.id, status: x.status, fingerprint: a.fingerprints[x.id], reference, at, note: 'simulated' });
+    a.status = actions.every((x) => x.status === 'executed') ? 'executed' : actions.some((x) => x.status === 'executed') ? 'partial' : 'failed';
     this.save();
+    return { reference, stopped, actions };
   }
 
   async setOutage(on: boolean) {

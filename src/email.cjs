@@ -16,14 +16,16 @@ function flag(x,name){if(x==null)return null;if(typeof x!=='boolean')throw Error
 function link(x){if(x==null||x==='')return null;let u;try{u=new URL(x);}catch{throw Error('Unsafe email link');}if(u.protocol!=='https:'||!LINK_HOSTS.includes(u.hostname)||u.username||u.password)throw Error('Email links must be https://mail.google.com URLs');return u.href;}
 // Triage written by the collecting assistant after reading the message (read-only). It is a labelled AI judgment: a
 // category, a priority, a one-line summary and suggested action, and a due time only when the mail states one. The body
-// itself is never stored. `assignmentId` links a message (such as a submission receipt) to coursework as a hint only.
+// itself is never stored. `zh` carries the same summary and action in Chinese. `assignmentId` links a message (such as a submission receipt) to coursework as a hint only.
 const CATEGORIES=['interview','reply','action','info','promo'],PRIORITIES=['high','medium','low'];
 function triage(t){if(t==null)return null;if(!plain(t))throw Error('Invalid email triage');
  if(!CATEGORIES.includes(t.category))throw Error('Email triage category must be interview, reply, action, info or promo');
  if(!PRIORITIES.includes(t.priority))throw Error('Email triage priority must be high, medium or low');
  if(t.dueAt!=null&&!instant(t.dueAt))throw Error('Email triage dueAt needs an explicit offset');
  if(t.assignmentId!=null&&!stableId(t.assignmentId))throw Error('Invalid email triage assignment');
- return {category:t.category,priority:t.priority,summary:text(t.summary,300,'triage summary'),action:text(t.action,200,'triage action'),dueAt:t.dueAt??null,...(t.assignmentId!=null?{assignmentId:t.assignmentId}:{})};}
+ return {category:t.category,priority:t.priority,summary:text(t.summary,300,'triage summary'),action:text(t.action,200,'triage action'),dueAt:t.dueAt??null,...(t.assignmentId!=null?{assignmentId:t.assignmentId}:{}),...(t.zh!=null?{zh:translation(t.zh)}:{})};}
+// The Chinese version of summary and action, shown when the interface is in Chinese; summary and action are in English.
+function translation(z){if(!plain(z))throw Error('Invalid email triage translation');return {summary:text(z.summary,300,'triage summary'),action:text(z.action,200,'triage action')};}
 // Projects a message to the allowed fields. Bodies and attachment content are never kept, whatever the input carries.
 function message(m){
  if(!plain(m))throw Error('Invalid email message');

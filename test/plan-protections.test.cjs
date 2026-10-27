@@ -194,3 +194,17 @@ test('restore is transactional; reopen respects the open cap; an update may over
  const d={timezone:TZ,generatedAt:now,events:[ev],proposals:[p],actionHistory:[{id:'remote',status:'executed',fingerprint:P.fingerprint(p),remoteRef:'event-1',recordedAt:now}],calendarCoverage:{complete:true,start:now,end:'2026-12-01T00:00:00Z',checkedAt:now,account:p.account,calendar:p.calendar}};
  a.deepEqual(P.errors(q,d,now),[]);a.match(P.errors({...q,remoteRef:'event-2',before:{...ev,remoteRef:'event-2'}},{...d,events:[ev,{...ev,id:'e2',remoteRef:'event-2',start:'2026-10-08T16:00:00Z',end:'2026-10-08T17:00:00Z'}]},now).join(' '),/already started/);
 }));
+
+test('ownEventIds: a calendar copy of a written block is recognized so views draw it once; other events stay',()=>{
+ const date='2026-10-14',now=C.zonedISO(date,'08:00');
+ const block={id:'plan-written',title:'Gym',start:C.zonedISO(date,'20:00'),end:C.zonedISO(date,'21:30'),status:'proposed',action:'create',provider:'google',account:'owner@example.com',calendar:'Personal',calendarId:'owner@example.com',recurrence:'One time'};
+ const ev=(id,over={})=>({id,title:'Gym',start:block.start,end:block.end,busy:true,provider:'google',account:'owner@example.com',calendarId:'owner@example.com',calendar:'Personal',sourceId:'google-calendar',...over});
+ const d=snap(date,now,x=>{x.proposals=[block];x.events=[ev('copy'),ev('other-time',{start:C.zonedISO(date,'18:00'),end:C.zonedISO(date,'19:30')}),ev('other-title',{title:'Gym class'})];
+  x.actionHistory=[{id:block.id,status:'executed',fingerprint:P.fingerprint(block),remoteRef:'owner@example.com/google-id-1',recordedAt:now}];return x;});
+ a.deepEqual([...PL.ownEventIds(d)],['copy'],'only the exact copy');
+ // Matched by the receipt's remoteRef, even after the event moved.
+ d.events.push(ev('google-id-1',{start:C.zonedISO(date,'20:30'),end:C.zonedISO(date,'22:00')}));a.deepEqual([...PL.ownEventIds(d)].sort(),['copy','google-id-1']);
+ // With no copy of the block left to draw, its event stays visible; an unstarted proposal hides nothing.
+ a.deepEqual([...PL.ownEventIds({...d,proposals:[]})],[]);
+ a.deepEqual([...PL.ownEventIds({...d,actionHistory:[]})],[]);
+});

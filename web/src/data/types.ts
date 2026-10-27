@@ -34,7 +34,7 @@ export interface EmailMessage {
   id: string; threadId: string; receivedAt: string; from: string; subject: string; snippet?: string;
   labels?: string[]; unread?: boolean; hasAttachments?: boolean; attachmentCount?: number | null; link?: string;
   /** AI triage written by the collecting assistant; the owner's `emailTriage` progress overrides it. */
-  triage?: { category: TriageCategory; priority: 'high' | 'medium' | 'low'; summary: string; action: string; dueAt: string | null; assignmentId?: string };
+  triage?: { category: TriageCategory; priority: 'high' | 'medium' | 'low'; summary: string; action: string; dueAt: string | null; assignmentId?: string; zh?: { summary: string; action: string } };
 }
 
 export type TriageCategory = 'interview' | 'reply' | 'action' | 'info' | 'promo';
@@ -140,8 +140,8 @@ export interface DataSource {
   /** Server only: weekly evidence trends; `week` is a Monday (YYYY-MM-DD), latest observed week when omitted. */
   trends?(week?: string): Promise<Trends>;
   disconnectCalendar?(): Promise<void>;
-  /** Demo only: stands in for the assistant's approved execution and read-back. */
-  simulateApproval?(approval: Approval): Promise<void>;
+  /** Demo only: stands in for the one-time Google consent (the hosted site links to /auth/calendar/connect). */
+  connectCalendar?(): Promise<void>;
   /** Demo only: makes the calendar and Gmail fail, to show how failures stay visible. */
   setOutage?(on: boolean): Promise<void>;
   reset?(): Promise<void>;

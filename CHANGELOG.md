@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — Demo writes the calendar the way the private site does
+
+- The public demo's Review page now follows the private instance's direct Google Calendar write: connect Google Calendar once (simulated consent), then "Approve Q-N and write to Google Calendar". The demo rechecks the prepared version live (connection, approval, failed sources, fingerprints and the planner's checks per block), reports each block as written or skipped with the reason, and keeps receipts marked simulated. Withdrawing an approval works as on the site. No calendar is connected or written.
+
+## Unreleased — Demo Plan page starts with drafts
+
+- Fix: the public demo's Plan page opened with no planned day, and Regenerate showed no change because the demo never stored the day's summary. The demo now makes today's and tomorrow's drafts on the first visit of each day (standing in for the morning collection) and keeps the summary the server keeps, so the page shows the planned load and Regenerate updates it.
+
 ## Unreleased — Demo: pipeline, interview prep and follow-up rhythm
 
 - Career → Pipeline (demo preview): a five-column board (saved, applied, interviewing, offer, closed) with applications in the last 7 days against the weekly goal, reply rate, interviews, and a next-steps list. An application with no reply 10 days after it went out gets a follow-up nudge naming the contact. Moving a card also updates Job match.

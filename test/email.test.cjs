@@ -129,6 +129,11 @@ test('message triage is validated and kept through a merge, bodies are still dro
  a.equal(M.normalize({...d.email,messages:[{...m,triage:{...m.triage,summary:'x'.repeat(400)}}]}).messages[0].triage.summary.length,300);
  for(const bad of [{...m.triage,category:'spam'},{...m.triage,priority:'urgent'},{...m.triage,dueAt:'2026-10-09'},'reply'])a.throws(()=>M.normalize({...d.email,messages:[{...m,triage:bad}]}),/triage/);
  a.equal(M.merge(null,d.email,d.sources,d.generatedAt).messages.find(x=>x.id===m.id).triage.category,'reply');
+ // The Chinese version keeps only summary and action, with the same limits; anything else in it is dropped.
+ const zh={summary:'团队在问由谁做推荐汇报。',action:'周五前回复。',body:'never kept'};
+ a.deepEqual(M.normalize({...d.email,messages:[{...m,triage:{...m.triage,zh}}]}).messages[0].triage.zh,{summary:zh.summary,action:zh.action});
+ a.equal(M.normalize({...d.email,messages:[{...m,triage:{...m.triage,zh:{summary:'长'.repeat(400)}}}]}).messages[0].triage.zh.summary.length,300);
+ for(const bad of ['中文',{summary:3}])a.throws(()=>M.normalize({...d.email,messages:[{...m,triage:{...m.triage,zh:bad}}]}),/triage/);
  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'dw-triage-')),s=new Store(dir);try{
   s.saveState('emailTriage',m.id,{category:'info',handled:true,at});a.equal(s.state().emailTriage[m.id].handled,true);s.saveState('emailTriage',m.id,null);
   for(const bad of [{category:'spam'},{handled:'yes'},{note:'x'},'info'])a.throws(()=>s.saveState('emailTriage',m.id,bad),/triage override/);
