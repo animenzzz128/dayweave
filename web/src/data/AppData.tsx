@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
-import { Core } from '../lib/shared';
+import { Core, Planner } from '../lib/shared';
 import { makeFormat, type Format } from '../lib/format';
 import { useI18n } from '../i18n/I18n';
 import { ApiSource } from './api';
@@ -30,6 +30,8 @@ interface AppData extends Loaded {
   isPast: (a: Assignment) => boolean;
   waiting: Proposal[];
   started: (id: string) => boolean;
+  /** Calendar events that are copies of blocks Dayweave wrote: timelines show the approved block instead, so it appears once. */
+  ownEvents: Set<string>;
   workStatus: (status: string) => string;
   verifyReason: (a: Assignment) => string;
 }
@@ -80,6 +82,7 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
       isPast: (a) => !isDone(a) && !!a.dueAt && now.getTime() - Date.parse(a.dueAt) > PAST_DAYS * 86400000,
       waiting: d.proposals.filter((p) => !started(p.id) && !data.progress.dismissed?.[p.id]),
       started,
+      ownEvents: Planner.ownEventIds(d) as Set<string>,
       workStatus: (s) => t.work[s] ?? s,
       verifyReason: (a) => {
         const s = d.sources.find((x) => x.id === a.sourceId && ['failed', 'unavailable'].includes(x.status));

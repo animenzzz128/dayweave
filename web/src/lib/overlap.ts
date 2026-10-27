@@ -47,3 +47,27 @@ export function coveredMs(items: Span[]): number {
   if (curEnd > curStart) total += curEnd - curStart;
   return total;
 }
+
+/**
+ * What text fits in a timeline block h pixels tall (its drawn, border-box height), so a line is never cut through: side-by-side
+ * blocks wrap the title to two lines when there is room, the time line shows only below a whole title, and short blocks drop
+ * their padding and shrink the title line to the height left. pad is the block's vertical padding, edge its vertical borders.
+ */
+export function fitText(h: number, cols: number, pad: number, edge: number): { title: string; style?: { fontSize: number; lineHeight: string }; times: boolean; tight: boolean } {
+  const tight = h - pad - edge < 16;
+  if (tight) {
+    // No padding: the title gets every pixel inside the borders, at most one 14px line; below 9px nothing fits, and the
+    // block's title attribute and label still name it.
+    const line = Math.min(14, Math.floor(h - edge));
+    return line < 9
+      ? { title: 'hidden', times: false, tight }
+      : { title: 'truncate', style: { fontSize: Math.min(11, line - 1), lineHeight: line + 'px' }, times: false, tight };
+  }
+  const lines = Math.floor((h - pad - edge) / 16);
+  const wrap = cols > 1 && lines >= 2;
+  return {
+    title: wrap ? 'line-clamp-2 break-words text-[13px] leading-4' : 'truncate text-[13px] leading-4',
+    times: lines >= (wrap ? 3 : 2),
+    tight,
+  };
+}
