@@ -1,7 +1,7 @@
 import template from '../../../examples/luna-demo.json';
 import { Core, Demo, Phase2, Planner, Todos } from '../lib/shared';
 import { trackEvent } from '../lib/analytics';
-import type { Approval, DataSource, Loaded, PlanResult, Progress, Proposal, Receipt, Snapshot, Todo } from './types';
+import type { Approval, DataSource, Loaded, PlanResult, PlanSettings, Progress, Proposal, Receipt, Snapshot, Todo } from './types';
 
 // The public demo keeps everything in this browser. Nothing is sent anywhere, and Reset returns to the original Luna data.
 const KEY = 'dayweave.demo.v1';
@@ -15,6 +15,8 @@ interface DemoState {
   receipts: Receipt[];
   nextQ: number;
   outage?: boolean;
+  /** The visitor's planning rules; the recommended ones when unset. */
+  planSettings?: PlanSettings;
 }
 
 const fresh = (day: string): DemoState => ({ v: 1, day, progress: {}, proposals: null, approvals: [], receipts: [], nextQ: 12 });
@@ -26,7 +28,7 @@ function read(day: string): DemoState {
     const s = raw ? (JSON.parse(raw) as DemoState) : null;
     if (!s || s.v !== 1) return fresh(day);
     // Dated work (plans, approvals, simulated receipts) belongs to the day it was made; checklists and todos carry over.
-    return s.day === day ? s : { ...fresh(day), progress: s.progress, nextQ: s.nextQ, outage: s.outage };
+    return s.day === day ? s : { ...fresh(day), progress: s.progress, nextQ: s.nextQ, outage: s.outage, planSettings: s.planSettings };
   } catch {
     return fresh(day);
   }
@@ -76,7 +78,15 @@ export class DemoSource implements DataSource {
 
   async load(): Promise<Loaded> {
     const { d, s } = this.build();
-    return { snapshot: d, progress: clone(s.progress), approvals: clone(s.approvals).reverse(), outage: !!s.outage };
+    return { snapshot: d, progress: clone(s.progress), approvals: clone(s.approvals).reverse(), outage: !!s.outage, planSettings: this.settings(), planSettingsSaved: !!s.planSettings };
+  }
+
+  private settings(): PlanSettings { return Planner.planSettings(this.state?.planSettings || Planner.RECOMMENDED); }
+
+  async savePlanSettings(settings: PlanSettings) {
+    const { s } = this.build();
+    s.planSettings = Planner.planSettings(settings);
+    this.save();
   }
 
   async saveProgress(kind: string, id: string, value: unknown) {
@@ -125,7 +135,7 @@ export class DemoSource implements DataSource {
   async generatePlan(date: string): Promise<PlanResult> {
     const { d, s } = this.build();
     const now = new Date();
-    const result = Planner.plan({ snapshot: d, date, now, todos: s.progress.todo || {}, archive: s.progress.archive || {}, dismissed: s.progress.dismissed || {}, started: [], settings: Planner.planSettings(Planner.RECOMMENDED), emailTriage: s.progress.emailTriage || {} }) as PlanResult;
+    const result = Planner.plan({ snapshot: d, date, now, todos: s.progress.todo || {}, archive: s.progress.archive || {}, dismissed: s.progress.dismissed || {}, started: [], settings: this.settings(), emailTriage: s.progress.emailTriage || {} }) as PlanResult;
     const replaced = d.proposals.filter((p) => Planner.replaceable(d, p, date)).map((p) => p.id);
     d.proposals = [...d.proposals.filter((p) => !Planner.replaceable(d, p, date)), ...result.blocks];
     Core.validate(d);
@@ -143,6 +153,8 @@ export class DemoSource implements DataSource {
     // A retitled AI proposal keeps no stale Chinese title.
     if (changes.title !== undefined && changes.title !== p.title) delete p.titleZh;
     for (const k of ['title', 'start', 'end'] as const) if (changes[k] !== undefined) p[k] = changes[k] as string;
+    // As on the server: an edited planner block is locked against regeneration; `locked: false` alone unlocks it.
+    if (p.origin === 'planner') { if (changes.locked === false && Object.keys(changes).length === 1) delete p.locked; else p.locked = true; }
     Core.validate(d);
     s.proposals = clone(d.proposals);
     this.invalidate([id]);

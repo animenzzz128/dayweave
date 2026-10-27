@@ -137,7 +137,7 @@ function Detail({ p }: { p: Proposal }) {
   );
 }
 
-function ApproveButton({ approval }: { approval: Approval }) {
+export function ApproveButton({ approval }: { approval: Approval }) {
   const { source, run } = useApp();
   const { t } = useI18n();
   if (source.simulateApproval) {

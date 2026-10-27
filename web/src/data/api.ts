@@ -1,4 +1,4 @@
-import type { Approval, DataSource, Loaded, PlanResult, Proposal, Todo } from './types';
+import type { Approval, DataSource, Loaded, PlanResult, PlanSettings, Proposal, Todo } from './types';
 
 // Client for the existing Dayweave server (development port, synthetic data). The server owns every rule: sessions, CSRF,
 // validation, approvals and backups. This class only forwards requests.
@@ -30,10 +30,10 @@ export class ApiSource implements DataSource {
   }
 
   async load(): Promise<Loaded> {
-    const { snapshot, progress } = await this.call<Pick<Loaded, 'snapshot' | 'progress'>>('snapshot');
+    const { snapshot, progress, planSettings, planSettingsSaved } = await this.call<Omit<Loaded, 'approvals'>>('snapshot');
     if (!snapshot) throw new Error('The local database has no snapshot yet.');
     const approvals = await this.call<Approval[]>('approvals');
-    return { snapshot, progress: progress || {}, approvals };
+    return { snapshot, progress: progress || {}, approvals, planSettings, planSettingsSaved: !!planSettingsSaved };
   }
 
   async saveProgress(kind: string, id: string, value: unknown) { await this.call('progress', { kind, id, value }); }
@@ -42,6 +42,7 @@ export class ApiSource implements DataSource {
   async completeTodo(id: string, done: boolean) { await this.call('todos/complete', { id, done }); }
   async generatePlan(date: string) { return this.call<PlanResult>('plan/generate', { date }); }
   async editProposal(id: string, changes: Partial<Proposal>) { await this.call('proposals/edit', { id, changes }); }
+  async savePlanSettings(settings: PlanSettings) { await this.call('plan/settings', { settings }); }
   async prepare(ids: string[]) { return this.call<Approval>('approvals/prepare', { ids }); }
   async approve(reference: string) { await this.call('approvals/approve', { reference }); }
   async withdraw(reference: string) { await this.call('approvals/withdraw', { reference }); }
