@@ -17,7 +17,7 @@ interface AppData extends Loaded {
   now: Date;
   f: Format;
   /** Runs a change, then reloads. Errors become a visible notice instead of a silent failure. */
-  run: (action: () => Promise<unknown>, success?: string) => Promise<boolean>;
+  run: <T>(action: () => Promise<T>, success?: string | ((value: T) => string)) => Promise<boolean>;
   reload: () => Promise<void>;
   notice: { kind: 'ok' | 'error'; text: string } | null;
   dismissNotice: () => void;
@@ -51,8 +51,8 @@ export function AppDataProvider({ children }: { children: ReactNode }) {
   useEffect(() => { reload(); }, [reload]);
   useEffect(() => { const id = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(id); }, []);
 
-  const run = useCallback(async (action: () => Promise<unknown>, success?: string) => {
-    try { await action(); await reload(); if (success) setNotice({ kind: 'ok', text: success }); return true; } catch (e) { setNotice({ kind: 'error', text: (e as Error).message }); return false; }
+  const run = useCallback(async <T,>(action: () => Promise<T>, success?: string | ((value: T) => string)) => {
+    try { const value = await action(); await reload(); const text = typeof success === 'function' ? success(value) : success; if (text) setNotice({ kind: 'ok', text }); return true; } catch (e) { setNotice({ kind: 'error', text: (e as Error).message }); return false; }
   }, [reload]);
 
   const value = useMemo<AppData | null>(() => {

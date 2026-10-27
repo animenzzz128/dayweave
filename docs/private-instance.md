@@ -9,9 +9,9 @@ Hosted mode turns on only when `DAYWEAVE_PUBLIC_ORIGIN` is set (`scripts/serve.c
 | Variable | Where it lives | Purpose |
 | --- | --- | --- |
 | `DAYWEAVE_PUBLIC_ORIGIN` | `fly.toml` `[env]` | Bare `https://` origin. Requests with any other `Host` are refused (403). |
-| `DAYWEAVE_GOOGLE_CLIENT_ID`, `DAYWEAVE_GOOGLE_CLIENT_SECRET` | Fly secrets | Google OAuth web client used for sign-in only (`openid email` scopes). |
+| `DAYWEAVE_GOOGLE_CLIENT_ID`, `DAYWEAVE_GOOGLE_CLIENT_SECRET` | Fly secrets | Google OAuth web client. Sign-in asks only for `openid email`; the separate **Connect Google Calendar** consent adds `calendar.events` for [direct writes](google-direct.md). |
 | `DAYWEAVE_ALLOWED_EMAIL` | Fly secrets | The one account allowed in. Matched case-insensitively and must be Google-verified. |
-| `DAYWEAVE_SESSION_SECRET` | Fly secrets | At least 32 random characters (a constant value such as all "A"s is refused); signs the session and login cookies. Rotating it signs everyone out. |
+| `DAYWEAVE_SESSION_SECRET` | Fly secrets | At least 32 random characters (a constant value such as all "A"s is refused); signs the session and login cookies and seals the stored Google Calendar token. Rotating it signs everyone out and requires connecting Google Calendar again. |
 | `DAYWEAVE_INGEST_SECRET` | Fly secrets (optional) | At least 32 random characters; enables `/api/ingest`. Unset means ingest always returns 401. |
 | `DAYWEAVE_EXECUTE_SECRET` | Fly secrets (optional) | At least 32 random characters, different from the ingest secret; enables the calendar executor API (`/api/execute`, [cloud-execute.md](cloud-execute.md)). Unset means it always returns 401. |
 | `DAYWEAVE_CANVAS_ICS_URL` | Fly secrets (optional) | Canvas calendar feed link (https). The server reads it for the cloud collector; it never appears in responses or errors. |
