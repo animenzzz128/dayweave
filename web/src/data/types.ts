@@ -123,8 +123,8 @@ export interface DataSource {
   /** Hosted only: writes an approved version to Google Calendar now, or forgets the stored Google consent. */
   writeCalendar?(reference: string): Promise<WriteResult>;
   disconnectCalendar?(): Promise<void>;
-  /** Demo only: stands in for the assistant's approved execution and read-back. */
-  simulateApproval?(approval: Approval): Promise<void>;
+  /** Demo only: stands in for the one-time Google consent (the hosted site links to /auth/calendar/connect). */
+  connectCalendar?(): Promise<void>;
   /** Demo only: makes the calendar and Gmail fail, to show how failures stay visible. */
   setOutage?(on: boolean): Promise<void>;
   reset?(): Promise<void>;
