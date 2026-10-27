@@ -5,7 +5,7 @@ import { Empty, External, PageHeader, Tabs, Tag } from '../components/ui';
 import { Core, Phase2 } from '../lib/shared';
 import { href } from '../lib/router';
 import { OneLine } from '../components/OneLine';
-import type { Approval, Proposal } from '../data/types';
+import type { Approval, Proposal, WriteResult } from '../data/types';
 
 type Tab = 'waiting' | 'done';
 
@@ -138,8 +138,22 @@ function Detail({ p }: { p: Proposal }) {
 }
 
 export function ApproveButton({ approval }: { approval: Approval }) {
-  const { source, run } = useApp();
+  const { source, run, calendarWrite } = useApp();
   const { t } = useI18n();
+  const ref = approval.reference;
+  // Hosted with Google Calendar connected: approving writes straight away (docs/google-direct.md).
+  const direct = !!calendarWrite?.connected && !!source.writeCalendar;
+  const connect = !!calendarWrite?.available && !calendarWrite.connected && <><a className="btn w-full text-center" href="/auth/calendar/connect">{t.review.connect}</a><p className="text-xs text-muted">{t.review.connectNote}</p></>;
+  const write = async () => {
+    const r = await source.writeCalendar!(ref);
+    if (r.stopped.length) throw new Error(t.review.writeStopped + r.stopped.join(' '));
+    return r;
+  };
+  const summary = (r: WriteResult) => {
+    const n = (s: string[]) => r.actions.filter((a) => s.includes(a.status)).length;
+    const why = r.actions.find((a) => a.errors?.length || a.mismatches?.length);
+    return t.review.writeSummary(n(['executed']), n(['skipped', 'not_created']), n(['unverified', 'pending'])) + (why ? ` · ${why.title}: ${(why.errors || why.mismatches || [])[0]}` : '');
+  };
   if (source.simulateApproval) {
     return (
       <div className="space-y-1.5">
@@ -153,7 +167,9 @@ export function ApproveButton({ approval }: { approval: Approval }) {
     return (
       <div className="space-y-1.5 rounded-lg bg-ok-soft p-3">
         <p className="text-sm font-medium text-ok">{t.review.approvedWaiting(approval.reference)}</p>
-        <p className="text-xs text-muted">{t.review.approvedNote}</p>
+        <p className="text-xs text-muted">{calendarWrite?.available ? t.review.approvedDirectNote : t.review.approvedNote}</p>
+        {direct && <button type="button" className="btn btn-primary w-full" onClick={() => run(write, summary)}>{t.review.writeNow}</button>}
+        {connect}
         <button type="button" className="btn w-full" onClick={() => run(() => source.withdraw!(approval.reference))}>{t.review.withdraw}</button>
       </div>
     );
@@ -161,8 +177,11 @@ export function ApproveButton({ approval }: { approval: Approval }) {
   return (
     <div className="space-y-1.5">
       <p className="text-sm font-medium text-ok">{t.review.prepared(approval.reference)}</p>
-      <button type="button" className="btn btn-primary w-full" onClick={() => run(() => source.approve!(approval.reference))}>{t.review.approve(approval.reference)}</button>
-      <p className="text-xs text-muted">{t.review.approveServerNote}</p>
+      {direct
+        ? <button type="button" className="btn btn-primary w-full" onClick={() => run(async () => { await source.approve!(ref); return write(); }, summary)}>{t.review.approveAndWrite(ref)}</button>
+        : <button type="button" className="btn btn-primary w-full" onClick={() => run(() => source.approve!(ref))}>{t.review.approve(ref)}</button>}
+      <p className="text-xs text-muted">{calendarWrite?.available ? t.review.directNote : t.review.approveServerNote}</p>
+      {connect}
     </div>
   );
 }

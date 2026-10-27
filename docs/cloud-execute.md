@@ -1,5 +1,7 @@
 # Calendar executor (approved Google Calendar writes)
 
+> Since 2026-10-27 the hosted site writes approved versions itself ([direct writes](google-direct.md)). This executor remains as an alternative; no task is scheduled. Its first run stopped at `verify` because the Google Calendar connector had changed its create arguments (camelCase `summary`, `startTime`, …) and its event shape, so this profile needs updating before it is used again.
+
 The owner approves an exact prepared version (Q-N) on the private instance's Review page. A Claude cloud task with the Google Calendar connector then writes it: it rereads the live calendar, records `pending`, calls the create tool once, reads the event back and records the result. The instance never holds Google write credentials; the connector does the write, and the instance checks and records every step.
 
 ```

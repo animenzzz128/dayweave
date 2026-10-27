@@ -79,6 +79,7 @@ export function Plan({ params }: { params: URLSearchParams }) {
             <p className="mt-2 text-xs text-muted">{t.plan.autoNote}</p>
           </section>
 
+          {params.get('calendar') && <p role="status" className={`rounded-lg p-3 text-sm ${params.get('calendar') === 'connected' ? 'bg-ok-soft text-ok' : 'bg-warn-soft text-warn'}`}>{params.get('calendar') === 'connected' ? t.review.calendarConnected : t.review.calendarDenied}</p>}
           <ApproveDay ok={ok} failing={open.length - ok.length} version={dayVersion} />
 
           <Section title={t.plan.blocks}>

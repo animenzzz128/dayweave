@@ -3,7 +3,7 @@
 // and then every other variable must be present, so a half-configured deploy fails closed at startup instead of opening up.
 const crypto=require('node:crypto');
 const GOOGLE_AUTH='https://accounts.google.com/o/oauth2/v2/auth',GOOGLE_TOKEN='https://oauth2.googleapis.com/token',GOOGLE_ISSUERS=['accounts.google.com','https://accounts.google.com'];
-const SESSION_MS=12*3600000,LOGIN_MS=10*60000,SESSION_COOKIE='__Host-dw',LOGIN_COOKIE='__Host-dwlogin';
+const CALENDAR_SCOPE='https://www.googleapis.com/auth/calendar.events',SESSION_MS=12*3600000,LOGIN_MS=10*60000,SESSION_COOKIE='__Host-dw',LOGIN_COOKIE='__Host-dwlogin';
 const b64=s=>Buffer.from(s).toString('base64url'),same=(a,b)=>{a=Buffer.from(String(a));b=Buffer.from(String(b));return a.length===b.length&&crypto.timingSafeEqual(a,b);};
 function hostedConfig(env=process.env){
  if(!env.DAYWEAVE_PUBLIC_ORIGIN)return null;
@@ -24,7 +24,8 @@ const cookies=req=>Object.fromEntries((req.headers.cookie||'').split(/; */).filt
 const cookie=(name,value,maxAge,sameSite='Lax')=>`${name}=${value}; HttpOnly; Secure; SameSite=${sameSite}; Path=/; Max-Age=${maxAge}`;
 // Fixed-window limits per client address. Fly-Client-IP is set by the Fly proxy; it is trusted only in hosted mode.
 function limiter(){const hits=new Map();return (key,max,windowMs)=>{const now=Date.now(),h=hits.get(key);if(!h||now-h.at>windowMs){hits.set(key,{at:now,n:1});if(hits.size>10000)for(const [k,v] of hits)if(now-v.at>windowMs)hits.delete(k);return true;}return ++h.n<=max;};}
-function createAuth(config,{fetch:doFetch=globalThis.fetch}={}){
+// `onCalendar` stores the refresh token from the separate Google Calendar consent (src/gcal.cjs); without it the route is off.
+function createAuth(config,{fetch:doFetch=globalThis.fetch,onCalendar=null}={}){
  const s=signer(config.sessionSecret),redirectUri=config.origin+'/auth/callback';
  const session=req=>{const v=s.open(cookies(req)[SESSION_COOKIE]);return v&&v.email===config.email?v:null;};
  async function handle(req,res,u){
@@ -32,6 +33,11 @@ function createAuth(config,{fetch:doFetch=globalThis.fetch}={}){
   if(req.method==='GET'&&u.pathname==='/auth/login'){const state=crypto.randomBytes(24).toString('base64url'),nonce=crypto.randomBytes(24).toString('base64url');
    const q=new URLSearchParams({client_id:config.clientId,redirect_uri:redirectUri,response_type:'code',scope:'openid email',state,nonce,login_hint:config.email,prompt:'select_account'});
    return redirect(GOOGLE_AUTH+'?'+q,[cookie(LOGIN_COOKIE,s.seal({state,nonce,exp:Date.now()+LOGIN_MS}),LOGIN_MS/1000)]),true;}
+  // Calendar consent is asked separately and only by the signed-in owner, so plain sign-in never requests calendar access.
+  if(req.method==='GET'&&u.pathname==='/auth/calendar/connect'&&onCalendar){if(!session(req))return redirect('/auth/login'),true;
+   const state=crypto.randomBytes(24).toString('base64url'),nonce=crypto.randomBytes(24).toString('base64url');
+   const q=new URLSearchParams({client_id:config.clientId,redirect_uri:redirectUri,response_type:'code',scope:'openid email '+CALENDAR_SCOPE,state,nonce,login_hint:config.email,access_type:'offline',prompt:'consent',include_granted_scopes:'true'});
+   return redirect(GOOGLE_AUTH+'?'+q,[cookie(LOGIN_COOKIE,s.seal({state,nonce,mode:'calendar',exp:Date.now()+LOGIN_MS}),LOGIN_MS/1000)]),true;}
   if(req.method==='GET'&&u.pathname==='/auth/callback'){
    const pending=s.open(cookies(req)[LOGIN_COOKIE]),clear=cookie(LOGIN_COOKIE,'',0);
    if(!pending||!u.searchParams.get('code')||!same(u.searchParams.get('state')||'',pending.state))return deny(res,'Sign-in expired or was not started here',[clear]),true;
@@ -39,9 +45,12 @@ function createAuth(config,{fetch:doFetch=globalThis.fetch}={}){
    if(!r.ok)return deny(res,'Google sign-in failed',[clear]),true;
    // The ID token comes straight from Google's token endpoint over TLS, so its claims are checked without a signature
    // check (OpenID Connect Core 3.1.3.7); every claim that binds it to this client, this login and this account is verified.
-   let claims;try{claims=JSON.parse(Buffer.from(String((await r.json()).id_token).split('.')[1],'base64url'));}catch{return deny(res,'Google sign-in failed',[clear]),true;}
+   let tokens,claims;try{tokens=await r.json();claims=JSON.parse(Buffer.from(String(tokens.id_token).split('.')[1],'base64url'));}catch{return deny(res,'Google sign-in failed',[clear]),true;}
    const ok=GOOGLE_ISSUERS.includes(claims.iss)&&claims.aud===config.clientId&&claims.exp*1000>Date.now()&&same(claims.nonce||'',pending.nonce)&&claims.email_verified===true&&String(claims.email).toLowerCase()===config.email;
    if(!ok)return deny(res,'This account cannot use this Dayweave instance',[clear]),true;
+   if(pending.mode==='calendar'){if(!onCalendar||!session(req))return deny(res,'Sign in before connecting Google Calendar',[clear]),true;
+    if(!tokens.refresh_token||!String(tokens.scope||'').split(/\s+/).includes(CALENDAR_SCOPE))return redirect('/#/plan?calendar=denied',[clear]),true;
+    await onCalendar({account:config.email,refreshToken:tokens.refresh_token,scope:tokens.scope});return redirect('/#/plan?calendar=connected',[clear]),true;}
    return redirect('/',[clear,cookie(SESSION_COOKIE,s.seal({email:config.email,csrf:crypto.randomBytes(24).toString('hex'),exp:Date.now()+SESSION_MS}),SESSION_MS/1000)]),true;}
   if(req.method==='POST'&&u.pathname==='/auth/logout'){if(req.headers.origin!==config.origin)return deny(res,'Invalid origin'),true;return redirect('/auth/signed-out',[cookie(SESSION_COOKIE,'',0)]),true;}
   // Sign-out lands on a same-origin page: the app's CSP form-action 'self' also covers redirects after a form post, so

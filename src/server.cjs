@@ -1,5 +1,5 @@
 'use strict';
-const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),{Store}=require('./store.cjs'),H=require('./hosted.cjs'),X=require('./execute.cjs'),Canvas=require('./canvas.cjs'),Sites=require('./coursesite.cjs');
+const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),{Store}=require('./store.cjs'),H=require('./hosted.cjs'),X=require('./execute.cjs'),GC=require('./gcal.cjs'),Canvas=require('./canvas.cjs'),Sites=require('./coursesite.cjs');
 // options.hosted (from hostedConfig) switches from the 127.0.0.1-only local session to Google sign-in for one account.
 // options.webDist is a built web/ front end (`npm run build:server` in web/): it then serves / and its assets, and the classic
 // UI stays reachable at its own routes (/classic leads there).
@@ -8,7 +8,11 @@ function loadWeb(dist){if(!dist)return null;const root=path.resolve(dist),html=f
  // The page's inline theme script (it avoids a light flash before the app loads) is allowed by its hash, not by 'unsafe-inline'.
  const hashes=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>"'sha256-"+crypto.createHash('sha256').update(m[1]).digest('base64')+"'");
  return {root,html,csp:`default-src 'self'; script-src 'self' ${hashes.join(' ')}; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`};}
-function createServer(dir,{hosted=null,ingestSecret='',executeSecret='',canvasIcsUrl='',canvasToken='',canvasFetch,courseSites=[],siteFetch,fetch,webDist=''}={}){const web=loadWeb(webDist),store=new Store(dir),sessions=new Map(),auth=hosted&&H.createAuth(hosted,{fetch}),allow=H.limiter();const server=http.createServer(async(req,res)=>{
+function createServer(dir,{hosted=null,ingestSecret='',executeSecret='',canvasIcsUrl='',canvasToken='',canvasFetch,courseSites=[],siteFetch,fetch,webDist=''}={}){const web=loadWeb(webDist),store=new Store(dir),sessions=new Map(),allow=H.limiter();
+ // Direct Google Calendar writes need the hosted OAuth client; the local app keeps the assistant bridge only.
+ const tokens=hosted&&GC.vault(store,hosted.sessionSecret),auth=hosted&&H.createAuth(hosted,{fetch,onCalendar:({account,refreshToken,scope})=>tokens.save(account,{refreshToken,scope})});
+ const calendar=()=>{const t=hosted&&tokens.load(hosted.email);return t?GC.client({account:hosted.email,refreshToken:t.refreshToken,clientId:hosted.clientId,clientSecret:hosted.clientSecret,fetch}):null;};
+ const calendarStatus=()=>{if(!hosted)return {available:false};const t=tokens.load(hosted.email);return {available:true,connected:!!t&&GC.hasScope(t.scope),account:hosted.email,connectedAt:t?.at||null};};const server=http.createServer(async(req,res)=>{
  const send=(status,value)=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(value));};
  try{const host=hosted?hosted.host:'127.0.0.1:'+server.address().port,origin=hosted?hosted.origin:'http://'+host;if(hosted)for(const [k,v] of Object.entries(H.securityHeaders))res.setHeader(k,v);
  if(req.headers.host!==host)return send(403,{error:hosted?'Unknown host':'Local requests only'});
@@ -35,7 +39,7 @@ function createServer(dir,{hosted=null,ingestSecret='',executeSecret='',canvasIc
  if(req.method==='GET'&&u.pathname==='/api/session'){if(hosted)return send(200,{csrf:session.csrf,hosted:true});const id=crypto.randomBytes(24).toString('hex');session={csrf:crypto.randomBytes(24).toString('hex'),at:Date.now()};sessions.set(id,session);res.setHeader('Set-Cookie',`dw=${id}; HttpOnly; SameSite=Strict; Path=/`);return send(200,{csrf:session.csrf});}
  if(u.pathname.startsWith('/api/')){if(!session||!hosted&&Date.now()-session.at>12*3600000)return send(401,{error:'Reload to renew local session'});if(req.method==='POST'&&(req.headers.origin!==origin||req.headers['x-dayweave-token']!==session.csrf))return send(403,{error:'Invalid write origin or session'});
  let body={};if(req.method==='POST'){let raw='';for await(const part of req){raw+=part;if(raw.length>2e6)throw Error('Request too large');}body=JSON.parse(raw||'{}');}
- if(req.method==='GET'&&u.pathname==='/api/snapshot')return send(200,{snapshot:store.snapshot(),progress:store.state(),planSettings:store.planSettings()||require('./planner.cjs').planSettings(require('./planner.cjs').RECOMMENDED),planSettingsSaved:!!store.planSettings()});
+ if(req.method==='GET'&&u.pathname==='/api/snapshot')return send(200,{snapshot:store.snapshot(),progress:store.state(),planSettings:store.planSettings()||require('./planner.cjs').planSettings(require('./planner.cjs').RECOMMENDED),planSettingsSaved:!!store.planSettings(),calendarWrite:calendarStatus()});
  if(req.method==='POST'&&u.pathname==='/api/plan/settings')return send(200,{planSettings:store.savePlanSettings(body?.settings)});
  if(req.method==='GET'&&u.pathname==='/api/history')return send(200,store.history({...Object.fromEntries(u.searchParams),query:u.searchParams.get('q')||''}));
  if(req.method==='GET'&&u.pathname==='/api/health')return send(200,{runs:store.runs(),backups:store.backups()});
@@ -50,6 +54,10 @@ function createServer(dir,{hosted=null,ingestSecret='',executeSecret='',canvasIc
  if(req.method==='POST'&&u.pathname==='/api/migrate-progress')return send(200,{migrated:store.migrateProgress(body)});
  if(req.method==='POST'&&u.pathname==='/api/approvals/approve')return send(200,{approval:X.approve(store,body?.reference,hosted?session.email:'local owner')});
  if(req.method==='POST'&&u.pathname==='/api/approvals/withdraw')return send(200,X.revoke(store,body?.reference));
+ // Writes an approved version straight to Google Calendar with the owner's stored consent (docs/google-direct.md).
+ if(req.method==='POST'&&u.pathname==='/api/calendar/write'){const c=calendar();if(!c)return send(409,{error:'Connect Google Calendar first.',connect:'/auth/calendar/connect'});
+  try{return send(200,await GC.writeApproved(store,body?.reference,c));}catch(e){if(e.reconnect)return send(409,{error:e.message,connect:'/auth/calendar/connect'});throw e;}}
+ if(req.method==='POST'&&u.pathname==='/api/calendar/disconnect'){const t=hosted&&tokens.load(hosted.email);if(t)await GC.revoke(t.refreshToken,{fetch});if(hosted)tokens.remove(hosted.email);return send(200,calendarStatus());}
  if(req.method==='POST'&&u.pathname==='/api/backup')return send(200,{name:store.backup()});
  if(req.method==='POST'&&u.pathname==='/api/restore'){store.restore(body.name);return send(200,{ok:true});}
  if(req.method==='GET'&&u.pathname==='/api/export'){res.setHeader('Content-Disposition','attachment; filename="dayweave-export.json"');return send(200,{snapshot:store.snapshot(),progress:store.state()});}

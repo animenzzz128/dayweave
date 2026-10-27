@@ -95,7 +95,12 @@ export interface Habit { id: string; title: string; minutes: number; perWeek: nu
 /** The owner's planning rules (planner.planSettings); the recommended ones until the owner saves their own. */
 export interface PlanSettings { dayStart: string; dayEnd: string; breaks: { start: string; end: string }[]; habits: Habit[] }
 
-export interface Loaded { snapshot: Snapshot; progress: Progress; approvals: Approval[]; outage?: boolean; planSettings: PlanSettings; planSettingsSaved: boolean }
+/** Hosted only: whether the owner connected Google Calendar for direct writes (docs/google-direct.md). */
+export interface CalendarWrite { available: boolean; connected?: boolean; account?: string; connectedAt?: string | null }
+/** One direct write run: each action's outcome, or why the whole version stopped. */
+export interface WriteResult { reference: string; stopped: string[]; actions: { id: string; title: string; status: string; already?: boolean; errors?: string[]; mismatches?: string[] }[] }
+
+export interface Loaded { snapshot: Snapshot; progress: Progress; approvals: Approval[]; outage?: boolean; planSettings: PlanSettings; planSettingsSaved: boolean; calendarWrite?: CalendarWrite }
 
 export interface DataSource {
   readonly mode: 'demo' | 'local';
@@ -115,6 +120,9 @@ export interface DataSource {
   /** Server only: records or withdraws the owner's approval of an exact prepared version. */
   approve?(reference: string): Promise<void>;
   withdraw?(reference: string): Promise<void>;
+  /** Hosted only: writes an approved version to Google Calendar now, or forgets the stored Google consent. */
+  writeCalendar?(reference: string): Promise<WriteResult>;
+  disconnectCalendar?(): Promise<void>;
   /** Demo only: stands in for the assistant's approved execution and read-back. */
   simulateApproval?(approval: Approval): Promise<void>;
   /** Demo only: makes the calendar and Gmail fail, to show how failures stay visible. */

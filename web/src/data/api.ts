@@ -1,4 +1,4 @@
-import type { Approval, DataSource, Loaded, PlanResult, PlanSettings, Proposal, Todo } from './types';
+import type { Approval, DataSource, Loaded, PlanResult, PlanSettings, Proposal, Todo, WriteResult } from './types';
 
 // Client for the existing Dayweave server (development port, synthetic data). The server owns every rule: sessions, CSRF,
 // validation, approvals and backups. This class only forwards requests.
@@ -30,10 +30,10 @@ export class ApiSource implements DataSource {
   }
 
   async load(): Promise<Loaded> {
-    const { snapshot, progress, planSettings, planSettingsSaved } = await this.call<Omit<Loaded, 'approvals'>>('snapshot');
+    const { snapshot, progress, planSettings, planSettingsSaved, calendarWrite } = await this.call<Omit<Loaded, 'approvals'>>('snapshot');
     if (!snapshot) throw new Error('The local database has no snapshot yet.');
     const approvals = await this.call<Approval[]>('approvals');
-    return { snapshot, progress: progress || {}, approvals, planSettings, planSettingsSaved: !!planSettingsSaved };
+    return { snapshot, progress: progress || {}, approvals, planSettings, planSettingsSaved: !!planSettingsSaved, calendarWrite };
   }
 
   async saveProgress(kind: string, id: string, value: unknown) { await this.call('progress', { kind, id, value }); }
@@ -46,6 +46,8 @@ export class ApiSource implements DataSource {
   async prepare(ids: string[]) { return this.call<Approval>('approvals/prepare', { ids }); }
   async approve(reference: string) { await this.call('approvals/approve', { reference }); }
   async withdraw(reference: string) { await this.call('approvals/withdraw', { reference }); }
+  async writeCalendar(reference: string) { return this.call<WriteResult>('calendar/write', { reference }); }
+  async disconnectCalendar() { await this.call('calendar/disconnect', {}); }
   async backups() { return (await this.call<{ backups: string[] }>('health')).backups; }
   async backup() { return (await this.call<{ name: string }>('backup', {})).name; }
   async restore(name: string) { await this.call('restore', { name }); }
