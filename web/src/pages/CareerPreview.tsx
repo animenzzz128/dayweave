@@ -3,14 +3,13 @@ import { useApp } from '../data/AppData';
 import { useI18n } from '../i18n/I18n';
 import { href } from '../lib/router';
 import { Tag, type Tone } from '../components/ui';
-import { CONNECT_LIMIT, PEOPLE, PROFILE, ROLES, WEIGHTS, matchScore, type Dim, type Draft, type Link, type Met, type PreviewPerson, type PreviewRole } from '../data/careerPreview';
+import { CONNECT_LIMIT, FOLLOW_UP_DAYS, PEOPLE, PREP, PROFILE, REL_STAGES, ROLES, STAGES, THANKS, WEIGHTS, matchScore, type Dim, type Draft, type Link, type Met, type PreviewPerson, type PreviewRole, type RelStage, type Stage } from '../data/careerPreview';
+import { useCareerStatus } from './CareerPipeline';
 
 // Demo-only previews of the job match and networking panels. Outputs are written in advance (like the other demo AI);
 // "Generate" only reveals them. Statuses and todos go through the demo source, so they stay in this browser.
 const MET_TONE: Record<Met, Tone> = { yes: 'ok', partial: 'warn', no: 'danger', unknown: 'neutral' };
 const LINK_TONE: Record<Link, string> = { same: 'border-accent bg-accent-soft', near: 'border-accent-line bg-accent-soft/60', none: 'border-line bg-soft' };
-const PIPELINE = ['none', 'saved', 'applied', 'interview'] as const;
-type Stage = (typeof PIPELINE)[number];
 const DIMS = Object.keys(WEIGHTS) as Dim[];
 
 export function SoonBanner({ intro }: { intro: string }) {
@@ -74,15 +73,16 @@ export function JobsPanel({ focus }: { focus?: string | null }) {
 
 function RoleCard({ r, initiallyOpen }: { r: PreviewRole; initiallyOpen: boolean }) {
   const { t, lang } = useI18n();
-  const { progress, source, run, now } = useApp();
+  const { source, run, now } = useApp();
+  const { stageOf, setStage: saveStage } = useCareerStatus();
   const [open, setOpen] = useState(initiallyOpen);
   const [shown, busy, generate] = useGenerate();
   const score = matchScore(r.dims);
-  const stage = ((progress.careerPipeline?.[r.id] as { stage?: Stage } | undefined)?.stage) || 'none';
+  const stage = stageOf(r.id).stage;
   const contact = PEOPLE.find((p) => p.id === r.contactId);
   const ref = useRef<HTMLElement>(null);
   useEffect(() => { if (initiallyOpen) ref.current?.scrollIntoView({ block: 'start' }); }, [initiallyOpen]);
-  const setStage = (s: Stage) => run(() => source.saveProgress('careerPipeline', r.id, s === 'none' ? null : { stage: s, at: new Date().toISOString() }));
+  const setStage = (s: Stage) => saveStage(r.id, s);
   const addTodo = () => run(() => source.saveTodo({
     title: `${lang === 'zh' ? '申请' : 'Apply'}: ${r.title} · ${r.company.replace(/ \(.*\)$/, '')}`,
     dueAt: new Date(+now + 5 * 86400000).toISOString(), durationMinutes: 60, notes: r.summary[lang],
@@ -99,7 +99,7 @@ function RoleCard({ r, initiallyOpen }: { r: PreviewRole; initiallyOpen: boolean
           <div className="mt-2 flex flex-wrap gap-1.5">
             <Tag tone={r.sponsorship === 'yes' ? 'ok' : r.sponsorship === 'no' ? 'danger' : 'warn'}>{t.career.sponsorship[r.sponsorship]}</Tag>
             {r.startYear ? <Tag>{r.startYear}</Tag> : <Tag tone="warn">{t.career.startUnknown}</Tag>}
-            {stage !== 'none' && <Tag tone="info">{t.career.pipeline[stage]}</Tag>}
+            {stage !== 'none' && <Tag tone="info">{t.career.stage[stage]}</Tag>}
           </div>
         </div>
       </div>
@@ -114,10 +114,11 @@ function RoleCard({ r, initiallyOpen }: { r: PreviewRole; initiallyOpen: boolean
       </dl>
       <div className="mt-3 flex flex-wrap items-center gap-2">
         <button type="button" className="btn" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? t.career.close : t.career.open}</button>
-        <label className="sr-only" htmlFor={`stage-${r.id}`}>{t.career.pipeline.none}</label>
+        <label className="sr-only" htmlFor={`stage-${r.id}`}>{t.career.stageLabel}</label>
         <select id={`stage-${r.id}`} className="field !w-auto" value={stage} onChange={(e) => setStage(e.target.value as Stage)}>
-          {PIPELINE.map((s) => <option key={s} value={s}>{t.career.pipeline[s]}</option>)}
+          {STAGES.map((s) => <option key={s} value={s}>{t.career.stage[s]}</option>)}
         </select>
+        {stage === 'interview' && r.id === PREP.roleId && <a className="text-sm" href={href('career', { tab: 'pipeline', id: 'prep' })}>{t.career.prepLink} →</a>}
       </div>
       {open && (
         <div className="animate-rise mt-4 space-y-4 border-t border-line pt-4">
@@ -168,9 +169,13 @@ export function PeoplePanel({ focus }: { focus?: string | null }) {
 function PersonCard({ p, initiallyOpen }: { p: PreviewPerson; initiallyOpen: boolean }) {
   const { t, lang } = useI18n();
   const { source, run, now } = useApp();
+  const { rel, setRel, days } = useCareerStatus();
   const [open, setOpen] = useState(initiallyOpen);
   const [shown, busy, generate] = useGenerate();
   const role = ROLES.find((r) => r.id === p.roleId);
+  const r = rel(p.id), d = days(r.at), afterChat = r.stage === 'chatted' || r.stage === 'referred';
+  const next = r.stage === 'requested' ? (d >= FOLLOW_UP_DAYS ? t.career.requestStale(p.name.replace(/ \(.*\)$/, '').split(' ')[0], d) : t.career.next.requested(d)) : r.stage === 'chatted' ? (r.thanked ? t.career.next.chatted(d) : t.career.next.thanks) : t.career.next[r.stage];
+  const drafts: Draft[] = afterChat ? [{ kind: 'thanks', text: THANKS[p.id] }, ...p.drafts] : p.drafts;
   const ref = useRef<HTMLElement>(null);
   useEffect(() => { if (initiallyOpen) ref.current?.scrollIntoView({ block: 'start' }); }, [initiallyOpen]);
   const followUp = () => run(() => source.saveTodo({
@@ -189,8 +194,14 @@ function PersonCard({ p, initiallyOpen }: { p: PreviewPerson; initiallyOpen: boo
           <div className="mt-2 flex flex-wrap gap-1.5">{p.shared.map((x) => <Tag key={x.en} tone="info">{x[lang]}</Tag>)}</div>
         </div>
       </div>
-      <div className="mt-3 flex flex-wrap items-center gap-2">
+      <p className="mt-3 text-sm"><span className="font-medium">{t.career.nextStep}:</span> {next}</p>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
         <button type="button" className="btn" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? t.career.close : t.career.open}</button>
+        <label className="sr-only" htmlFor={`rel-${p.id}`}>{t.career.relLabel}</label>
+        <select id={`rel-${p.id}`} className="field !w-auto" value={r.stage} onChange={(e) => setRel(p.id, e.target.value as RelStage)}>
+          {REL_STAGES.map((s) => <option key={s} value={s}>{t.career.rel[s]}</option>)}
+        </select>
+        {r.stage === 'chatted' && (r.thanked ? <Tag tone="ok">{t.career.thanked}</Tag> : <button type="button" className="btn" onClick={() => setRel(p.id, 'chatted', true)}>{t.career.markThanked}</button>)}
         {role && <a className="text-sm" href={href('career', { tab: 'jobs', id: role.id })}>{t.career.role(role.title)} →</a>}
       </div>
       {open && (
@@ -213,7 +224,7 @@ function PersonCard({ p, initiallyOpen }: { p: PreviewPerson; initiallyOpen: boo
               <h4 className="text-sm font-semibold text-accent">{t.career.drafts}</h4>
               <Tag tone="info">AI</Tag>
             </div>
-            {shown ? <Drafts drafts={p.drafts} id={p.id} /> : <GenerateButton busy={busy} onClick={generate} />}
+            {shown ? <Drafts key={drafts[0].kind} drafts={drafts} id={p.id} /> : <GenerateButton busy={busy} onClick={generate} />}
             <p className="mt-2 text-xs text-muted">{t.career.neverSent}</p>
           </section>
           <button type="button" className="btn" onClick={followUp}>{t.career.followUp}</button>
@@ -237,7 +248,7 @@ function PathLine({ yours, theirs, link, note }: { yours: string; theirs: string
 
 function Drafts({ drafts, id }: { drafts: Draft[]; id: string }) {
   const { t } = useI18n();
-  const [kind, setKind] = useState<Draft['kind']>('connect');
+  const [kind, setKind] = useState<Draft['kind']>(drafts[0].kind);
   const draft = drafts.find((d) => d.kind === kind)!;
   const [text, setText] = useState(draft.text);
   const [copied, setCopied] = useState<'ok' | 'fail' | null>(null);

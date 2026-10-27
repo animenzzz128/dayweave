@@ -3,10 +3,11 @@ import { useApp } from '../data/AppData';
 import { useI18n } from '../i18n/I18n';
 import { Empty, External, PageHeader, Section, Tabs, Tag } from '../components/ui';
 import { JobsPanel, PeoplePanel, SoonBanner } from './CareerPreview';
+import { PipelinePanel } from './CareerPipeline';
 import { Phase3 } from '../lib/shared';
 import type { Person, Role } from '../data/types';
 
-const TABS = ['jobs', 'people', 'research'] as const;
+const TABS = ['jobs', 'pipeline', 'people', 'research'] as const;
 type Tab = (typeof TABS)[number];
 
 // The public demo previews the planned job match and people panels; the private instance shows only the assistant's research.
@@ -22,6 +23,7 @@ export function CareerPage({ params }: { params: URLSearchParams }) {
       <PageHeader title={t.career.title} subtitle={t.career.subtitle} />
       <Tabs label={t.career.title} value={tab} onChange={setTab} items={TABS.map((x) => [x, t.career.tabs[x]] as [Tab, string])} />
       {tab === 'jobs' && <><SoonBanner intro={t.career.jobsIntro} /><JobsPanel focus={focus} /></>}
+      {tab === 'pipeline' && <><SoonBanner intro={t.career.pipelineIntro} /><PipelinePanel focus={focus} /></>}
       {tab === 'people' && <><SoonBanner intro={t.career.peopleIntro} /><PeoplePanel focus={focus} /></>}
       {tab === 'research' && <Research />}
     </>

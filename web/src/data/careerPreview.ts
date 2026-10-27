@@ -21,7 +21,7 @@ export interface PreviewRole {
 
 export type Link = 'same' | 'near' | 'none';
 export interface PathRow { yours: L; theirs: L; link: Link; note?: L }
-export interface Draft { kind: 'connect' | 'coffee' | 'referral'; text: string }
+export interface Draft { kind: 'connect' | 'coffee' | 'referral' | 'thanks'; text: string }
 
 export interface PreviewPerson {
   id: string; name: string; headline: string; degree: 2 | 3; mutuals: number; location: string;
@@ -189,3 +189,77 @@ export const PEOPLE: PreviewPerson[] = [
 
 /** LinkedIn limits a connection note to 300 characters. */
 export const CONNECT_LIMIT = 300;
+
+// ---- Pipeline, interview prep and follow-up rhythm (second preview) ----
+
+export const STAGES = ['none', 'saved', 'applied', 'interview', 'offer', 'closed'] as const;
+export type Stage = (typeof STAGES)[number];
+/** An application with no reply this many days after it went out gets a follow-up nudge. */
+export const STALE_DAYS = 10;
+
+export interface PipelineItem {
+  id: string; title: string; company: string; stage: Stage;
+  /** Days before today; the visitor's own stage changes replace these with real dates. */
+  appliedDaysAgo?: number; heardDaysAgo?: number; contactId?: string; note?: L;
+}
+
+/** Where Luna's search stands when the demo opens. The four preview roles keep their ids, so both tabs share one status. */
+export const PIPELINE_SEED: PipelineItem[] = [
+  { id: 'pv-ledgerly-apm', title: 'Associate Product Manager, 2027', company: 'Ledgerly', stage: 'interview', appliedDaysAgo: 6, heardDaysAgo: 1, contactId: 'pv-maya',
+    note: l('Recruiter asked for screening times', '招聘方在约初筛时间') },
+  { id: 'pv-cortexa-aipm', title: 'Product Manager, AI Tools (New Grad)', company: 'Cortexa', stage: 'saved', contactId: 'pv-ines' },
+  { id: 'pv-stallside-analyst', title: 'Product Analyst', company: 'Stallside', stage: 'applied', appliedDaysAgo: 12, contactId: 'pv-omar' },
+  { id: 'pv-northwind-dpm', title: 'Data Product Manager', company: 'Northwind (fictional)', stage: 'applied', appliedDaysAgo: 3 },
+  { id: 'pv-carewell-intern', title: 'PM Intern, Summer', company: 'Carewell', stage: 'none' },
+  { id: 'pv-tandem-growth', title: 'Growth PM, New Grad', company: 'Tandem (fictional)', stage: 'closed', appliedDaysAgo: 19, heardDaysAgo: 8,
+    note: l('Not moving forward; asked for feedback', '未进入下一轮；已请求反馈') },
+];
+
+export const REL_STAGES = ['none', 'requested', 'connected', 'chatted', 'referred'] as const;
+export type RelStage = (typeof REL_STAGES)[number];
+/** A connection request with no answer, or a chat with no next step, is followed up after this many days. */
+export const FOLLOW_UP_DAYS = 7;
+export const PEOPLE_SEED: Record<string, { stage: RelStage; daysAgo?: number }> = {
+  'pv-maya': { stage: 'chatted', daysAgo: 2 },
+  'pv-omar': { stage: 'requested', daysAgo: 8 },
+  'pv-ines': { stage: 'none' },
+};
+export const THANKS: Record<string, string> = {
+  'pv-maya': 'Hi Maya, thank you for making time to chat. Your advice to lead with the onboarding result, not the process, was exactly what my resume needed, and I’ve already rewritten that line. I’ll let you know how the Ledgerly screen goes. Thanks again!',
+  'pv-omar': 'Hi Omar, thanks for the quick call and for checking on sponsorship with the analyst team. Good to know Brightcart’s experiment templates live on! I’ll apply this week and keep you posted.',
+  'pv-ines': 'Hi Ines, thank you for the call. Your point about testing grounding before tone is going straight into my eval write-up. I’ll send it over once it’s cleaned up.',
+};
+
+export interface PrepQuestion { q: L; from: L; story: string[]; quote: string }
+/** A prep pack for the interview email in the demo: questions from the posting, answers built only from the resume. */
+export const PREP = {
+  roleId: 'pv-ledgerly-apm', emailId: 'msg-recruiter',
+  format: l('30-minute recruiter screen, then a product sense round. Interview time not set yet.', '30 分钟招聘方初筛，之后是产品感面试。时间还没定。'),
+  company: [
+    l('Ledgerly sells payments and onboarding to small businesses; the APM program rotates through both teams.', 'Ledgerly 面向小企业做支付和开户；APM 项目在这两个团队之间轮岗。'),
+    l('The posting stresses end-to-end ownership and experiment-driven decisions.', '职位描述强调端到端负责和用实验做决策。'),
+    l('Maya (People tab) said screens focus on one shipped story and “why payments”.', 'Maya（人脉标签）说初筛重点问一个上线经历和“为什么做支付”。'),
+  ],
+  questions: [
+    { q: l('Tell me about a feature you took from idea to launch.', '讲一个你从想法做到上线的功能。'), from: l('Requirement: shipped a feature end to end (partly met)', '来自要求：完整上线过一个功能（部分满足）'),
+      story: ['S: Teachers at Quillboard dropped off during setup.', 'T: Own the onboarding redesign as the product intern.', 'A: Wrote the PRD, ran 6 teacher interviews, cut setup to three steps with 2 engineers.', 'R: Beta with 1,200 teachers; setup time down 38%. Say plainly that it stopped at beta.'],
+      quote: 'Led onboarding redesign from PRD to beta with 2 engineers; cut setup time 38% for 1,200 beta teachers.' },
+    { q: l('How do you know an A/B test result is real?', '你怎么判断一个 A/B 测试结果是真的？'), from: l('Requirement: SQL and experiment analysis (met)', '来自要求：SQL 和实验分析（满足）'),
+      story: ['S: Brightcart ran weekly checkout tests.', 'T: Produce the readout each week.', 'A: Checked sample-ratio mismatch, pre-registered the metric, held tests for full weeks.', 'R: Caught one false win from a holiday spike before it shipped.'],
+      quote: 'Brightcart: weekly A/B readouts in SQL' },
+    { q: l('Walk me through a PRD you wrote.', '带我过一遍你写的一份 PRD。'), from: l('Requirement: wrote product specs (met)', '来自要求：写过产品需求文档（满足）'),
+      story: ['S: PROD 540 Campus Eats project.', 'T: Define the first release for late-night food ordering.', 'A: Framed the problem from 5 interviews, set one success metric, listed non-goals.', 'R: Use it to show trade-offs, not just structure.'],
+      quote: 'PROD 540: Campus Eats PRD' },
+    { q: l('Why payments, and why Ledgerly?', '为什么做支付，为什么是 Ledgerly？'), from: l('Requirement: interest in financial products (partly met)', '来自要求：对金融产品有兴趣（部分满足）'),
+      story: ['S: ECON 512 marketplace pricing work.', 'T: Model take-rate trade-offs for a two-sided platform.', 'A: Built fee tiers and tested them against seller churn.', 'R: Tie it to small-business payments: fees are the product decision sellers feel most.'],
+      quote: 'Modeled take-rate trade-offs for a two-sided marketplace (ECON 512)' },
+    { q: l('Tell me about a time you disagreed with an engineer.', '讲一次你和工程师意见不同的经历。'), from: l('Behavioral; common in APM screens', '行为题；APM 初筛常见'),
+      story: ['S: Quillboard engineers wanted to delay the beta for a full settings page.', 'T: Keep the launch date without losing trust.', 'A: Showed interview evidence that 4 of 6 teachers never opened settings; agreed to ship it a sprint later.', 'R: Beta on time; settings shipped two weeks after.'],
+      quote: 'Product intern, Quillboard (fictional edtech), summer 2025' },
+  ] as PrepQuestion[],
+  ask: [
+    l('What does a strong first rotation look like for an APM here?', '在这里，APM 第一段轮岗做得好是什么样子？'),
+    l('How do the payments and onboarding teams decide what to test?', '支付和开户团队怎么决定测试什么？'),
+    l('What did the last APM class find hardest in their first 90 days?', '上一届 APM 入职前 90 天觉得最难的是什么？'),
+  ],
+};
