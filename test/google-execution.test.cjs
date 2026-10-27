@@ -15,22 +15,22 @@ const offset=x=>new Date(Date.parse(x)-4*3600000).toISOString().replace(/\.\d+Z$
 // A live re-read: one complete read per queried calendar. `events` maps calendar ID to raw connector events.
 const liveRead=(d,p,{events={},...extra}={})=>({checkedAt:new Date().toISOString(),provider:'google',account:p.account,start:new Date(Date.parse(p.start)-3600000).toISOString(),end:new Date(Date.parse(p.end)+3600000).toISOString(),
  reads:d.calendarCoverage.calendars.map(c=>({calendarId:c.id,complete:true,events:events[c.id]||[]})),...extra});
-const saved=(p,k,extra={})=>({...structuredClone(SAMPLE),id:'evt'+k.slice(2,12),summary:p.title,description:G.description(p,k),start:offset(p.start),end:offset(p.end),location:'',reminders:{use_default:false,overrides:[{method:'popup',minutes:p.reminderMinutes}]},...extra});
+const saved=(p,k,extra={})=>({...structuredClone(SAMPLE),id:'evt'+k.slice(2,12),summary:p.title,description:G.description(p,k),start:offset(p.start),end:offset(p.end),location:'',color_id:p.color??null,reminders:{use_default:false,overrides:[{method:'popup',minutes:p.reminderMinutes}]},...extra});
 const back=(p,ev,extra={})=>({calendarId:p.calendarId,account:p.account,event:ev,...extra});
 const withStore=fn=>{const dir=fs.mkdtempSync(path.join(os.tmpdir(),'dw-gexec-')),s=new Store(dir);try{return fn(s,dir);}finally{s.close();fs.rmSync(dir,{recursive:true,force:true});}};
 
 test('connector profile: the exact create arguments use only declared tool arguments, with no attendees, meeting, recurrence or unsupported fields',()=>withStore(s=>{
  const {d,p,k}=setup(s),m=G.toConnector(p,k);
- a.deepEqual(m,{calendar_id:p.calendarId,title:p.title,description:p.body+'\n\nDayweave action: '+p.id+' · key '+k,start_time:p.start,end_time:p.end,timezone_str:TZ,attendees:[],add_google_meet:false,event_type:'default',transparency:'opaque',reminders:{use_default:false,overrides:[{method:'popup',minutes:10}]}});
+ a.deepEqual(m,{calendar_id:p.calendarId,title:p.title,description:p.body+'\n\nDayweave action: '+p.id+' · key '+k,start_time:p.start,end_time:p.end,timezone_str:TZ,attendees:[],add_google_meet:false,event_type:'default',transparency:'opaque',reminders:{use_default:false,overrides:[{method:'popup',minutes:10}]},color_id:'5'});
  a.ok(Object.keys(m).every(x=>ARGS.includes(x)),'every argument is declared by the actual tool');
- for(const x of ['sendUpdates','send_updates','id','extendedProperties','recurrence','start_date','end_date','visibility','auto_decline_mode','color_id','guests_can_modify'])a.equal(x in m,false,x);
+ for(const x of ['sendUpdates','send_updates','id','extendedProperties','recurrence','start_date','end_date','visibility','auto_decline_mode','guests_can_modify'])a.equal(x in m,false,x);
  a.deepEqual(G.PROFILE.unsupported,['sendUpdates','client event ID','extendedProperties']);a.deepEqual(G.PROFILE.sends.filter(x=>!ARGS.includes(x)),[],'the profile claims nothing the tool lacks');
  a.match(k,/^d0[0-9a-f]{30}$/);a.equal(G.key(s.storeId(),p),k,'deterministic');a.notEqual(G.key('another-store',p),k,'bound to the store');
  a.deepEqual(G.actionErrors(p,d),[]);a.deepEqual(G.toConnector({...p,location:'Library',busy:false},k).location,'Library');a.equal(G.toConnector({...p,busy:false},k).transparency,'transparent');
  for(const [edit,re] of [[{action:'update',remoteRef:'x',before:{}},/Only new personal events/],[{recurrence:{frequency:'daily',interval:1,count:3}},/Recurring/],[{attendees:['someone@example.com']},/Attendees/],[{calendarId:'course-schedule@example.com'},/owner access/],[{provider:undefined},/Not a Google/]])a.match(G.actionErrors({...p,...edit},d).join(' '),re);
  a.match(P.errors({...p,action:'update'},d).join(' '),/only create new personal events/);a.match(P.errors({...p,recurrence:{frequency:'daily',interval:1,count:2}},d).join(' '),/one-time events/);
  a.equal(P.spec(p).sourceRefs[0].kind,'todo');a.notEqual(P.fingerprint(p),P.fingerprint({...p,sourceRefs:[{kind:'todo',id:'other',version:1}]}),'source task refs are part of the fingerprint');
- a.deepEqual(G.required({...p,location:'Library'}).slice(-1),['location'],'a non-empty location must be settable');
+ a.ok(G.required({...p,location:'Library'}).includes('location'),'a non-empty location must be settable');a.ok(G.required(p).includes('color_id'),'an approved colour must be settable');a.equal(G.required({...p,color:undefined}).includes('color_id'),false);a.equal('color_id' in G.toConnector({...p,color:undefined},k),false,'a block without a colour keeps the calendar default');
 }));
 
 test('verify passes with the actual tool arguments and blocks a missing one; approval must be exactly "Approve Q-N" from chat, never a negation',()=>withStore(s=>{
@@ -91,7 +91,7 @@ test('read-back compares the raw connector shape and the queried calendar; any d
  for(const [x,re] of [[{reminders:{use_default:true,overrides:null}},/reminder/],[{reminders:{useDefault:false,overrides:[{method:'popup',minutes:10}]}},/reminder/],[{reminders:{use_default:false,overrides:[{method:'email',minutes:10}]}},/reminder/],
   [{attendees:['guest@example.com']},/attendees present/],[{hangout_link:'https://meet.example.com/x'},/online meeting/],[{recurring_event_id:'series'},/recurrence present/],[{recurrence:['RRULE:FREQ=DAILY']},/recurrence present/],
   [{event_type:'focusTime'},/event type focusTime/],[{organizer:{is_self:false,email:'someone@example.com'}},/organizer/],[{organizer:undefined},/organizer/],[{description:p.body},/description/],[{start:{dateTime:p.start}},/start time/],
-  [{start:offset(new Date(Date.parse(p.start)+60000).toISOString())},/start time/],[{transparency:'transparent'},/busy state/],[{summary:'Other'},/summary/],[{status:'cancelled'},/cancelled/],[{id:''},/remote event ID/],[{location:'Elsewhere'},/location/]])
+  [{start:offset(new Date(Date.parse(p.start)+60000).toISOString())},/start time/],[{transparency:'transparent'},/busy state/],[{summary:'Other'},/summary/],[{status:'cancelled'},/cancelled/],[{id:''},/remote event ID/],[{location:'Elsewhere'},/location/],[{color_id:'1'},/colour/],[{color_id:null},/colour/]])
   a.match(mism(x),re,JSON.stringify(x));
  a.equal(mism({attendees:null,recurrence:null,hangout_link:null,transparency:undefined}),'','null attendees/recurrence/meeting and default transparency are fine');
  a.match(G.readback(s,q.reference,p.id,back(p,saved(p,k),{account:'other@example.com'})).mismatches.join(' '),/different or unknown account/);

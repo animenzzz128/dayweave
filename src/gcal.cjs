@@ -20,12 +20,12 @@ function vault(s,secret){const key=Buffer.from(crypto.hkdfSync('sha256',secret,'
 const hasScope=scope=>String(scope||'').split(/\s+/).includes(SCOPE);
 // Google's REST event, reduced to the raw read shape the bridge checks (src/google.cjs `times`, `live`, `compare`).
 function normalize(ev){if(!ev||typeof ev!=='object')return ev;const t=x=>x?.dateTime??x?.date;
- return {id:ev.id,status:ev.status,summary:ev.summary,description:ev.description,location:ev.location,start:t(ev.start),end:t(ev.end),transparency:ev.transparency,
+ return {id:ev.id,status:ev.status,summary:ev.summary,description:ev.description,location:ev.location,start:t(ev.start),end:t(ev.end),transparency:ev.transparency,color_id:ev.colorId,
   reminders:ev.reminders?{use_default:ev.reminders.useDefault,overrides:ev.reminders.overrides||[]}:undefined,attendees:ev.attendees,hangoutLink:ev.hangoutLink,conferenceData:ev.conferenceData,
   recurrence:ev.recurrence,recurring_event_id:ev.recurringEventId,event_type:ev.eventType,organizer:ev.organizer?{is_self:ev.organizer.self===true}:undefined};}
 // The approved connector request (src/google.cjs `toConnector`) as a Calendar API insert body. Nothing else is sent.
 const toRest=c=>({summary:c.title,description:c.description,start:{dateTime:c.start_time,timeZone:c.timezone_str},end:{dateTime:c.end_time,timeZone:c.timezone_str},
- transparency:c.transparency,reminders:{useDefault:false,overrides:c.reminders.overrides},eventType:'default',...(c.location?{location:c.location}:{})});
+ transparency:c.transparency,reminders:{useDefault:false,overrides:c.reminders.overrides},eventType:'default',...(c.location?{location:c.location}:{}),...(c.color_id!=null?{colorId:c.color_id}:{})});
 // A Calendar API client for one stored account. Access tokens live only in memory.
 function client({account,refreshToken,clientId,clientSecret,fetch:doFetch=globalThis.fetch}){let access=null,until=0;
  async function token(){if(access&&Date.now()<until-60000)return access;
@@ -60,7 +60,7 @@ async function writeApproved(s,ref,c,{now=()=>new Date()}={}){const q=A.read(s,r
   // A version whose every action already has a final receipt is reported, not run again.
   if(q.value.every(p=>['executed','not_created'].includes(receipt(p))))return {reference:q.reference,stopped:[],actions:q.value.map(p=>({id:p.id,title:p.title,status:receipt(p),already:true}))};
   await c.token();
-  const v=G.verify(s,q.reference,approval,G.required({location:'x'}),now());if(v.blockers.length)return {reference:q.reference,stopped:v.blockers,actions:[]};
+  const v=G.verify(s,q.reference,approval,G.required({location:'x',color:'1'}),now());if(v.blockers.length)return {reference:q.reference,stopped:v.blockers,actions:[]};
   const calendars=[...new Set([q.value[0]?.calendarId,...(cov.calendars||[]).map(x=>x.id)].filter(Boolean))],results=[];
   for(const a of [...v.actions].sort((x,y)=>Date.parse(q.value.find(p=>p.id===x.id).start)-Date.parse(q.value.find(p=>p.id===y.id).start))){const p=q.value.find(x=>x.id===a.id);
    const done=r=>results.push({id:p.id,title:p.title,...r});
@@ -69,7 +69,7 @@ async function writeApproved(s,ref,c,{now=()=>new Date()}={}){const q=A.read(s,r
    if(a.receipt){done({status:a.receipt,already:true});continue;}
    if(a.errors.length){done({status:'skipped',errors:a.errors});continue;}
    const live=await readAround(c,p,calendars,LIVE_MARGIN_MS,now),check=G.recheck(s,q.reference,p.id,live,now());if(!check.go){done({status:'skipped',errors:check.errors});continue;}
-   const {write}=G.pending(s,q.reference,p.id,approval,G.required({location:'x'}),live,now());
+   const {write}=G.pending(s,q.reference,p.id,approval,G.required({location:'x',color:'1'}),live,now());
    let created=null;try{created=await c.insert(p.calendarId,toRest(write));}catch{created=null;}
    let event=null;if(created?.id){try{event=await c.get(p.calendarId,created.id);}catch{event=null;}}
    done(event?G.readback(s,q.reference,p.id,{calendarId:p.calendarId,account:c.account,event},now()):G.reconcile(s,q.reference,p.id,await readAround(c,p,calendars,G.ABSENCE_MARGIN_MS,now),now()));}

@@ -6,7 +6,7 @@
 const crypto=require('node:crypto'),C=require('./core.cjs'),P=require('./phase2.cjs'),A=require('./approvals.cjs');
 const LIVE_MAX_AGE_MS=15*60000,ABSENCE_MARGIN_MS=24*3600000;
 // Capability profile of the connected create tool, taken from its declaration. Only `sends` (plus `location` when the approved
-// location is non-empty) is sent, with `fixed` values; `notSent` arguments keep their defaults. The connector offers no
+// location is non-empty and `color_id` when the approved block has a colour) is sent, with `fixed` values; `notSent` arguments keep their defaults. The connector offers no
 // invitation-update setting, client event ID or extended properties, so none is claimed: duplicate protection is the
 // description marker, the serial pending receipt and reconciliation, never a provider guarantee.
 const PROFILE=Object.freeze({
@@ -14,7 +14,7 @@ const PROFILE=Object.freeze({
  tool:'google_calendar_create_event',
  sends:Object.freeze(['calendar_id','title','description','start_time','end_time','timezone_str','attendees','add_google_meet','event_type','transparency','reminders']),
  fixed:Object.freeze({attendees:[],add_google_meet:false,event_type:'default'}),
- notSent:Object.freeze(['recurrence','start_date','end_date','attendee_optionality','auto_decline_mode','chat_status','color_id','decline_message','guests_can_modify','self_attendance','visibility']),
+ notSent:Object.freeze(['recurrence','start_date','end_date','attendee_optionality','auto_decline_mode','chat_status','decline_message','guests_can_modify','self_attendance','visibility']),
  unsupported:Object.freeze(['sendUpdates','client event ID','extendedProperties']),
 });
 const instant=x=>typeof x==='string'&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2}(\.\d+)?)?(Z|[+-]\d\d:\d\d)$/.test(x)&&Number.isFinite(Date.parse(x));
@@ -24,10 +24,10 @@ const plain=x=>!!x&&typeof x==='object'&&!Array.isArray(x);
 function key(storeId,p){return 'd0'+crypto.createHash('sha256').update([storeId,p.id,P.fingerprint(p)].join('|')).digest('hex').slice(0,30);}
 const marker=(p,k)=>`Dayweave action: ${p.id} · key ${k}`;
 const description=(p,k)=>(p.body?p.body+'\n\n':'')+marker(p,k);
-const required=p=>[...PROFILE.sends,...(p.location?['location']:[])];
+const required=p=>[...PROFILE.sends,...(p.location?['location']:[]),...(p.color!=null?['color_id']:[])];
 // The exact connector create arguments for one approved action.
 function toConnector(p,k){return {calendar_id:p.calendarId,title:p.title,description:description(p,k),start_time:p.start,end_time:p.end,timezone_str:p.timezone,
- ...structuredClone(PROFILE.fixed),transparency:p.busy===false?'transparent':'opaque',reminders:{use_default:false,overrides:[{method:'popup',minutes:p.reminderMinutes??15}]},...(p.location?{location:p.location}:{})};}
+ ...structuredClone(PROFILE.fixed),transparency:p.busy===false?'transparent':'opaque',reminders:{use_default:false,overrides:[{method:'popup',minutes:p.reminderMinutes??15}]},...(p.location?{location:p.location}:{}),...(p.color!=null?{color_id:p.color}:{})};}
 // Initial scope: one new personal event on an owned destination calendar. No updates, recurrence, attendees or meetings.
 function actionErrors(p,d){const out=[],cal=(d.calendarCoverage?.calendars||[]).find(c=>c?.id===p.calendarId);
  if(C.calendarProvider(p)!=='google')out.push('Not a Google Calendar action.');
@@ -90,6 +90,7 @@ function compare(p,k,ev){const m=[],c=toConnector(p,k);if(!plain(ev))return ['No
  if(norm(ev.description)!==norm(c.description))m.push('description (including the action marker) differs');
  if(norm(ev.location)!==norm(p.location))m.push('location differs');
  if((ev.transparency??'opaque')!==c.transparency)m.push('busy state differs');
+ if(c.color_id!=null&&String(ev.color_id??'')!==c.color_id)m.push('colour differs');
  const o=ev.reminders?.overrides;if(ev.reminders?.use_default!==false||!Array.isArray(o)||o.length!==1||o[0]?.method!=='popup'||o[0]?.minutes!==c.reminders.overrides[0].minutes)m.push('reminder differs');
  if(ev.attendees!=null&&!(Array.isArray(ev.attendees)&&!ev.attendees.length))m.push('attendees present');
  if(ev.hangout_link!=null||ev.conference_data!=null||ev.conferenceData!=null||ev.hangoutLink!=null)m.push('online meeting present');

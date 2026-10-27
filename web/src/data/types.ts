@@ -22,6 +22,8 @@ export interface Proposal extends CalendarEvent {
   origin?: string; aiKey?: string; aiSentence?: string; titleZh?: string;
   /** Planner blocks: the day they were planned for, and whether the owner's edit or approval locked them against regeneration. */
   planDate?: string; locked?: boolean;
+  /** Planner blocks: the Google Calendar colorId the write uses (src/planner.cjs COLORS). */
+  color?: string;
 }
 
 export interface Source { id: string; name: string; status: SourceStatus; lastSuccess?: string; lastAttempt?: string; source?: string; note?: string }
@@ -86,12 +88,14 @@ export interface Approval {
   approval?: { channel: string; text: string; at: string; by: string } | null;
 }
 
+/** One day of a multi-day generation. */
+export interface PlanDay { date: string; ready: boolean; blocks: number; gaps: number; error?: string }
 export interface PlanResult {
   date: string; ready?: boolean; blocks: Proposal[]; unscheduled: { id: string; title: string; reason: string; kind?: string }[]; unscheduledTotal?: number;
   gaps: string[]; assumptions: string[]; usable: { minutes: number; budget: number; allocated: number };
 }
 
-export interface Habit { id: string; title: string; minutes: number; perWeek: number; days: number[]; windows: { start: string; end: string }[]; enabled: boolean }
+export interface Habit { id: string; title: string; minutes: number; perWeek: number; days: number[]; windows: { start: string; end: string }[]; enabled: boolean; color?: string }
 /** The owner's planning rules (planner.planSettings); the recommended ones until the owner saves their own. */
 export interface PlanSettings { dayStart: string; dayEnd: string; breaks: { start: string; end: string }[]; habits: Habit[] }
 
@@ -128,6 +132,8 @@ export interface DataSource {
   saveTodo(todo: Partial<Todo> & { origin?: { type: string; messageId?: string } }): Promise<void>;
   completeTodo(id: string, done: boolean): Promise<void>;
   generatePlan(date: string): Promise<PlanResult>;
+  /** Plans `days` days from `from`, earliest first, in one go (the server's generatePlans). */
+  generatePlans(from: string, days: number): Promise<PlanDay[]>;
   editProposal(id: string, changes: Partial<Proposal>): Promise<void>;
   savePlanSettings(settings: PlanSettings): Promise<void>;
   /** Demo only: adds an AI proposal from one sentence to the review queue. It still needs approval like any other. */

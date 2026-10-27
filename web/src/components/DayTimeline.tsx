@@ -3,9 +3,10 @@ import { useI18n } from '../i18n/I18n';
 import { Core, Demo } from '../lib/shared';
 import { href } from '../lib/router';
 import { coveredMs, fitText, layoutLanes } from '../lib/overlap';
+import { CALENDAR_COLORS } from '../lib/calendarColors';
 import type { CalendarEvent, Proposal } from '../data/types';
 
-interface Block { id: string; title: string; start: number; end: number; kind: 'event' | 'proposal' | 'done'; meta?: string }
+interface Block { id: string; title: string; start: number; end: number; kind: 'event' | 'proposal' | 'done'; meta?: string; color?: string }
 
 /** The 09:00–24:00 planning day (from 07:00 when a weekly-goal block sits earlier): hatched = free, grey = calendar, dashed blue = AI proposal, solid blue = approved. */
 export function DayTimeline({ date, scale = 0.9, compact = false }: { date: string; scale?: number; compact?: boolean }) {
@@ -21,7 +22,7 @@ export function DayTimeline({ date, scale = 0.9, compact = false }: { date: stri
 
   const blocks = layoutLanes<Block>([
     ...d.events.filter((e) => e.busy !== false && !e.allDay && inDay(e) && !ownEvents.has(e.id)).map((e) => ({ id: e.id, title: e.title, kind: 'event' as const, ...clamp(e), meta: e.location })),
-    ...d.proposals.filter((p: Proposal) => inDay(p) && !progress.dismissed?.[p.id]).map((p) => ({ id: p.id, title: p.title, kind: started(p.id) ? ('done' as const) : ('proposal' as const), ...clamp(p) })),
+    ...d.proposals.filter((p: Proposal) => inDay(p) && !progress.dismissed?.[p.id]).map((p) => ({ id: p.id, title: p.title, kind: started(p.id) ? ('done' as const) : ('proposal' as const), color: p.color, ...clamp(p) })),
   ]);
   const allDay = d.events.filter((e) => e.allDay && inDay(e));
   // Without complete coverage a blank slot may hide an unread event, so it is not drawn as free time.
@@ -65,7 +66,7 @@ export function DayTimeline({ date, scale = 0.9, compact = false }: { date: stri
             );
             // Overlapping blocks share the width side by side instead of covering each other.
             const w = `((100% - ${8 + (b.cols - 1) * 3}px) / ${b.cols})`;
-            const pos = { top: y(b.start) + 1, height: h - 2, left: `calc(4px + ${b.col} * (${w} + 3px))`, width: `calc${w}` };
+            const pos = { top: y(b.start) + 1, height: h - 2, left: `calc(4px + ${b.col} * (${w} + 3px))`, width: `calc${w}`, ...(b.color ? { borderLeft: `4px solid ${CALENDAR_COLORS[b.color]}` } : {}) };
             const cls = `absolute overflow-hidden rounded-md ${b.cols > 2 ? 'px-1' : 'px-2'} ${fit.tight ? 'py-0' : 'py-1'} no-underline ${style[b.kind]}`;
             return (
               <li key={b.id} className="contents">

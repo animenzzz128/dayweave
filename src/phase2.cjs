@@ -3,8 +3,8 @@
 const C=typeof module!=='undefined'?require('./core.cjs'):window.PlannerCore;
 const valid=x=>typeof x==='string'&&/(Z|[+-]\d\d:\d\d)$/.test(x)&&Number.isFinite(Date.parse(x));
 const canonical=x=>Array.isArray(x)?x.map(canonical):x&&typeof x==='object'?Object.fromEntries(Object.keys(x).sort().map(k=>[k,canonical(x[k])])):x;
-// Provider and source task refs are part of the reviewed identity when present; legacy proposals without one keep their original fingerprints.
-function spec(p){return {...(p.provider?{provider:p.provider}:{}),...(p.sourceRefs?{sourceRefs:p.sourceRefs}:{}),action:p.action||'create',account:p.account,calendar:p.calendar,calendarId:p.calendarId||null,timezone:p.timezone,title:p.title,start:p.start,end:p.end,location:p.location||'',body:p.body||'',busy:p.busy!==false,reminderMinutes:p.reminderMinutes??15,recurrence:p.recurrence||'One time',attendees:p.attendees||[],remoteRef:p.remoteRef||null,before:p.before||null,scope:p.scope||'single'};}
+// Provider, source task refs and calendar colour are part of the reviewed identity when present; legacy proposals without one keep their original fingerprints.
+function spec(p){return {...(p.provider?{provider:p.provider}:{}),...(p.sourceRefs?{sourceRefs:p.sourceRefs}:{}),action:p.action||'create',account:p.account,calendar:p.calendar,calendarId:p.calendarId||null,timezone:p.timezone,title:p.title,start:p.start,end:p.end,location:p.location||'',body:p.body||'',busy:p.busy!==false,reminderMinutes:p.reminderMinutes??15,recurrence:p.recurrence||'One time',attendees:p.attendees||[],remoteRef:p.remoteRef||null,before:p.before||null,scope:p.scope||'single',...(p.color!=null?{color:p.color}:{})};}
 function fingerprint(p){return JSON.stringify(canonical({id:p.id,status:p.status||'proposed',...spec(p)}));}
 function occurrences(p){
  if(!valid(p.start)||!valid(p.end)||Date.parse(p.end)<=Date.parse(p.start))throw Error('Use valid start/end timestamps with explicit offsets.');
@@ -25,6 +25,7 @@ function errors(p,d,now=new Date(),started=[]){
  if((p.attendees||[]).length)out.push('Phase 2 actions must have no attendees.');
  if(!['create','update'].includes(p.action||'create'))out.push('Only create and individually reviewed update actions are supported.');
  if(!Number.isInteger(p.reminderMinutes??15)||(p.reminderMinutes??15)<0||(p.reminderMinutes??15)>10080)out.push('Invalid reminder minutes.');
+ if(p.color!=null&&!/^(?:[1-9]|1[01])$/.test(p.color))out.push('Calendar colour must be a Google colour ID from 1 to 11.');
  if(d.actionHistory?.some(h=>h.id===p.id&&['pending','unverified','executed'].includes(h.status)))out.push('Action already attempted or verified; reconcile it before retrying.');
  const coverage=d.calendarCoverage;
  if(!coverage?.complete||!valid(coverage.start)||!valid(coverage.end)||Date.parse(coverage.end)<=Date.parse(coverage.start))out.push('Calendar coverage is incomplete or invalid.');

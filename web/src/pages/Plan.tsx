@@ -3,12 +3,15 @@ import { useApp } from '../data/AppData';
 import { useI18n } from '../i18n/I18n';
 import { PlanTimeline } from '../components/PlanTimeline';
 import { Empty, PageHeader, Section, Tag } from '../components/ui';
-import { Core, Demo, Phase2 } from '../lib/shared';
+import { Core, Demo, Phase2, Planner } from '../lib/shared';
 import { href } from '../lib/router';
+import { CALENDAR_COLORS, COLOR_IDS } from '../lib/calendarColors';
 import { ApproveButton } from './Review';
 import type { Approval, Habit, PlanSettings, Proposal } from '../data/types';
 
 const MIN = 60000;
+// Days the morning run and the "plan the next days" button cover (src/store.cjs PLAN_DAYS).
+const PLAN_DAYS = 5;
 // The demo's interview email has a prep pack on the Career page (a preview; the private instance has none yet).
 const PREP_EMAIL = 'msg-recruiter';
 const minutes = (p: { start: string; end: string }) => Math.round((Date.parse(p.end) - Date.parse(p.start)) / MIN);
@@ -50,6 +53,8 @@ export function Plan({ params }: { params: URLSearchParams }) {
     || (!ok.length ? approvals.find((a) => a.status === 'prepared' && a.approval && a.value.some((x) => live.some((p) => p.id === x.id))) : undefined);
 
   const regenerate = async () => { setBusy(true); await run(() => source.generatePlan(date), t.plan.regenerated); setBusy(false); };
+  // Today and the next PLAN_DAYS - 1 days, as the morning run does (src/store.cjs generatePlans).
+  const regenerateDays = async () => { setBusy(true); await run(() => source.generatePlans(today, PLAN_DAYS), (r) => t.plan.regeneratedDays(r.filter((x) => x.ready).length, PLAN_DAYS)); setBusy(false); };
   const shift = (p: Proposal, start: number, end: number) => run(() => source.editProposal(p.id, { start: iso(start), end: iso(end) }), t.plan.moved);
 
   return (
@@ -72,11 +77,15 @@ export function Plan({ params }: { params: URLSearchParams }) {
                 <p className="font-semibold">{summary ? t.plan.load(planned, usable) : t.plan.noSummary}</p>
                 {summary && <p className={`text-xs ${usable && planned > usable * 0.8 ? 'text-warn' : 'text-muted'}`}>{usable && planned > usable * 0.8 ? t.plan.overload : t.plan.reserve}</p>}
               </div>
-              <button type="button" className="btn" disabled={busy} onClick={regenerate}>{busy ? t.plan.regenerating : t.plan.regenerate}</button>
+              <div className="flex flex-wrap gap-1.5">
+                <button type="button" className="btn btn-primary" disabled={busy} onClick={regenerateDays}>{busy ? t.plan.regenerating : t.plan.regenerateDays(PLAN_DAYS)}</button>
+                <button type="button" className="btn" disabled={busy} onClick={regenerate}>{t.plan.regenerate}</button>
+              </div>
             </div>
             {summary?.usable && usable > 0 && <div className="mt-3 h-2 overflow-hidden rounded-full bg-soft" aria-hidden="true"><div className={`h-full ${planned > usable * 0.8 ? 'bg-warn' : 'bg-accent'}`} style={{ width: `${Math.min(100, Math.round((planned / usable) * 100))}%` }} /></div>}
             {!!summary?.gaps?.length && <ul className="mt-2 list-disc pl-5 text-sm text-danger">{summary.gaps.map((g, i) => <li key={i}>{g}</li>)}</ul>}
             <p className="mt-2 text-xs text-muted">{t.plan.autoNote}</p>
+            <ColorLegend />
           </section>
 
           {params.get('calendar') && <p role="status" className={`rounded-lg p-3 text-sm ${params.get('calendar') === 'connected' ? 'bg-ok-soft text-ok' : 'bg-warn-soft text-warn'}`}>{params.get('calendar') === 'connected' ? t.review.calendarConnected : t.review.calendarDenied}</p>}
@@ -109,6 +118,18 @@ export function Plan({ params }: { params: URLSearchParams }) {
   );
 }
 
+/** What each colour on the calendar means; weekly goals use their own colour, set under planning rules. */
+function ColorLegend() {
+  const { t } = useI18n();
+  const kinds = Planner.COLORS as Record<string, string>;
+  return (
+    <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted" aria-label={t.plan.colorLegend}>
+      {(['coursework', 'review', 'interview', 'todo'] as const).map((k) => <li key={k} className="flex items-center gap-1"><span aria-hidden="true" className="inline-block size-2.5 rounded-full" style={{ background: CALENDAR_COLORS[kinds[k]] }} />{t.plan.colorKinds[k]}</li>)}
+      <li>{t.plan.colorKinds.habit}</li>
+    </ul>
+  );
+}
+
 function ApproveDay({ ok, failing, version }: { ok: Proposal[]; failing: number; version?: Approval }) {
   const { source, run } = useApp();
   const { t } = useI18n();
@@ -136,6 +157,7 @@ function BlockRow({ p, version, problem }: { p: Proposal; version?: Approval; pr
     <li className="px-4 py-3">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div className="min-w-0">
+          {p.color && <span aria-hidden="true" className="mr-1.5 inline-block size-2.5 rounded-full align-baseline" style={{ background: CALENDAR_COLORS[p.color] }} />}
           <span className="font-mono text-xs text-muted">{f.hm(p.start)}–{f.hm(p.end)}</span> <span className="font-medium">{p.title}</span>
           {p.reason && <span className="block text-xs text-muted">{p.reason}</span>}
           {source.mode === 'demo' && p.sourceRefs?.some((r) => r.kind === 'email' && r.id === PREP_EMAIL) && <a className="text-xs" href={href('career', { tab: 'pipeline', id: 'prep' })}>{t.career.prepLink} →</a>}
@@ -177,7 +199,7 @@ function Goals({ date }: { date: string }) {
           const n = count(h);
           return (
             <li key={h.id} className="panel p-3">
-              <p className="text-sm font-medium">{h.title}</p>
+              <p className="text-sm font-medium"><span aria-hidden="true" className="mr-1.5 inline-block size-2.5 rounded-full" style={{ background: CALENDAR_COLORS[Planner.habitColor(h) as string] }} />{h.title}</p>
               <p className="text-xs text-muted">{t.plan.goalProgress(n, h.perWeek)} · {h.minutes} min</p>
               <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-soft" aria-hidden="true"><div className="h-full bg-accent" style={{ width: `${Math.min(100, Math.round((n / h.perWeek) * 100))}%` }} /></div>
             </li>
@@ -224,6 +246,12 @@ function Rules() {
               <label className="flex items-center gap-1">{t.plan.minutes}<input type="number" min={15} max={240} step={5} className="field w-20 py-1" value={h.minutes} onChange={(e) => goal(i, { minutes: Number(e.target.value) })} /></label>
               <label className="flex items-center gap-1">{t.plan.perWeek}<input type="number" min={1} max={14} className="field w-16 py-1" value={h.perWeek} onChange={(e) => goal(i, { perWeek: Number(e.target.value) })} /></label>
               <label className="flex items-center gap-1"><input type="checkbox" checked={h.enabled} onChange={(e) => goal(i, { enabled: e.target.checked })} />{t.plan.on}</label>
+              <label className="flex items-center gap-1">
+                <span aria-hidden="true" className="inline-block size-3 rounded-full" style={{ background: CALENDAR_COLORS[Planner.habitColor(h) as string] }} />
+                <select aria-label={t.plan.goalColor} className="field py-1" value={Planner.habitColor(h) as string} onChange={(e) => goal(i, { color: e.target.value })}>
+                  {COLOR_IDS.map((c, k) => <option key={c} value={c}>{t.plan.colorNames[k]}</option>)}
+                </select>
+              </label>
               <button type="button" className="btn ml-auto py-0.5 text-xs" onClick={() => set({ habits: v.habits.filter((_, j) => j !== i) })}>{t.plan.delete}</button>
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-1.5" role="group" aria-label={t.plan.days}>

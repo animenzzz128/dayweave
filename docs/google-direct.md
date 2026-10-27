@@ -21,7 +21,7 @@ owner (signed in)                         hosted instance                       
 ## Rules (unchanged from the bridge)
 
 - Writing is allowed only for owner-approved versions, and only to the destination calendar of the verified coverage. The connected account must equal `calendarCoverage.account`, otherwise nothing is written.
-- Writes are create only. The insert body carries exactly the approved fields: title, description with the action marker, start and end, time zone, busy state, one popup reminder, and the default event type. It never includes attendees, a meeting link or recurrence, and invitations are never sent.
+- Writes are create only. The insert body carries exactly the approved fields: title, description with the action marker, start and end, time zone, busy state, one popup reminder, the block's calendar colour when it has one (`colorId`, [data contract](data-contract.md#daily-plan-recommendations)), and the default event type. It never includes attendees, a meeting link or recurrence, and invitations are never sent.
 - Before each action the server re-reads every coverage calendar from one hour before to one hour after the block, with recurring events expanded and all pages. A conflict, a marked event or an unmarked look-alike skips that action. Skipped blocks are never moved.
 - The server records `pending`, then makes one insert. A successful insert is read back field by field, giving `executed` or `unverified`. A failed, lost or unclear insert is reconciled from a ±24 hour re-read and is never retried. `not_created` needs a newly prepared and approved version.
 - Only one write runs at a time per store. A version whose actions all have final receipts is reported again, not re-run.
