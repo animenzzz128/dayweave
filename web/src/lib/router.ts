@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 
 // Hash routes keep the static demo working on GitHub Pages, where unknown paths would 404 on reload.
-export const NAV = ['today', 'coursework', 'week', 'review', 'career', 'email', 'health'] as const;
+export const NAV = ['today', 'plan', 'coursework', 'week', 'review', 'career', 'email', 'health'] as const;
 export const ROUTES = [...NAV, 'case-study'] as const;
 export type Route = (typeof ROUTES)[number];
 

@@ -66,12 +66,21 @@ class Store{
  // The owner's planning rules (planner.planSettings), kept apart from the source snapshot so collection never touches them.
  planSettings(){const row=this.db.prepare("SELECT value FROM meta WHERE key='planSettings'").get();return row?JSON.parse(row.value):null;}
  savePlanSettings(v){const PL=require('./planner.cjs'),clean=PL.planSettings(v);this.db.prepare("INSERT OR REPLACE INTO meta VALUES('planSettings',?)").run(JSON.stringify(clean));this.log('plan','settings','planSettings',{habits:clean.habits.length});return clean;}
- generatePlan(date,now=new Date()){const PL=require('./planner.cjs');return this.transaction(()=>{const d=this.snapshot();if(!d)throw Error('No database snapshot');const st=this.state();
-  const result=PL.plan({snapshot:d,date,now,todos:st.todo,archive:st.archive,dismissed:st.dismissed,started:this.startedCopies(d),settings:this.planSettings()||PL.planSettings(PL.RECOMMENDED),emailTriage:st.emailTriage}),ids=new Set(result.blocks.map(b=>b.id)),replaced=d.proposals.filter(p=>PL.replaceable(d,p,date)).map(p=>p.id).filter(id=>!ids.has(id));
+ generatePlan(date,now=new Date(),{auto=false}={}){const PL=require('./planner.cjs');return this.transaction(()=>{const d=this.snapshot();if(!d)throw Error('No database snapshot');const st=this.state();
+  // Blocks in a version the owner approved stay put: regenerating them would invalidate the approval before the write.
+  const approved=new Set(this.db.prepare("SELECT a.value FROM approvals a JOIN owner_approvals o ON o.id=a.id WHERE a.status='prepared'").all().flatMap(r=>JSON.parse(r.value).map(p=>p.id)));
+  for(const p of d.proposals)if(approved.has(p.id)&&p.origin==='planner')p.locked=true;
+  const result=PL.plan({snapshot:d,date,now,todos:st.todo,archive:st.archive,dismissed:st.dismissed,started:this.startedCopies(d),settings:this.planSettings()||PL.planSettings(PL.RECOMMENDED),emailTriage:st.emailTriage});
+  // The automatic run after a collection never clears blocks on a day it cannot plan (for example incomplete coverage).
+  if(auto&&!result.ready)return result;
+  const ids=new Set(result.blocks.map(b=>b.id)),replaced=d.proposals.filter(p=>PL.replaceable(d,p,date)).map(p=>p.id).filter(id=>!ids.has(id));
   d.proposals=[...d.proposals.filter(p=>!PL.replaceable(d,p,date)),...result.blocks];C.validate(d);this.writeSnapshot(d);
   this.db.prepare('INSERT OR REPLACE INTO progress VALUES(?,?,?,?)').run('plan',date,JSON.stringify({...PL.summary(result),replaced}),result.generatedAt);
   this.db.prepare("DELETE FROM progress WHERE kind='plan' AND id<?").run(new Date(+new Date(now)-30*86400000).toISOString().slice(0,10));
   this.invalidate();this.log('plan','generated',date,{blocks:result.blocks.map(b=>b.id),replaced,unscheduled:result.unscheduled.length,gaps:result.gaps});return result;});}
+ // After each collection: drafts for today (the time left) and tomorrow. A day that cannot be planned keeps its blocks.
+ autoPlan(now=new Date()){const PL=require('./planner.cjs'),d=this.snapshot();if(!d)return [];C.configure(d.timezone);const today=C.dayKey(now);
+  return [today,PL.nextDay(today)].map(date=>{try{const r=this.generatePlan(date,now,{auto:true});return {date,ready:!!r.ready,blocks:r.ready?r.blocks.length:0,gaps:r.gaps.length};}catch(e){return {date,ready:false,error:e.message};}});}
  migrateProgress(local){if(this.db.prepare("SELECT 1 FROM meta WHERE key='browser-migrated'").get())return false;this.dailyBackup();for(const kind of ['checks','actual','career','help','archive','dismissed'])for(const [id,value] of Object.entries(local[kind]||{})){if(this.db.prepare('SELECT 1 FROM progress WHERE kind=? AND id=?').get(kind,id))continue;this.saveState(kind,id,value);}this.db.prepare("INSERT INTO meta VALUES('browser-migrated',?)").run(new Date().toISOString());return true;}
  history({kind='',status='',query='',from='',to='',page=1}={}){page=Math.max(1,Number(page)||1);const where='(?=\'\' OR kind=?) AND (?=\'\' OR status=?) AND label LIKE ? AND (?=\'\' OR at>=?) AND (?=\'\' OR substr(at,1,10)<=?)',args=[kind,kind,status,status,'%'+query+'%',from,from,to,to];return {page,total:this.db.prepare('SELECT count(*) AS n FROM audit WHERE '+where).get(...args).n,items:this.db.prepare('SELECT * FROM audit WHERE '+where+' ORDER BY id DESC LIMIT 20 OFFSET ?').all(...args,(page-1)*20).map(r=>({...r,value:JSON.parse(r.value)}))};}
  recordRun(run){const r=R.runRecord(run);this.db.prepare('INSERT OR REPLACE INTO runs VALUES(?,?,?)').run(r.id,r.startedAt,JSON.stringify(r));return r;}

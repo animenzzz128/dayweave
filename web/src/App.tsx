@@ -13,6 +13,7 @@ import { PageSkeleton } from './components/ui';
 const named = <K extends string>(load: () => Promise<Record<K, ComponentType<any>>>, name: K) => lazy(() => load().then((m) => ({ default: m[name] })));
 const Coursework = named(() => import('./pages/Coursework'), 'Coursework');
 const Week = named(() => import('./pages/Week'), 'Week');
+const Plan = named(() => import('./pages/Plan'), 'Plan');
 const Review = named(() => import('./pages/Review'), 'Review');
 const CareerPage = named(() => import('./pages/Career'), 'CareerPage');
 const EmailPage = named(() => import('./pages/Email'), 'EmailPage');
@@ -26,6 +27,7 @@ function Routed() {
   useEffect(() => { trackPage(route); }, [route]);
   const page = {
     today: <Today />,
+    plan: <Plan params={params} />,
     coursework: <Coursework params={params} />,
     week: <Week params={params} />,
     review: <Review params={params} />,

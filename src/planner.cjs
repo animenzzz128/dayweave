@@ -45,7 +45,8 @@ const nextDay=k=>new Date(Date.parse(k+'T12:00:00Z')+86400000).toISOString().sli
 function hash(s){let h=0x811c9dc5;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,0x01000193)>>>0;}return h.toString(16).padStart(8,'0');}
 const attempted=(d,id)=>(d.actionHistory||[]).some(h=>h.id===id&&ATTEMPTED.includes(h.status));
 // A planner block for this date that was never attempted is replaced by regeneration; everything else stays and blocks time.
-const replaceable=(d,p,date)=>p.origin==='planner'&&p.planDate===date&&!attempted(d,p.id);
+// A block the owner edited, or one in a version the owner approved, is locked and stays too.
+const replaceable=(d,p,date)=>p.origin==='planner'&&p.planDate===date&&!p.locked&&!attempted(d,p.id);
 const refKey=r=>r.kind+':'+r.id;
 // Splits explicit minutes into focus blocks of at most maxBlock minutes, as even as the 5-minute grid allows.
 function chunks(minutes,max=SETTINGS.maxBlock){if(minutes<=max)return [minutes];const n=Math.ceil(minutes/max),size=Math.ceil(minutes/n/5)*5;return Array.from({length:n},(_,i)=>i<n-1?size:minutes-size*(n-1)).filter(x=>x>0);}
@@ -160,8 +161,9 @@ function plan({snapshot:d,date,now=new Date(),todos={},archive={},dismissed={},s
  // Weekly goals: sessions already planned or written this week (other days, kept blocks, started copies) count toward the goal.
  const monday=addDays(date,1-isoDay(date)),week=new Set(Array.from({length:7},(_,i)=>addDays(monday,i)));
  const placeHabit=h=>{if(!h.enabled||!h.days.includes(isoDay(date)))return;const ref={kind:'habit',id:h.id,title:h.title};
-  const done=kept.filter(p=>p.sourceRefs?.some(r=>r.kind==='habit'&&r.id===h.id)&&week.has(C.dayKey(p.start))).length,left=h.perWeek-done;if(left<=0)return;
-  const daysLeft=[...week].filter(k=>k>=date&&h.days.includes(isoDay(k))).length,today=Math.min(2,Math.ceil(left/Math.max(1,daysLeft)));let placed=0,why='';
+  const mine=kept.filter(p=>p.sourceRefs?.some(r=>r.kind==='habit'&&r.id===h.id)&&week.has(C.dayKey(p.start))),had=mine.filter(p=>C.dayKey(p.start)===date).length,done=mine.length,left=h.perWeek-(done-had);if(left<=0)return;
+  // Today's share of what the other days have not covered, minus the sessions already kept on this day.
+  const daysLeft=[...week].filter(k=>k>=date&&h.days.includes(isoDay(k))).length,today=Math.min(2,Math.ceil(left/Math.max(1,daysLeft)))-had;if(today<=0)return;let placed=0,why='';
   for(let i=0;i<today;i++){if(allocated+h.minutes>budget){why=reserveNote();break;}let t0=null;
    for(const w of h.windows){const ws=Math.max(+now,at(date,w.start)),we=Math.min(to,at(date,w.end));if(we-ws<h.minutes*MIN)continue;t0=slot(h.minutes*MIN,ws,we,merge(blocked),s.step);if(t0!==null)break;}
    if(t0===null){why='No free '+h.minutes+'-minute slot in its windows ('+h.windows.map(w=>w.start+'–'+w.end).join(', ')+') today.';break;}
