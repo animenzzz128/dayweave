@@ -2,7 +2,7 @@ import { useState, type FormEvent } from 'react';
 import { useApp } from '../data/AppData';
 import { useI18n } from '../i18n/I18n';
 import { Empty, External, PageHeader, Tabs, Tag } from '../components/ui';
-import { Core } from '../lib/shared';
+import { Core, Effort } from '../lib/shared';
 import { Breakdown } from '../components/Breakdown';
 import type { Assignment, Todo } from '../data/types';
 
@@ -172,11 +172,30 @@ function AssignmentCard({ a, initiallyOpen, select }: { a: Assignment; initially
               <input id={`act-${a.id}`} type="number" min={0} step={5} className="field max-w-40" defaultValue={actual ?? ''} key={String(actual)}
                 onBlur={(e) => { const v = e.target.value.trim(); const n = v === '' ? null : Number(v); if (n !== (actual ?? null)) run(() => source.saveProgress('actual', a.id, n)); }} />
               <p className="mt-1 text-xs text-muted">{t.coursework.actualHint}</p>
+              <EffortConfirm a={a} actual={actual} />
             </div>
           </div>
         </div>
       )}
     </article>
+  );
+}
+
+// Freezes estimate and actual minutes as a calibration sample (Data health shows the median). Never a submission record.
+function EffortConfirm({ a, actual }: { a: Assignment; actual?: number }) {
+  const { source, run, progress } = useApp();
+  const { t } = useI18n();
+  if (!source.confirmEffort || !(typeof actual === 'number' && actual > 0)) return null;
+  const state = Effort.state(progress.effortCalibration?.[a.id], actual);
+  if (!Effort.positive(a.estimateMinutes)) return <p className="mt-2 text-xs text-muted">{t.coursework.effortNeedsEstimate}</p>;
+  const confirm = <button type="button" className="btn" onClick={() => run(() => source.confirmEffort!(a.id), t.coursework.effortConfirmedNote)}>{t.coursework.confirmEffort}</button>;
+  const clear = <button type="button" className="btn" onClick={() => run(() => source.clearEffort!(a.id), t.coursework.effortCleared)}>{t.coursework.clearEffort}</button>;
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2">
+      {state === 'confirmed' ? <><Tag tone="ok">{t.coursework.effortConfirmed}</Tag>{clear}</>
+        : state === 'none' ? confirm
+        : <><span className="text-xs text-warn">{t.coursework.effortStale}</span>{confirm}{clear}</>}
+    </div>
   );
 }
 

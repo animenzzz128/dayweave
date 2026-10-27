@@ -1,4 +1,4 @@
-import type { Approval, DataSource, Loaded, PlanResult, PlanSettings, Proposal, Todo, WriteResult } from './types';
+import type { Approval, DataSource, Loaded, PlanResult, PlanSettings, Proposal, Todo, Trends, WriteResult } from './types';
 
 // Client for the existing Dayweave server (development port, synthetic data). The server owns every rule: sessions, CSRF,
 // validation, approvals and backups. This class only forwards requests.
@@ -48,6 +48,9 @@ export class ApiSource implements DataSource {
   async withdraw(reference: string) { await this.call('approvals/withdraw', { reference }); }
   async writeCalendar(reference: string) { return this.call<WriteResult>('calendar/write', { reference }); }
   async disconnectCalendar() { await this.call('calendar/disconnect', {}); }
+  async confirmEffort(id: string) { await this.call('effort/confirm', { id }); }
+  async clearEffort(id: string) { await this.call('effort/clear', { id }); }
+  async trends(week?: string) { return this.call<Trends>('trends' + (week ? '?week=' + encodeURIComponent(week) : '')); }
   async backups() { return (await this.call<{ backups: string[] }>('health')).backups; }
   async backup() { return (await this.call<{ name: string }>('backup', {})).name; }
   async restore(name: string) { await this.call('restore', { name }); }
