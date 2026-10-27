@@ -43,6 +43,8 @@ export default function CaseStudy() {
               <a href={href('today')} className="btn btn-primary no-underline">{c.try.today} →</a>
               {source.setOutage && <button type="button" className="btn" onClick={startOutage}>{c.try.outage}</button>}
               <a href={href('review')} className="btn no-underline">{c.try.review}</a>
+              <a href={href('plan')} className="btn no-underline">{c.try.plan}</a>
+              <a href={href('career')} className="btn no-underline">{c.try.career}</a>
               <a href={REPO} target="_blank" rel="noopener noreferrer" className="btn no-underline">{c.try.repo} ↗</a>
             </div>
           </div>

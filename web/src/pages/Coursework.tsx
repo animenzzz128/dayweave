@@ -138,6 +138,7 @@ function AssignmentCard({ a, initiallyOpen, select }: { a: Assignment; initially
             {a.materials && <Field label={t.coursework.materials} value={a.materials} />}
             {a.aiPolicy && <Field label={t.coursework.aiPolicy} value={a.aiPolicy} />}
             {a.evidence && <Field label={t.coursework.evidence} value={a.evidence} />}
+            {a.estimateSource === 'ai' && a.estimateBasis && <Field label={t.common.aiEstimate} value={`${a.estimateMinutes ? f.duration(a.estimateMinutes) + ' · ' : ''}${a.estimateBasis}`} />}
             <External url={a.source} className="text-[13px]">{t.coursework.openSource}</External>
             {/* A local mark: it never changes the source, and the next refresh keeps it. Submitted work at the source needs none. */}
             {!['submitted', 'graded', 'excused'].includes(a.status) && (
