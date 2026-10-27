@@ -21,7 +21,9 @@ export interface Proposal extends CalendarEvent {
   /** Set on AI proposals made from one sentence: where it came from and its Chinese title. */
   origin?: string; aiKey?: string; aiSentence?: string; titleZh?: string;
   /** Planner blocks: the day they were planned for, and whether the owner's edit or approval locked them against regeneration. */
-  planDate?: string; locked?: boolean;
+  planDate?: string; locked?: boolean; lockedBy?: 'approval';
+  /** A removal (action delete): the written block it takes off the calendar, and that event's reference. */
+  replaces?: string; remoteRef?: string;
   /** Planner blocks: the Google Calendar colorId the write uses (src/planner.cjs COLORS). */
   color?: string;
 }

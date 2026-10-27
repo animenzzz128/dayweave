@@ -10,6 +10,7 @@ owner (signed in)                         hosted instance                       
                                             verify → live re-read (every coverage calendar, ±1 h) → recheck
                                             → pending → events.insert once (sendUpdates=none) → events.get → read-back
                                             unclear insert → reconcile from a ±24 h re-read; never retried
+                                            removal: events.get → unchanged? → pending → events.delete once → events.get
 ```
 
 ## Consent and storage
@@ -21,9 +22,10 @@ owner (signed in)                         hosted instance                       
 ## Rules (unchanged from the bridge)
 
 - Writing is allowed only for owner-approved versions, and only to the destination calendar of the verified coverage. The connected account must equal `calendarCoverage.account`, otherwise nothing is written.
-- Writes are create only. The insert body carries exactly the approved fields: title, description with the action marker, start and end, time zone, busy state, one popup reminder, the block's calendar colour when it has one (`colorId`, [data contract](data-contract.md#daily-plan-recommendations)), and the default event type. It never includes attendees, a meeting link or recurrence, and invitations are never sent.
+- Writes create events, and from 2026-10-28 (owner request) may also remove an event Dayweave itself wrote when a newer plan replaces it (below). The insert body carries exactly the approved fields: title, description with the action marker, start and end, time zone, busy state, one popup reminder, the block's calendar colour when it has one (`colorId`, [data contract](data-contract.md#daily-plan-recommendations)), and the default event type. It never includes attendees, a meeting link or recurrence, and invitations are never sent.
 - Before each action the server re-reads every coverage calendar from one hour before to one hour after the block, with recurring events expanded and all pages. A conflict, a marked event or an unmarked look-alike skips that action. Skipped blocks are never moved.
 - The server records `pending`, then makes one insert. A successful insert is read back field by field, giving `executed` or `unverified`. A failed, lost or unclear insert is reconciled from a ±24 hour re-read and is never retried. `not_created` needs a newly prepared and approved version.
+- **Removals (rewrite, 2026-10-28).** A version may hold `delete` actions made by the planner for blocks it wrote earlier. Only this direct path runs them; the chat bridge and the executor refuse them. A removal names the written block (`replaces`) and its event (`remoteRef`, `calendarId/eventId`). It is allowed only when the replaced block has an `executed` receipt with that reference, its approval copy matches the receipt, and it has not started. Before deleting, the server reads the event: it must still carry the block's action marker and the same title, start and end. An event the owner renamed, moved or deleted is left alone (a missing one counts as already gone), the removal is skipped and the page says why. Otherwise it records `pending`, deletes once (`sendUpdates=none`) and reads again: gone or cancelled gives `executed`, anything else `unverified`, never retried. Removals run before the inserts of the same version, so a new block may take the time the old one held; a new block over a block that is still to be removed must be in the same version as that removal.
 - Only one write runs at a time per store. A version whose actions all have final receipts is reported again, not re-run.
 
 ## Owner setup (Google Cloud, once)

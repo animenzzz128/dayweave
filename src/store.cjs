@@ -80,11 +80,12 @@ class Store{
     if((!r.ready&&auto||r.error)&&cleared.get(date).length){const x=this.snapshot();x.proposals.push(...cleared.get(date));this.writeSnapshot(x);}
     return {date,ready:!!r.ready,blocks:r.ready?r.blocks.length:0,gaps:r.gaps.length,...(r.error?{error:r.error}:{})};});});}
  // Blocks in a version the owner approved stay put: regenerating them would invalidate the approval before the write.
+ // `lockedBy: 'approval'` tells this lock from an edit, so a later plan may still rewrite the block once it is written.
  lockApproved(d){const approved=new Set(this.db.prepare("SELECT a.value FROM approvals a JOIN owner_approvals o ON o.id=a.id WHERE a.status='prepared'").all().flatMap(r=>JSON.parse(r.value).map(p=>p.id)));
-  for(const p of d.proposals)if(approved.has(p.id)&&p.origin==='planner')p.locked=true;}
+  for(const p of d.proposals)if(approved.has(p.id)&&p.origin==='planner'&&!p.locked){p.locked=true;p.lockedBy='approval';}}
  // One day inside a caller's transaction. `cleared` lists this day's drafts a multi-day run already removed (for the summary).
  planDay(date,now,{auto=false,cleared=[]}={}){const PL=require('./planner.cjs'),d=this.snapshot();if(!d)throw Error('No database snapshot');const st=this.state();this.lockApproved(d);
-  const result=PL.plan({snapshot:d,date,now,todos:st.todo,archive:st.archive,dismissed:st.dismissed,started:this.startedCopies(d),settings:this.planSettings()||PL.planSettings(PL.RECOMMENDED),emailTriage:st.emailTriage});
+  const result=PL.plan({snapshot:d,date,now,todos:st.todo,archive:st.archive,dismissed:st.dismissed,started:this.startedCopies(d),settings:this.planSettings()||PL.planSettings(PL.RECOMMENDED),emailTriage:st.emailTriage,rewrite:true});
   // The automatic run after a collection never clears blocks on a day it cannot plan (for example incomplete coverage).
   if(auto&&!result.ready)return result;
   const ids=new Set(result.blocks.map(b=>b.id)),replaced=[...cleared,...d.proposals.filter(p=>PL.replaceable(d,p,date))].map(p=>p.id).filter(id=>!ids.has(id));

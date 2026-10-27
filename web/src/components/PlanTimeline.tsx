@@ -1,12 +1,12 @@
 import { useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { useApp } from '../data/AppData';
 import { useI18n } from '../i18n/I18n';
-import { Core, Demo } from '../lib/shared';
+import { Core, Demo, Phase2 } from '../lib/shared';
 import { fitText, layoutLanes } from '../lib/overlap';
 import { CALENDAR_COLORS } from '../lib/calendarColors';
 import type { Proposal } from '../data/types';
 
-interface Block { id: string; title: string; start: number; end: number; kind: 'event' | 'draft' | 'done'; locked?: boolean; p?: Proposal }
+interface Block { id: string; title: string; start: number; end: number; kind: 'event' | 'draft' | 'done' | 'gone'; locked?: boolean; p?: Proposal }
 interface Drag { id: string; mode: 'move' | 'resize'; y0: number; start: number; end: number; dy: number }
 
 const STEP = 5 * 60000;
@@ -27,9 +27,12 @@ export function PlanTimeline({ date, startHour, onChange }: { date: string; star
   const inDay = (e: { start: string; end: string }) => Date.parse(e.end) > from && Date.parse(e.start) < to;
   const span = (e: { start: string; end: string }) => ({ start: Math.max(from, Date.parse(e.start)), end: Math.min(to, Date.parse(e.end)) });
 
+  // Removals are not drawn; the written block they take off the calendar is shown struck through until it is gone.
+  const sup = Phase2.superseded(d, progress.dismissed ?? {}) as Map<string, Proposal>;
   const raw: Block[] = [
     ...d.events.filter((e) => e.busy !== false && !e.allDay && inDay(e) && !ownEvents.has(e.id)).map((e) => ({ id: e.id, title: e.title, kind: 'event' as const, ...span(e) })),
-    ...d.proposals.filter((p) => inDay(p) && !progress.dismissed?.[p.id]).map((p) => ({ id: p.id, title: p.title, kind: started(p.id) ? ('done' as const) : ('draft' as const), locked: !!p.locked, p, ...span(p) })),
+    ...d.proposals.filter((p) => inDay(p) && !progress.dismissed?.[p.id] && p.action !== 'delete' && !(sup.has(p.id) && started(sup.get(p.id)!.id)))
+      .map((p) => ({ id: p.id, title: p.title, kind: sup.has(p.id) ? ('gone' as const) : started(p.id) ? ('done' as const) : ('draft' as const), locked: !!p.locked, p, ...span(p) })),
   ];
   // While dragging, the block is drawn at its new place so the lanes and the time label follow it.
   const shown = raw.map((b) => {
@@ -42,7 +45,7 @@ export function PlanTimeline({ date, startHour, onChange }: { date: string; star
   const y = (ms: number) => Math.round(((ms - from) / 60000) * scale);
   const hours = Array.from({ length: 24 - startHour }, (_, i) => i);
   const nowY = +now > from && +now < to ? y(+now) : null;
-  const style = { event: 'bg-event border-l-[3px] border-l-event-edge text-ink', draft: 'bg-accent-soft border-[1.5px] border-dashed border-accent text-accent-ink', done: 'bg-accent text-on-accent' };
+  const style = { event: 'bg-event border-l-[3px] border-l-event-edge text-ink', draft: 'bg-accent-soft border-[1.5px] border-dashed border-accent text-accent-ink', done: 'bg-accent text-on-accent', gone: 'bg-soft border border-dashed border-line text-muted line-through' };
 
   const begin = (b: Block, mode: Drag['mode']) => (e: ReactPointerEvent) => {
     if (b.kind !== 'draft' || !b.p) return;

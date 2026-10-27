@@ -29,9 +29,11 @@ const required=p=>[...PROFILE.sends,...(p.location?['location']:[]),...(p.color!
 function toConnector(p,k){return {calendar_id:p.calendarId,title:p.title,description:description(p,k),start_time:p.start,end_time:p.end,timezone_str:p.timezone,
  ...structuredClone(PROFILE.fixed),transparency:p.busy===false?'transparent':'opaque',reminders:{use_default:false,overrides:[{method:'popup',minutes:p.reminderMinutes??15}]},...(p.location?{location:p.location}:{}),...(p.color!=null?{color_id:p.color}:{})};}
 // Initial scope: one new personal event on an owned destination calendar. No updates, recurrence, attendees or meetings.
-function actionErrors(p,d){const out=[],cal=(d.calendarCoverage?.calendars||[]).find(c=>c?.id===p.calendarId);
+// Removals (owner request 2026-10-27) delete one event Dayweave itself wrote; src/phase2.cjs checks which one.
+function actionErrors(p,d){const out=[],cal=(d.calendarCoverage?.calendars||[]).find(c=>c?.id===p.calendarId),removal=p.action==='delete';
  if(C.calendarProvider(p)!=='google')out.push('Not a Google Calendar action.');
- if((p.action||'create')!=='create'||p.remoteRef||p.before)out.push('Only new personal events can be created; changing existing, course or shared events is not supported.');
+ if(removal){if(!p.replaces||typeof p.remoteRef!=='string'||!p.remoteRef.startsWith(p.calendarId+'/')||p.before)out.push('A removal names one event Dayweave wrote on the destination calendar.');}
+ else if((p.action||'create')!=='create'||p.remoteRef||p.before)out.push('Only new personal events can be created; changing existing, course or shared events is not supported.');
  if(!['One time','none',undefined].includes(p.recurrence))out.push('Recurring events are not supported; recurrence must be One time.');
  if((p.attendees||[]).length)out.push('Attendees and invitations are not allowed.');
  if(!cal||cal.accessRole!=='owner')out.push('The destination must be a read calendar recorded with owner access.');
@@ -104,15 +106,16 @@ function action(s,ref,id){const q=A.read(s,ref),p=q.value.find(x=>x.id===id);if(
  const frozen=h&&['pending','unverified','executed'].includes(h.status)&&h.idempotencyKey;return {q,p,d,h,store:frozen?h.store:s.storeId(),k:frozen?h.idempotencyKey:key(s.storeId(),p)};}
 // 1. Verify the exact approved version and print the connector requests. `declared` lists the create tool's declared
 // argument names; a required argument it lacks blocks the action instead of being dropped. Writes nothing.
-function verify(s,ref,approval,declared,now=new Date()){const q=A.read(s,ref),d=s.snapshot(),store=s.storeId(),blockers=[];
+function verify(s,ref,approval,declared,now=new Date(),{direct=false}={}){const q=A.read(s,ref),d=s.snapshot(),store=s.storeId(),blockers=[];
  if(!['prepared','pending','partial'].includes(q.status))blockers.push('Version '+q.reference+' is '+q.status+' and cannot be executed.');
  blockers.push(...evidence(approval,q.reference,q.at,now));
  if(!Array.isArray(declared)||!declared.every(x=>typeof x==='string'))blockers.push('Record the create tool\'s declared argument names (a list) before writing.');
  const actions=q.value.map(p=>{const k=key(store,p),current=d.proposals.find(x=>x.id===p.id),errors=[...P.errors(p,d,now,s.startedCopies(d)),...actionErrors(p,d)],h=statusOf(d,p.id);
   if(A.notCreatedUnder(h,q))errors.push('This action was not created under '+q.reference+'; a retry needs a newly prepared and approved version.');
   if(!current||P.fingerprint(current)!==P.fingerprint(p))errors.push('The saved proposal changed since this version was prepared.');
-  const missing=Array.isArray(declared)?required(p).filter(f=>!declared.includes(f)):[];if(missing.length)errors.push('The connector cannot set approved fields ('+missing.join(', ')+'). Stop rather than drop them.');
-  return {id:p.id,fingerprint:P.fingerprint(p),receipt:statusOf(d,p.id)?.status||null,idempotencyKey:k,marker:marker(p,k),sourceRefs:p.sourceRefs||[],profile:PROFILE.name,tool:PROFILE.tool,request:toConnector(p,k),errors:[...new Set(errors)]};});
+  const removal=p.action==='delete';if(removal&&!direct)errors.push('Removals run only from the site\'s direct Google Calendar write; the connector has no delete tool.');
+  const missing=Array.isArray(declared)&&!removal?required(p).filter(f=>!declared.includes(f)):[];if(missing.length)errors.push('The connector cannot set approved fields ('+missing.join(', ')+'). Stop rather than drop them.');
+  return {id:p.id,fingerprint:P.fingerprint(p),receipt:statusOf(d,p.id)?.status||null,idempotencyKey:k,marker:marker(p,k),sourceRefs:p.sourceRefs||[],profile:PROFILE.name,tool:PROFILE.tool,request:removal?{remove:p.remoteRef}:toConnector(p,k),errors:[...new Set(errors)]};});
  return {reference:q.reference,store,status:q.status,go:!blockers.length&&actions.every(a=>!a.errors.length),blockers,actions,unsupported:PROFILE.unsupported};}
 // 2. Check a fresh live re-read for one action. Writes nothing.
 function recheck(s,ref,id,read,now=new Date()){const {p,k,d}=action(s,ref,id),r=live(p,k,read,d,now),errors=[...r.errors];
@@ -201,4 +204,22 @@ function reconcile(s,ref,id,search,now=new Date()){const {p,k,d,h}=action(s,ref,
  const one=r.target[0],gap=keep||scope.unknown?uncovered(p,scope.unknown?scope:prior,search):[];
  if(gap.length)return stay(keep?'ambiguous':'unknown','One marked event ('+one.event.id+') was found, but '+(scope.unknown?'a marked event seen for this action was not fully recorded':(hold?'several were':'another one was')+' found earlier between '+prior.start+' and '+prior.end+' on '+prior.calendars.join(', '))+'; this search does not rule out another one. To clear '+(keep?'the hold':'it')+', '+gap.join(' and ')+(scope.unknown?'.':' completely.'),{matches:[one.calendarId+'/'+one.event.id],needs:gap});
  return {...readback(s,ref,id,{calendarId:one.calendarId,account:search.account,event:one.event},now,{fromReconcile:true}),conclusion:'one match read back'};}
-module.exports={LIVE_MAX_AGE_MS,ABSENCE_MARGIN_MS,PROFILE,key,marker,description,required,toConnector,actionErrors,evidence,times,live,compare,verify,recheck,pending,readback,reconcile};
+// Removals, direct write only. The event is read first: it must still be the block as Dayweave wrote it (its marker, title and
+// times); one the owner changed in Google Calendar is kept and reported. Then pending, one delete, and a read that must find it
+// gone (missing or cancelled) for executed; anything else is unverified and goes to the human. Nothing is retried.
+function written(s,p){const d=s.snapshot(),h=statusOf(d,p.replaces),q=h&&[...s.startedCopies(d),...d.proposals].find(x=>x&&x.id===h.id&&P.fingerprint(x)===h.fingerprint);return {h,q};}
+function removalCheck(s,p,ev){const {h,q}=written(s,p),out=[];if(!q||h?.status!=='executed')return ['The written block this removal names has no verified copy.'];
+ if(!plain(ev)||ev.status==='cancelled')return out;
+ if(!hasMarker(q,ev))out.push('The event no longer carries this block\'s Dayweave marker.');
+ if(ev.summary!==q.title)out.push('The event title was changed in Google Calendar.');
+ if(!instant(ev.start)||!instant(ev.end)||Date.parse(ev.start)!==Date.parse(q.start)||Date.parse(ev.end)!==Date.parse(q.end))out.push('The event was moved in Google Calendar.');
+ return out;}
+function removePending(s,ref,id,approval,ev,now=new Date()){const v=verify(s,ref,approval,[],now,{direct:true}),a=v.actions.find(x=>x.id===id);if(!a)throw Error('Action is not part of this exact approval');
+ const {p}=action(s,ref,id),problems=[...v.blockers,...a.errors,...removalCheck(s,p,ev)];if(problems.length)throw Error('Do not remove: '+[...new Set(problems)].join(' '));
+ A.record(s,{reference:v.reference,id,status:'pending',recordedAt:new Date(now).toISOString(),humanApproval:approval,evidence:'Event '+p.remoteRef+' read at '+new Date(now).toISOString()+(plain(ev)&&ev.status!=='cancelled'?' still matched the written block (marker, title, times).':' was already gone.')},{bridge:A.BRIDGE});
+ return {id,status:'pending'};}
+function removeOutcome(s,ref,id,after,now=new Date()){const {p,h}=action(s,ref,id);if(h?.status!=='pending')throw Error('Record pending before a removal outcome (current: '+(h?.status||'none')+').');
+ const gone=after===null||plain(after)&&after.status==='cancelled',at=new Date(now).toISOString();
+ A.record(s,{reference:ref,id,status:gone?'executed':'unverified',recordedAt:at,...(gone?{verifiedAt:at,remoteRef:p.remoteRef}:{}),evidence:gone?'Event '+p.remoteRef+' was read after the delete and is gone.':'Event '+p.remoteRef+' was still there after the delete, or the read failed. Human resolution required; do not retry automatically.'},{bridge:A.BRIDGE});
+ return {id,status:gone?'executed':'unverified'};}
+module.exports={written,removalCheck,removePending,removeOutcome,LIVE_MAX_AGE_MS,ABSENCE_MARGIN_MS,PROFILE,key,marker,description,required,toConnector,actionErrors,evidence,times,live,compare,verify,recheck,pending,readback,reconcile};

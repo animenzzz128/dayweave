@@ -201,7 +201,7 @@ export class DemoSource implements DataSource {
     if (changes.title !== undefined && changes.title !== p.title) delete p.titleZh;
     for (const k of ['title', 'start', 'end'] as const) if (changes[k] !== undefined) p[k] = changes[k] as string;
     // As on the server: an edited planner block is locked against regeneration; `locked: false` alone unlocks it.
-    if (p.origin === 'planner') { if (changes.locked === false && Object.keys(changes).length === 1) delete p.locked; else p.locked = true; }
+    if (p.origin === 'planner') { delete p.lockedBy; if (changes.locked === false && Object.keys(changes).length === 1) delete p.locked; else p.locked = true; }
     Core.validate(d);
     s.proposals = clone(d.proposals);
     this.invalidate([id]);
