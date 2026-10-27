@@ -42,7 +42,7 @@ Career cards now support source-backed roles and networking candidates, eligibil
 - **Rules.** Working hours, kept-free breaks and weekly goals (count, length, allowed days and hours) are saved on the Plan page. Recommended defaults: 09:00–24:00, lunch and dinner free, Gym 3×60, Job applications 4×60, LinkedIn connect 5×30.
 - **Order.** Interview prep (from email triaged as `interview`), then work due within 72 hours, then weekly goals, then the rest. Quizzes get 60 minutes of review over the two days before; exams 240 minutes over five days, at most 120 a day.
 - **Editing.** Drag to move, drag the lower edge to resize, ±15-minute nudges. An edited block is locked, so regenerating keeps it; blocks of an approved version are locked too, so a refresh never invalidates an approval before the write.
-- **Drafts every morning.** After each import the server drafts today (the time left) and tomorrow. A day with a planning gap, such as incomplete calendar coverage, keeps its blocks.
+- **Drafts every morning.** After each import the server drafts today (the time left) and the next four days, each block coloured on Google Calendar by what it is for. A day with a planning gap, such as incomplete calendar coverage, keeps its blocks.
 - **Estimates.** The collection task estimates open work from the instructions it already reads; these are labelled "AI estimate from the instructions", fill only empty or earlier AI estimates, and change only when the instructions change.
 
 ## Web demo (new front end)

@@ -3,6 +3,7 @@ import { useApp } from '../data/AppData';
 import { useI18n } from '../i18n/I18n';
 import { Core, Demo } from '../lib/shared';
 import { fitText, layoutLanes } from '../lib/overlap';
+import { CALENDAR_COLORS } from '../lib/calendarColors';
 import type { Proposal } from '../data/types';
 
 interface Block { id: string; title: string; start: number; end: number; kind: 'event' | 'draft' | 'done'; locked?: boolean; p?: Proposal }
@@ -75,7 +76,7 @@ export function PlanTimeline({ date, startHour, onChange }: { date: string; star
           return (
             <li key={b.id} title={`${times} ${b.title}`}
               className={`absolute overflow-hidden rounded-md px-2 ${fit.tight ? 'py-0' : 'py-0.5'} ${style[b.kind]} ${editable ? 'cursor-grab touch-none active:cursor-grabbing' : ''} ${drag?.id === b.id ? 'z-10 shadow-lg' : ''}`}
-              style={{ top: y(b.start), height: h, width: `calc(${w})`, left: `calc(4px + ${b.col} * (${w} + 3px))` }}
+              style={{ top: y(b.start), height: h, width: `calc(${w})`, left: `calc(4px + ${b.col} * (${w} + 3px))`, ...(b.p?.color ? { borderLeft: `4px solid ${CALENDAR_COLORS[b.p.color]}` } : {}) }}
               onPointerDown={begin(b, 'move')}>
               <span className={`block font-medium ${fit.title}`} style={fit.style}>{b.locked && <span aria-label={t.plan.locked}>🔒 </span>}{b.title}</span>
               {fit.times && <span className="block truncate text-[11px] leading-4 opacity-80">{times}</span>}

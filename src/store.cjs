@@ -1,7 +1,7 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),{DatabaseSync}=require('node:sqlite');
 const C=require('./core.cjs'),R=require('./routine.cjs'),E=require('./effort.cjs'),W=require('./workload.cjs'),T=require('./trends.cjs');
-const collections=['courses','assignments','events','proposals','sources'],MAX_SNAPSHOT_READ=1000,MAX_OPEN_TODOS=200;
+const collections=['courses','assignments','events','proposals','sources'],MAX_SNAPSHOT_READ=1000,MAX_OPEN_TODOS=200,PLAN_DAYS=5;
 const validId=id=>typeof id==='string'&&!!id&&id.length<=1000&&!['__proto__','constructor','prototype'].includes(id);
 class Store{
  constructor(dir){this.dir=dir;fs.mkdirSync(dir,{recursive:true});this.file=path.join(dir,'dayweave.sqlite');this.open();}
@@ -67,21 +67,34 @@ class Store{
  // The owner's planning rules (planner.planSettings), kept apart from the source snapshot so collection never touches them.
  planSettings(){const row=this.db.prepare("SELECT value FROM meta WHERE key='planSettings'").get();return row?JSON.parse(row.value):null;}
  savePlanSettings(v){const PL=require('./planner.cjs'),clean=PL.planSettings(v);this.db.prepare("INSERT OR REPLACE INTO meta VALUES('planSettings',?)").run(JSON.stringify(clean));this.log('plan','settings','planSettings',{habits:clean.habits.length});return clean;}
- generatePlan(date,now=new Date(),{auto=false}={}){const PL=require('./planner.cjs');return this.transaction(()=>{const d=this.snapshot();if(!d)throw Error('No database snapshot');const st=this.state();
-  // Blocks in a version the owner approved stay put: regenerating them would invalidate the approval before the write.
-  const approved=new Set(this.db.prepare("SELECT a.value FROM approvals a JOIN owner_approvals o ON o.id=a.id WHERE a.status='prepared'").all().flatMap(r=>JSON.parse(r.value).map(p=>p.id)));
-  for(const p of d.proposals)if(approved.has(p.id)&&p.origin==='planner')p.locked=true;
+ generatePlan(date,now=new Date(),{auto=false}={}){return this.transaction(()=>this.planDay(date,now,{auto}));}
+ // Several days in one go, earliest first (PLAN_DAYS from `from`). Each day's replaceable drafts are cleared before the first day
+ // is planned, so old drafts on later days do not count as coverage and every day sees the new blocks of the days before it.
+ // A day that cannot be planned gets its drafts back when `auto` is set (the automatic run never clears such a day).
+ generatePlans(from,days=PLAN_DAYS,now=new Date(),{auto=false}={}){const PL=require('./planner.cjs');if(!PL.validDate(from))throw Error('Choose a valid date (YYYY-MM-DD).');
+  if(!Number.isInteger(days)||days<1||days>PLAN_DAYS)throw Error('Plan 1 to '+PLAN_DAYS+' days at a time.');
+  return this.transaction(()=>{const d=this.snapshot();if(!d)throw Error('No database snapshot');this.lockApproved(d);
+   const dates=Array.from({length:days},(_,i)=>i?PL.addDays(from,i):from),cleared=new Map(dates.map(k=>[k,d.proposals.filter(p=>PL.replaceable(d,p,k))])),gone=new Set([...cleared.values()].flat().map(p=>p.id));
+   d.proposals=d.proposals.filter(p=>!gone.has(p.id));this.writeSnapshot(d);
+   return dates.map(date=>{let r;try{r=this.planDay(date,now,{auto,cleared:cleared.get(date)});}catch(e){r={ready:false,error:e.message,blocks:[],gaps:[]};}
+    if((!r.ready&&auto||r.error)&&cleared.get(date).length){const x=this.snapshot();x.proposals.push(...cleared.get(date));this.writeSnapshot(x);}
+    return {date,ready:!!r.ready,blocks:r.ready?r.blocks.length:0,gaps:r.gaps.length,...(r.error?{error:r.error}:{})};});});}
+ // Blocks in a version the owner approved stay put: regenerating them would invalidate the approval before the write.
+ lockApproved(d){const approved=new Set(this.db.prepare("SELECT a.value FROM approvals a JOIN owner_approvals o ON o.id=a.id WHERE a.status='prepared'").all().flatMap(r=>JSON.parse(r.value).map(p=>p.id)));
+  for(const p of d.proposals)if(approved.has(p.id)&&p.origin==='planner')p.locked=true;}
+ // One day inside a caller's transaction. `cleared` lists this day's drafts a multi-day run already removed (for the summary).
+ planDay(date,now,{auto=false,cleared=[]}={}){const PL=require('./planner.cjs'),d=this.snapshot();if(!d)throw Error('No database snapshot');const st=this.state();this.lockApproved(d);
   const result=PL.plan({snapshot:d,date,now,todos:st.todo,archive:st.archive,dismissed:st.dismissed,started:this.startedCopies(d),settings:this.planSettings()||PL.planSettings(PL.RECOMMENDED),emailTriage:st.emailTriage});
   // The automatic run after a collection never clears blocks on a day it cannot plan (for example incomplete coverage).
   if(auto&&!result.ready)return result;
-  const ids=new Set(result.blocks.map(b=>b.id)),replaced=d.proposals.filter(p=>PL.replaceable(d,p,date)).map(p=>p.id).filter(id=>!ids.has(id));
+  const ids=new Set(result.blocks.map(b=>b.id)),replaced=[...cleared,...d.proposals.filter(p=>PL.replaceable(d,p,date))].map(p=>p.id).filter(id=>!ids.has(id));
   d.proposals=[...d.proposals.filter(p=>!PL.replaceable(d,p,date)),...result.blocks];C.validate(d);this.writeSnapshot(d);
   this.db.prepare('INSERT OR REPLACE INTO progress VALUES(?,?,?,?)').run('plan',date,JSON.stringify({...PL.summary(result),replaced}),result.generatedAt);
   this.db.prepare("DELETE FROM progress WHERE kind='plan' AND id<?").run(new Date(+new Date(now)-30*86400000).toISOString().slice(0,10));
-  this.invalidate();this.log('plan','generated',date,{blocks:result.blocks.map(b=>b.id),replaced,unscheduled:result.unscheduled.length,gaps:result.gaps});return result;});}
- // After each collection: drafts for today (the time left) and tomorrow. A day that cannot be planned keeps its blocks.
- autoPlan(now=new Date()){const PL=require('./planner.cjs'),d=this.snapshot();if(!d)return [];C.configure(d.timezone);const today=C.dayKey(now);
-  return [today,PL.nextDay(today)].map(date=>{try{const r=this.generatePlan(date,now,{auto:true});return {date,ready:!!r.ready,blocks:r.ready?r.blocks.length:0,gaps:r.gaps.length};}catch(e){return {date,ready:false,error:e.message};}});}
+  this.invalidate();this.log('plan','generated',date,{blocks:result.blocks.map(b=>b.id),replaced,unscheduled:result.unscheduled.length,gaps:result.gaps});return result;}
+ // After each collection: drafts for today (the time left) and the next PLAN_DAYS-1 days. A day that cannot be planned keeps its blocks.
+ autoPlan(now=new Date()){const d=this.snapshot();if(!d)return [];C.configure(d.timezone);const today=C.dayKey(now);
+  try{return this.generatePlans(today,PLAN_DAYS,now,{auto:true});}catch(e){return [{date:today,ready:false,error:e.message}];}}
  migrateProgress(local){if(this.db.prepare("SELECT 1 FROM meta WHERE key='browser-migrated'").get())return false;this.dailyBackup();for(const kind of ['checks','actual','career','help','archive','dismissed'])for(const [id,value] of Object.entries(local[kind]||{})){if(this.db.prepare('SELECT 1 FROM progress WHERE kind=? AND id=?').get(kind,id))continue;this.saveState(kind,id,value);}this.db.prepare("INSERT INTO meta VALUES('browser-migrated',?)").run(new Date().toISOString());return true;}
  history({kind='',status='',query='',from='',to='',page=1}={}){page=Math.max(1,Number(page)||1);const where='(?=\'\' OR kind=?) AND (?=\'\' OR status=?) AND label LIKE ? AND (?=\'\' OR at>=?) AND (?=\'\' OR substr(at,1,10)<=?)',args=[kind,kind,status,status,'%'+query+'%',from,from,to,to];return {page,total:this.db.prepare('SELECT count(*) AS n FROM audit WHERE '+where).get(...args).n,items:this.db.prepare('SELECT * FROM audit WHERE '+where+' ORDER BY id DESC LIMIT 20 OFFSET ?').all(...args,(page-1)*20).map(r=>({...r,value:JSON.parse(r.value)}))};}
  recordRun(run){const r=R.runRecord(run);this.db.prepare('INSERT OR REPLACE INTO runs VALUES(?,?,?)').run(r.id,r.startedAt,JSON.stringify(r));return r;}
@@ -112,4 +125,4 @@ class Store{
  // calendar ID) no longer matches the destination it was reviewed for.
  invalidate(){const d=this.snapshot(),cov=d.calendarCoverage||{},moved=p=>C.calendarProvider(p)!==C.calendarProvider(cov)||p.account!==cov.account||(C.calendarProvider(p)==='google'&&p.calendarId!==cov.calendarId);for(const r of this.db.prepare("SELECT * FROM approvals WHERE status='prepared'").all()){const expected=JSON.parse(r.fingerprints);if(JSON.parse(r.value).some(moved)||Object.entries(expected).some(([id,f])=>{const p=d.proposals.find(p=>p.id===id);return !p||require('./phase2.cjs').fingerprint(p)!==f;}))this.db.prepare("UPDATE approvals SET status='invalidated' WHERE id=?").run(r.id);}}
 }
-module.exports={Store};
+module.exports={Store,PLAN_DAYS};

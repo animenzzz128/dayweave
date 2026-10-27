@@ -1,7 +1,7 @@
 import template from '../../../examples/luna-demo.json';
 import { Core, Demo, Effort, Phase2, Planner, Todos } from '../lib/shared';
 import { trackEvent } from '../lib/analytics';
-import type { Approval, DataSource, Loaded, PlanResult, PlanSettings, Progress, Proposal, Receipt, Snapshot, Todo, WriteResult } from './types';
+import type { Approval, DataSource, Loaded, PlanDay, PlanResult, PlanSettings, Progress, Proposal, Receipt, Snapshot, Todo, WriteResult } from './types';
 
 // The public demo keeps everything in this browser. Nothing is sent anywhere, and Reset returns to the original Luna data.
 const KEY = 'dayweave.demo.v1';
@@ -166,6 +166,18 @@ export class DemoSource implements DataSource {
     const result = this.planDay(d, s, date, new Date());
     this.save();
     return result;
+  }
+
+  // As on the server: every day's replaceable drafts are cleared first, so old drafts on later days do not count as coverage.
+  async generatePlans(from: string, days: number): Promise<PlanDay[]> {
+    const { d, s } = this.build(), now = new Date();
+    const dates = Array.from({ length: days }, (_, i) => Demo.addDays(from, i) as string);
+    const cleared = d.proposals.filter((p) => dates.some((k) => Planner.replaceable(d, p, k))).map((p) => p.id);
+    d.proposals = d.proposals.filter((p) => !cleared.includes(p.id));
+    this.invalidate(cleared);
+    const out = dates.map((date) => { const r = this.planDay(d, s, date, now); return { date, ready: !!r.ready, blocks: r.ready ? r.blocks.length : 0, gaps: r.gaps.length }; });
+    this.save();
+    return out;
   }
 
   // As on the server: replaceable drafts for the day give way to new ones, and the summary is kept for the Plan page.

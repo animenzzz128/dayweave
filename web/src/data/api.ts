@@ -1,4 +1,4 @@
-import type { Approval, DataSource, HistoryPage, Loaded, PlanResult, PlanSettings, Proposal, Run, Todo, Trends, WriteResult } from './types';
+import type { Approval, DataSource, HistoryPage, Loaded, PlanDay, PlanResult, PlanSettings, Proposal, Run, Todo, Trends, WriteResult } from './types';
 
 // Client for the existing Dayweave server (development port, synthetic data). The server owns every rule: sessions, CSRF,
 // validation, approvals and backups. This class only forwards requests.
@@ -41,6 +41,7 @@ export class ApiSource implements DataSource {
   async saveTodo(todo: Partial<Todo>) { await this.call('todos/save', { todo }); }
   async completeTodo(id: string, done: boolean) { await this.call('todos/complete', { id, done }); }
   async generatePlan(date: string) { return this.call<PlanResult>('plan/generate', { date }); }
+  async generatePlans(from: string, days: number) { return (await this.call<{ days: PlanDay[] }>('plan/generate', { date: from, days })).days; }
   async editProposal(id: string, changes: Partial<Proposal>) { await this.call('proposals/edit', { id, changes }); }
   async savePlanSettings(settings: PlanSettings) { await this.call('plan/settings', { settings }); }
   async prepare(ids: string[]) { return this.call<Approval>('approvals/prepare', { ids }); }

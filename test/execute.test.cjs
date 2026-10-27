@@ -10,7 +10,7 @@ function setup(s){C.configure(TZ);const real=Date.now(),today=C.dayKey(real),tom
  return {d:s.snapshot(),p,q:A.prepare(s,[p.id]),k:G.key(s.storeId(),p)};}
 const offset=x=>new Date(Date.parse(x)-4*3600000).toISOString().replace(/\.\d+Z$/,'-04:00');
 const liveRead=(d,p)=>({checkedAt:new Date().toISOString(),provider:'google',account:p.account,start:new Date(Date.parse(p.start)-3600000).toISOString(),end:new Date(Date.parse(p.end)+3600000).toISOString(),reads:d.calendarCoverage.calendars.map(c=>({calendarId:c.id,complete:true,events:[]}))});
-const saved=(p,k)=>({...structuredClone(SAMPLE),id:'evt'+k.slice(2,12),summary:p.title,description:G.description(p,k),start:offset(p.start),end:offset(p.end),location:'',reminders:{use_default:false,overrides:[{method:'popup',minutes:p.reminderMinutes}]}});
+const saved=(p,k)=>({...structuredClone(SAMPLE),id:'evt'+k.slice(2,12),summary:p.title,description:G.description(p,k),start:offset(p.start),end:offset(p.end),location:'',color_id:p.color??null,reminders:{use_default:false,overrides:[{method:'popup',minutes:p.reminderMinutes}]}});
 async function withApp(fn){const dir=fs.mkdtempSync(path.join(os.tmpdir(),'dw-exec-')),s=build(dir,{executeSecret:EXEC,ingestSecret:INGEST});await new Promise(r=>s.listen(0,'127.0.0.1',r));
  const base='http://127.0.0.1:'+s.address().port,j=async r=>({status:r.status,body:await r.json()});
  const session=await fetch(base+'/api/session'),cookie=session.headers.get('set-cookie').split(';')[0],{csrf}=await session.json();

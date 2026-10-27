@@ -14,7 +14,7 @@ const offset=x=>new Date(Date.parse(x)-4*H).toISOString().replace(/\.\d+Z$/,'-04
 // A live re-read `before`/`after` hours around the action, one complete read per coverage calendar (plus `extra` calendars).
 const read=(s,p,{before=1,after=1,events={},extra=[],complete=true}={})=>({checkedAt:new Date().toISOString(),provider:'google',account:p.account,start:new Date(Date.parse(p.start)-before*H).toISOString(),end:new Date(Date.parse(p.end)+after*H).toISOString(),
  reads:[...s.snapshot().calendarCoverage.calendars.map(c=>c.id),...extra].map(id=>({calendarId:id,complete:id===DEST?complete:true,events:events[id]||[]}))});
-const marked=(p,k,id,shiftH=0)=>({...structuredClone(SAMPLE),id,summary:p.title,description:G.description(p,k),start:offset(new Date(Date.parse(p.start)+shiftH*H).toISOString()),end:offset(new Date(Date.parse(p.end)+shiftH*H).toISOString()),location:'',reminders:{use_default:false,overrides:[{method:'popup',minutes:p.reminderMinutes}]}});
+const marked=(p,k,id,shiftH=0)=>({...structuredClone(SAMPLE),id,summary:p.title,description:G.description(p,k),start:offset(new Date(Date.parse(p.start)+shiftH*H).toISOString()),end:offset(new Date(Date.parse(p.end)+shiftH*H).toISOString()),location:'',color_id:p.color??null,reminders:{use_default:false,overrides:[{method:'popup',minutes:p.reminderMinutes}]}});
 const withStore=fn=>{const dir=fs.mkdtempSync(path.join(os.tmpdir(),'dw-guards-')),s=new Store(dir);try{return fn(s,dir);}finally{s.close();fs.rmSync(dir,{recursive:true,force:true});}};
 const receipt=(s,id)=>s.snapshot().actionHistory.find(h=>h.id===id);
 // Started one action under a fresh exact version.

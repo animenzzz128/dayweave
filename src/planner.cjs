@@ -13,6 +13,11 @@ const SETTINGS=Object.freeze({dayStart:'09:00',dayEnd:'24:00',breaks:[],habits:[
 // mail the owner or the collector marks `interview` gets preparation time ahead of everything else.
 const REVIEW=Object.freeze([{kind:'exam',re:/\b(exam|midterm)s?\b|\bfinal exam/i,minutes:240,perDay:120,days:5},{kind:'quiz',re:/\bquiz/i,minutes:60,perDay:60,days:2}]);
 const INTERVIEW=Object.freeze({minutes:120,undated:60,perDay:120});
+// Google Calendar event colours (colorId 1–11) by what a block is for, so written blocks read apart on the calendar. A weekly
+// goal uses its own `color` when set, else the default for its recommended ID, else HABIT_COLOR.
+const COLORS=Object.freeze({coursework:'9',review:'6',interview:'11',todo:'5'}),HABIT_COLOR='2',HABIT_COLORS=Object.freeze({gym:'10','job-applications':'3',linkedin:'3'});
+const COLOR_IDS=Object.freeze(['1','2','3','4','5','6','7','8','9','10','11']);
+const habitColor=h=>h.color||HABIT_COLORS[h.id]||HABIT_COLOR;
 // Suggested rules used until the owner saves their own (docs/data-contract.md, planning settings).
 const RECOMMENDED=Object.freeze({dayStart:'09:00',dayEnd:'24:00',breaks:[{start:'12:00',end:'13:00'},{start:'18:00',end:'19:00'}],habits:[
  {id:'gym',title:'Gym',minutes:60,perWeek:3,days:[1,2,3,4,5],windows:[{start:'07:00',end:'09:00'},{start:'17:00',end:'19:00'}]},
@@ -35,7 +40,8 @@ function planSettings(v){if(!v||typeof v!=='object'||Array.isArray(v))throw Erro
   const windows=(h.windows||[]).map((w,j)=>span(w,title+' window '+(j+1)));if(!windows.length||windows.length>3)throw Error(title+': use one to three time windows.');
   if(windows.some(w=>hmMin(w.start)<420))throw Error(title+': windows cannot start before 07:00 (sleep window).');
   if(windows.every(w=>hmMin(w.end)-hmMin(w.start)<minutes))throw Error(title+': a window must fit one '+minutes+'-minute session.');
-  return {id,title,minutes,perWeek,days,windows,enabled:h.enabled!==false};})};}
+  if(h.color!=null&&!COLOR_IDS.includes(String(h.color)))throw Error(title+': choose one of the calendar colours.');
+  return {id,title,minutes,perWeek,days,windows,enabled:h.enabled!==false,...(h.color!=null?{color:String(h.color)}:{})};})};}
 const isoDay=k=>new Date(Date.parse(k+'T12:00:00Z')).getUTCDay()||7;
 const addDays=(k,n)=>new Date(Date.parse(k+'T12:00:00Z')+n*86400000).toISOString().slice(0,10);
 const MIN=60000,DONE=['submitted','graded','excused'],ATTEMPTED=['pending','unverified','executed'];
@@ -171,7 +177,7 @@ function plan({snapshot:d,date,now=new Date(),todos={},archive={},dismissed={},s
    for(const w of h.windows){const ws=Math.max(+now,at(date,w.start)),we=Math.min(to,at(date,w.end));if(we-ws<h.minutes*MIN)continue;t0=slot(h.minutes*MIN,ws,we,merge(blocked),s.step);if(t0!==null)break;}
    if(t0===null){why='No free '+h.minutes+'-minute slot in its windows ('+h.windows.map(w=>w.start+'–'+w.end).join(', ')+') today.';break;}
    const b={start:new Date(t0).toISOString(),end:new Date(t0+h.minutes*MIN).toISOString()},title=h.title.slice(0,200),id='plan-'+date+'-'+hash(['habit',h.id,b.start,b.end,title,cov.account,cov.calendarId].join('|'));
-   const p={id,title,start:b.start,end:b.end,status:'proposed',action:'create',provider:'google',account:cov.account,calendar:cov.calendar,calendarId:cov.calendarId,timezone:d.timezone,recurrence:'One time',attendees:[],location:'',busy:true,reminderMinutes:s.reminderMinutes,
+   const p={id,title,start:b.start,end:b.end,status:'proposed',action:'create',provider:'google',account:cov.account,calendar:cov.calendar,calendarId:cov.calendarId,timezone:d.timezone,recurrence:'One time',attendees:[],location:'',busy:true,reminderMinutes:s.reminderMinutes,color:habitColor(h),
     body:`Dayweave block for the weekly goal "${h.title}".`,source:'',origin:'planner',planDate:date,sourceRefs:[{kind:'habit',id:h.id}],
     reason:`Weekly goal: session ${done+placed+1} of ${h.perWeek} this week · ${h.minutes} minutes.`};
    const errs=P.errors(p,{...d,proposals:[]},now,[...startedCopies.values()]);if(errs.length){why='Rejected by calendar checks: '+errs.join(' ');break;}
@@ -202,6 +208,7 @@ function plan({snapshot:d,date,now=new Date(),todos={},archive={},dismissed={},s
    const b={start:new Date(at).toISOString(),end:new Date(at+len*MIN).toISOString()};
    const title=((t.interview?'Interview prep: ':t.review?'Review: ':'Focus: ')+t.title).slice(0,200),id='plan-'+date+'-'+hash([t.kind,t.id,t.version??'',b.start,b.end,title,cov.account,cov.calendarId].join('|'));
    const p={id,title,start:b.start,end:b.end,status:'proposed',action:'create',provider:'google',account:cov.account,calendar:cov.calendar,calendarId:cov.calendarId,timezone:d.timezone,recurrence:'One time',attendees:[],location:'',busy:true,reminderMinutes:s.reminderMinutes,
+    color:COLORS[t.interview?'interview':t.review?'review':t.kind==='todo'?'todo':'coursework'],
     body:t.interview?'Dayweave preparation block for an interview email.':`Dayweave ${t.review?'review':'focus'} block for ${t.kind==='todo'?'todo':'assignment'} "${t.title}".`,source:t.kind==='assignment'?t.source:'',origin:'planner',planDate:date,
     sourceRefs:[{kind:t.kind,id:t.id,...(t.kind==='todo'?{version:t.version}:t.kind==='email'?{}:{dueAt:t.dueAt,estimateMinutes:t.estimateMinutes})}],
     reason:`${t.interview?'Interview preparation'+(t.dueAt?' before '+local(t.dueAt):' (interview time not stated)'):t.review?'Review for the '+t.review+' on '+local(t.dueAt):(t.kind==='todo'?'Todo':'Required coursework')+(t.dueAt?' due '+local(t.dueAt):' with no deadline')+(t.unread?' · submission status not read: remove this block if it is already submitted':'')} · block ${i+1} of ${parts.length} · ${len} of ${need} remaining minutes${have?` (${have} already planned)`:''}.`};
@@ -230,6 +237,6 @@ function ownEventIds(d){const receipt=new Map((d.actionHistory||[]).filter(h=>AT
  // An event found only by its receipt, with no copy left to draw in its place, stays visible.
  const refs=new Map((d.actionHistory||[]).filter(h=>h.status==='executed'&&h.remoteRef).map(h=>[h.remoteRef,h.id])),ref=e=>refs.get(e.remoteRef)??refs.get(e.id)??(e.calendarId&&e.id?refs.get(e.calendarId+'/'+e.id):undefined);
  return new Set([...ownEvents(d,copies,occ)].filter(e=>{const id=ref(e);return id===undefined||copies.has(id);}).map(e=>e.id));}
-const api={SETTINGS,RECOMMENDED,REVIEW,INTERVIEW,validDate,nextDay,hash,chunks,merge,minutesFree,slot,sourceProblem,candidates,gaps,plan,summary,keep,replaceable,attempted,ATTEMPTED,planSettings,isoDay,ownEventIds};
+const api={addDays,SETTINGS,RECOMMENDED,COLORS,HABIT_COLOR,HABIT_COLORS,COLOR_IDS,habitColor,REVIEW,INTERVIEW,validDate,nextDay,hash,chunks,merge,minutesFree,slot,sourceProblem,candidates,gaps,plan,summary,keep,replaceable,attempted,ATTEMPTED,planSettings,isoDay,ownEventIds};
 if(typeof module!=='undefined')module.exports=api;else window.PlannerPlanner=api;
 })();

@@ -31,7 +31,7 @@ function createServer(dir,{hosted=null,ingestSecret='',executeSecret='',canvasIc
   let raw='';for await(const part of req){raw+=part;if(raw.length>5e6)throw Error('Request too large');}const incoming=JSON.parse(raw||'null');
   if(u.searchParams.get('dryRun')==='1')return send(200,{ok:true,dryRun:true,...store.previewImport(incoming)});
   const archived=store.previewImport(incoming).archived,d=store.importSnapshot(incoming);
-  // Drafts for the rest of today and for tomorrow follow every collection (docs/data-contract.md, daily plan). Locked blocks stay.
+  // Drafts for the rest of today and the next four days follow every collection (docs/data-contract.md, daily plan). Locked blocks stay.
   return send(200,{ok:true,generatedAt:d.generatedAt,assignments:d.assignments.length,events:d.events.length,archived,plans:store.autoPlan()});}
  // The calendar executor (docs/cloud-execute.md) uses its own bearer secret and only acts on versions the owner approved here.
  if(u.pathname==='/api/execute'||u.pathname.startsWith('/api/execute/')){if(!allow('execute:'+ip,60,3600000))return send(429,{error:'Too many requests'});if(!H.ingestAuthorized(req,executeSecret))return send(401,{error:'Invalid executor credentials'});
@@ -52,7 +52,7 @@ function createServer(dir,{hosted=null,ingestSecret='',executeSecret='',canvasIc
  if(req.method==='POST'&&u.pathname==='/api/effort/clear')return send(200,store.clearEffort(body.id));
  if(req.method==='POST'&&u.pathname==='/api/todos/save')return send(200,store.saveTodo(body?.todo));
  if(req.method==='POST'&&u.pathname==='/api/todos/complete')return send(200,store.completeTodo(body?.id,body?.done));
- if(req.method==='POST'&&u.pathname==='/api/plan/generate')return send(200,store.generatePlan(body?.date));
+ if(req.method==='POST'&&u.pathname==='/api/plan/generate')return send(200,body?.days==null?store.generatePlan(body?.date):{days:store.generatePlans(body?.date,body.days)});
  if(req.method==='POST'&&u.pathname==='/api/workload-mode')return send(200,{mode:store.setWorkloadMode(body?.mode)});
  if(req.method==='POST'&&u.pathname==='/api/migrate-progress')return send(200,{migrated:store.migrateProgress(body)});
  if(req.method==='POST'&&u.pathname==='/api/approvals/approve')return send(200,{approval:X.approve(store,body?.reference,hosted?session.email:'local owner')});

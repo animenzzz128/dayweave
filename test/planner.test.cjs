@@ -108,3 +108,15 @@ test('work whose source cannot report submission is planned with a note; other u
  // An import keeps its unstarted block while the work stays unread and open.
  const after={...d,generatedAt:now,calendarCoverage:d.calendarCoverage,proposals:[]};a.deepEqual(PL.keep({...d,proposals:[feed]},after).map(p=>p.id),[feed.id]);
 });
+test('blocks carry a Google Calendar colour by what they are for; weekly goals can choose their own',()=>{
+ a.equal(PL.habitColor({id:'gym'}),'10');a.equal(PL.habitColor({id:'job-applications'}),'3');a.equal(PL.habitColor({id:'reading'}),PL.HABIT_COLOR);a.equal(PL.habitColor({id:'gym',color:'4'}),'4');
+ const goal={id:'reading',title:'Reading',minutes:30,perWeek:2,days:[1],windows:[{start:'19:00',end:'21:00'}]};
+ a.equal(PL.planSettings({habits:[{...goal,color:'7'}]}).habits[0].color,'7');a.equal('color' in PL.planSettings({habits:[goal]}).habits[0],false);
+ a.throws(()=>PL.planSettings({habits:[{...goal,color:'12'}]}),/calendar colours/);
+ const p={id:'x',title:'Focus: X',start:'2026-10-28T14:00:00.000Z',end:'2026-10-28T15:00:00.000Z',account:'a',calendar:'c',timezone:TZ};
+ a.notEqual(P.fingerprint({...p,color:'9'}),P.fingerprint(p),'the colour is part of the reviewed version');a.equal(P.fingerprint({...p,color:undefined}),P.fingerprint(p),'legacy blocks keep their fingerprint');
+ a.ok(P.errors({...p,color:'0'},{timezone:TZ,events:[],proposals:[]}).some(e=>/colour/.test(e)));a.ok(!P.errors({...p,color:'11'},{timezone:TZ,events:[],proposals:[]}).some(e=>/colour/.test(e)));
+ const date='2026-10-28',now=C.zonedISO(date,'08:00'),d=snap(date,now,x=>{x.assignments.push({...x.assignments[0],id:'quiz',title:'Quiz 3',requirement:'required',status:'not_submitted',estimateMinutes:30,dueAt:C.zonedISO(PL.nextDay(date),'10:00')});return x;});
+ const r=PL.plan({snapshot:d,date,now,todos:{t1:{id:'t1',title:'Synthetic todo',minutes:30,version:1}}});
+ const by=re=>r.blocks.find(b=>re.test(b.title));a.equal(by(/^Review: /)?.color,PL.COLORS.review);a.equal(by(/^Focus: Task/)?.color,PL.COLORS.coursework);
+});
