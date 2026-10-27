@@ -87,3 +87,24 @@ test('with the real clock, plans for today and tomorrow never place blocks in th
   if(Date.parse(C.zonedISO(PL.nextDay(date),'00:00'))<=+real){a.equal(r.ready,false);continue;}
   for(const b of r.blocks){a.ok(Date.parse(b.start)>=+real);a.ok(Date.parse(b.start)>=Date.parse(r.window.start)&&Date.parse(b.end)<=Date.parse(r.window.end));}}
 });
+
+test('distant work is spread over the days to its deadline and starts only when it needs to; nearer work keeps the room',()=>{
+ const date='2026-10-14',now=C.zonedISO(date,'08:00'),day=(n,t)=>C.zonedISO(new Date(Date.parse(date+'T12:00:00Z')+n*86400000).toISOString().slice(0,10),t);
+ const d=snap(date,now,x=>{x.calendarCoverage.end=day(30,'00:00');x.assignments=[x.assignments[0]].map(b=>[
+  {...b,id:'sprint',title:'Sprint',estimateMinutes:480,dueAt:day(14,'23:59')},{...b,id:'later',title:'Later sprint',estimateMinutes:420,dueAt:day(21,'23:59')},
+  {...b,id:'near',title:'Near',estimateMinutes:120,dueAt:day(4,'08:00')},{...b,id:'urgent',title:'Urgent',estimateMinutes:150,dueAt:day(1,'18:00')}]).flat()
+  .map(a=>({...a,source:'https://example.com/assignments/'+a.id,sourceId:'course-a',requirement:'required',status:'not_submitted'}));return x;});
+ const r=PL.plan({snapshot:d,date,now}),mins=id=>r.blocks.filter(b=>b.sourceRefs[0].id===id).reduce((n,b)=>n+(Date.parse(b.end)-Date.parse(b.start))/MIN,0),why=reasons(r);
+ a.equal(mins('urgent'),150,'work due within 72 hours is planned in full');
+ a.equal(mins('sprint'),60,'480 minutes over 14 days: the 60-minute daily minimum');a.match(why.sprint,/Spread over the 14 days/);
+ a.equal(mins('near'),60,'120 minutes over 4 days');a.equal(mins('later'),0);a.match(why.later,/Starts 14 days before its deadline/);
+});
+
+test('work whose source cannot report submission is planned with a note; other unknown status is still verified first',()=>{
+ const date='2026-10-14',now=C.zonedISO(date,'08:00');
+ const d=snap(date,now,x=>{x.assignments=x.assignments.filter(a=>['unknown','soon'].includes(a.id));x.assignments.push({...x.assignments.find(a=>a.id==='unknown'),id:'feed',title:'Task feed',statusUnread:true,dueAt:C.zonedISO(date,'21:00')});return x;});
+ const r=PL.plan({snapshot:d,date,now}),feed=r.blocks.find(b=>b.sourceRefs[0].id==='feed');
+ a.ok(feed);a.match(feed.reason,/submission status not read: remove this block if it is already submitted/);a.match(reasons(r).unknown,/Submission status unknown/);
+ // An import keeps its unstarted block while the work stays unread and open.
+ const after={...d,generatedAt:now,calendarCoverage:d.calendarCoverage,proposals:[]};a.deepEqual(PL.keep({...d,proposals:[feed]},after).map(p=>p.id),[feed.id]);
+});

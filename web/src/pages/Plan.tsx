@@ -97,7 +97,7 @@ export function Plan({ params }: { params: URLSearchParams }) {
 
           {!!summary?.unscheduled?.length && (
             <Section title={t.plan.unfit} aside={t.plan.unfitNote}>
-              <ul className="list-disc space-y-1 pl-5 text-sm text-muted">{summary.unscheduled.filter((u) => !/^Already covered/.test(u.reason)).map((u, i) => <li key={i}><span className="text-ink">{u.title}</span>: {u.reason}</li>)}</ul>
+              <ul className="list-disc space-y-1 pl-5 text-sm text-muted">{summary.unscheduled.filter((u) => !/^(Already covered|Spread over)/.test(u.reason)).map((u, i) => <li key={i}><span className="text-ink">{u.title}</span>: {u.reason}</li>)}</ul>
             </Section>
           )}
 
