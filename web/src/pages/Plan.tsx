@@ -39,14 +39,19 @@ export function Plan({ params }: { params: URLSearchParams }) {
   const onDay = d.proposals.filter((p) => f.dayKey(p.start) === date).sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
   const dismissed = (p: Proposal) => !!progress.dismissed?.[p.id];
   const live = onDay.filter((p) => !dismissed(p));
-  const removed = onDay.filter((p) => dismissed(p) && !started(p.id));
+  const removed = onDay.filter((p) => dismissed(p) && !started(p.id) && p.action !== 'delete');
+  // A removal (action delete) names the written block it takes off the calendar; that block no longer holds time or counts.
+  const sup = Phase2.superseded(d, progress.dismissed ?? {}) as Map<string, Proposal>;
+  const counts = (p: Proposal) => p.action !== 'delete' && !sup.has(p.id);
+  const blocks = live.filter((p) => p.action !== 'delete');
   const versionOf = (p: Proposal) => approvals.find((a) => a.value.some((x) => x.id === p.id) && a.fingerprints[p.id] === Phase2.fingerprint(p) && ['prepared', 'executed', 'pending', 'partial', 'unverified'].includes(a.status));
   const open = live.filter((p) => !started(p.id) && !versionOf(p)?.approval);
   // Request checks cover calendar events; two Dayweave blocks moved onto each other are caught here and kept out of the version.
-  const clash = (p: Proposal) => live.some((x) => x.id !== p.id && Date.parse(x.start) < Date.parse(p.end) && Date.parse(p.start) < Date.parse(x.end));
+  const overlaps = (p: Proposal, list: Proposal[]) => counts(p) && list.some((x) => x.id !== p.id && counts(x) && Date.parse(x.start) < Date.parse(p.end) && Date.parse(p.start) < Date.parse(x.end));
+  const clash = (p: Proposal) => overlaps(p, live);
   const ok = open.filter((p) => !clash(p) && !Phase2.errors(p, d, now, []).length);
   const summary = (progress.plan as Record<string, Summary> | undefined)?.[date];
-  const planned = live.reduce((n, p) => n + minutes(p), 0);
+  const planned = live.filter(counts).reduce((n, p) => n + minutes(p), 0);
   const usable = summary?.usable?.minutes ?? 0;
   const early = live.some((p) => Date.parse(p.start) < Date.parse(Core.zonedISO(date, '09:00'))) || planSettings.dayStart < '09:00';
   // The day version: an exact match for the open, passing blocks of this day, if one is already prepared.
@@ -58,7 +63,7 @@ export function Plan({ params }: { params: URLSearchParams }) {
   // The whole week: every open, passing block of the next PLAN_DAYS days in one version.
   const week = new Set(days.slice(0, PLAN_DAYS));
   const weekLive = d.proposals.filter((p) => week.has(f.dayKey(p.start)) && !dismissed(p));
-  const weekOk = weekLive.filter((p) => !started(p.id) && !versionOf(p)?.approval && !weekLive.some((x) => x.id !== p.id && Date.parse(x.start) < Date.parse(p.end) && Date.parse(p.start) < Date.parse(x.end)) && !Phase2.errors(p, d, now, []).length);
+  const weekOk = weekLive.filter((p) => !started(p.id) && !versionOf(p)?.approval && !overlaps(p, weekLive) && !Phase2.errors(p, d, now, []).length);
   const weekFp = JSON.stringify(Object.fromEntries(weekOk.map((p) => [p.id, Phase2.fingerprint(p)])));
   const weekVersion = approvals.find((a) => a.status === 'prepared' && JSON.stringify(a.fingerprints) === weekFp);
   const multiDay = new Set(weekOk.map((p) => f.dayKey(p.start))).size > 1;
@@ -104,15 +109,19 @@ export function Plan({ params }: { params: URLSearchParams }) {
           <ApproveDay ok={ok} failing={open.length - ok.length} version={dayVersion} />
           {multiDay && (
             <section className="rounded-[14px] border border-line p-4">
-              {weekVersion ? <ApproveButton approval={weekVersion} /> : <button type="button" className="btn w-full" onClick={() => run(() => source.prepare(weekOk.map((p) => p.id)))}>{t.plan.approveWeek(weekOk.length)}</button>}
+              {weekVersion ? <ApproveButton approval={weekVersion} /> : <button type="button" className="btn w-full" onClick={() => run(() => source.prepare(weekOk.map((p) => p.id)))}>{t.plan.approveWeek(...split(weekOk))}</button>}
               <p className="mt-1.5 text-xs text-muted">{t.plan.approveWeekNote}</p>
             </section>
           )}
 
           <Section title={t.plan.blocks}>
-            {live.length ? (
+            {blocks.length ? (
               <ul className="divide-y divide-line rounded-xl border border-line">
-                {live.map((p) => <BlockRow key={p.id + p.start + p.end} p={p} version={versionOf(p)} problem={clash(p) ? t.plan.overlaps : Phase2.errors(p, d, now, [])[0]} />)}
+                {blocks.map((p) => {
+                  const r = sup.get(p.id);
+                  return <BlockRow key={p.id + p.start + p.end} p={p} version={versionOf(p)} removal={r && { id: r.id, done: started(r.id), problem: started(r.id) ? undefined : Phase2.errors(r, d, now, [])[0] }}
+                    problem={clash(p) ? t.plan.overlaps : Phase2.errors(p, d, now, [])[0]} />;
+                })}
               </ul>
             ) : <Empty compact>{t.plan.none}</Empty>}
             {removed.length > 0 && (
@@ -177,7 +186,7 @@ function ApproveDay({ ok, failing, version }: { ok: Proposal[]; failing: number;
     <section className="rounded-[14px] border border-accent-line bg-accent-soft p-4">
       {ok.length || version ? (version ? <ApproveButton approval={version} /> : (
         <>
-          <button type="button" className="btn btn-primary w-full" onClick={() => run(() => source.prepare(ok.map((p) => p.id)))}>{t.plan.approveDay(ok.length)}</button>
+          <button type="button" className="btn btn-primary w-full" onClick={() => run(() => source.prepare(ok.map((p) => p.id)))}>{t.plan.approveDay(...split(ok))}</button>
           <p className="mt-1.5 text-xs text-muted">{t.plan.approveDayNote}</p>
         </>
       )) : <p className="text-sm">{t.plan.nothingToApprove}</p>}
@@ -186,7 +195,10 @@ function ApproveDay({ ok, failing, version }: { ok: Proposal[]; failing: number;
   );
 }
 
-function BlockRow({ p, version, problem }: { p: Proposal; version?: Approval; problem?: string }) {
+// New blocks and removals in a version, for the approve buttons ("N new, M removed").
+const split = (list: Proposal[]) => [list.filter((p) => p.action !== 'delete').length, list.filter((p) => p.action === 'delete').length] as const;
+
+function BlockRow({ p, version, problem, removal }: { p: Proposal; version?: Approval; problem?: string; removal?: { id: string; done: boolean; problem?: string } }) {
   const { source, run, started, f } = useApp();
   const { t } = useI18n();
   const s = Date.parse(p.start), e = Date.parse(p.end), q = 15 * MIN;
@@ -201,10 +213,16 @@ function BlockRow({ p, version, problem }: { p: Proposal; version?: Approval; pr
           {p.reason && <span className="block text-xs text-muted">{p.reason}</span>}
           {source.mode === 'demo' && p.sourceRefs?.some((r) => r.kind === 'email' && r.id === PREP_EMAIL) && <a className="text-xs" href={href('career', { tab: 'pipeline', id: 'prep' })}>{t.career.prepLink} →</a>}
           {problem && !done && <span className="block text-xs text-danger">{problem}</span>}
+          {removal && !removal.done && (
+            <span className="block text-xs text-warn">{removal.problem ? t.plan.removalKept(removal.problem) : t.plan.removalNote}{' '}
+              <button type="button" className="btn ml-1 py-0 text-xs" onClick={() => run(() => source.saveProgress('dismissed', removal.id, true))}>{t.plan.keepWritten}</button>
+            </span>
+          )}
         </div>
         <div className="flex items-center gap-1.5">
           {p.locked && !done && <Tag tone="neutral">{t.plan.locked}</Tag>}
-          <Tag tone={done ? 'ok' : approved ? 'info' : 'neutral'}>{done ? t.plan.written : approved ? t.plan.approved : t.plan.draft}</Tag>
+          {removal ? <Tag tone={removal.done ? 'neutral' : 'warn'}>{removal.done ? t.plan.removedFromCalendar : t.plan.toRemove}</Tag>
+            : <Tag tone={done ? 'ok' : approved ? 'info' : 'neutral'}>{done ? t.plan.written : approved ? t.plan.approved : t.plan.draft}</Tag>}
         </div>
       </div>
       {!done && !approved && (

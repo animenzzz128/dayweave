@@ -118,18 +118,19 @@ function Detail({ p }: { p: Proposal }) {
         <section className="panel p-4" aria-labelledby="you">
           <h3 id="you" className="text-sm font-semibold">3 · {t.review.youDecide}</h3>
           <div className="mt-2 space-y-2.5">
+            {p.action === 'delete' ? <p className="text-sm">{t.review.removalNote}</p> : <>
             <div><label className="label" htmlFor="p-title">{t.review.titleLabel}</label><input id="p-title" className="field" value={title} onChange={(e) => setTitle(e.target.value)} /></div>
             <div className="flex gap-2">
               <div className="flex-1"><label className="label" htmlFor="p-start">{t.review.start}</label><input id="p-start" type="time" step={300} className="field" value={start} onChange={(e) => setStart(e.target.value)} /></div>
               <div className="flex-1"><label className="label" htmlFor="p-end">{t.review.end}</label><input id="p-end" type="time" step={300} className="field" value={end} onChange={(e) => setEnd(e.target.value)} /></div>
-            </div>
+            </div></>}
             {dirty
               ? <button type="button" className="btn w-full" onClick={saveEdit}>{t.review.saveEdit}</button>
               : ready
                 ? <ApproveButton approval={ready} />
                 : <button type="button" className="btn btn-primary w-full" disabled={errors.length > 0} onClick={() => run(() => source.prepare([p.id]))}>{t.review.prepare}</button>}
-            <button type="button" className="btn w-full" onClick={() => run(() => source.saveProgress('dismissed', p.id, true))}>{t.review.skip}</button>
-            <p className="text-xs text-muted">{t.review.editNote}</p>
+            <button type="button" className="btn w-full" onClick={() => run(() => source.saveProgress('dismissed', p.id, true))}>{p.action === 'delete' ? t.plan.keepWritten : t.review.skip}</button>
+            {p.action !== 'delete' && <p className="text-xs text-muted">{t.review.editNote}</p>}
           </div>
         </section>
       </div>
@@ -184,7 +185,7 @@ export function ApproveButton({ approval }: { approval: Approval }) {
 
 function History({ approvals, skipped }: { approvals: Approval[]; skipped: Proposal[] }) {
   const { source, run, f } = useApp();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const label: Record<string, [string, 'ok' | 'warn' | 'info' | 'neutral']> = {
     executed: [t.review.executed, 'ok'], invalidated: [t.review.invalidated, 'warn'], prepared: [t.review.preparedState, 'info'],
     pending: [t.review.pendingState, 'info'], partial: [t.review.partialState, 'warn'], unverified: [t.review.unverifiedState, 'warn'], failed: [t.review.failedState, 'warn'],
@@ -200,7 +201,7 @@ function History({ approvals, skipped }: { approvals: Approval[]; skipped: Propo
               const [text, tone] = a.status === 'prepared' && a.approval ? [t.review.approvedState, 'info' as const] : label[a.status] || [a.status, 'neutral'];
               return (
                 <li key={a.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-                  <div className="min-w-0"><span className="font-mono text-xs text-muted">{a.reference}</span> {a.value.map((p) => p.title).join(', ')}<span className="block text-xs text-muted">{a.value.map((p) => `${f.day(p.start)} ${f.hm(p.start)}–${f.hm(p.end)}`).join(' · ')}</span></div>
+                  <div className="min-w-0"><span className="font-mono text-xs text-muted">{a.reference}</span> {a.value.map((p) => titleOf(p, lang)).join(', ')}<span className="block text-xs text-muted">{a.value.map((p) => `${f.day(p.start)} ${f.hm(p.start)}–${f.hm(p.end)}`).join(' · ')}</span></div>
                   <div className="flex items-center gap-2">{a.status === 'executed' && source.mode === 'demo' && <span className="text-xs text-muted">{t.demo.simulated}</span>}<Tag tone={tone}>{text}</Tag></div>
                 </li>
               );
@@ -214,7 +215,7 @@ function History({ approvals, skipped }: { approvals: Approval[]; skipped: Propo
           <ul className="divide-y divide-line rounded-xl border border-line">
             {skipped.map((p) => (
               <li key={p.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-                <div><a href={href('review', { id: p.id })} className="text-ink">{p.title}</a><span className="block font-mono text-xs text-muted">{f.day(p.start)} {f.hm(p.start)}–{f.hm(p.end)}</span></div>
+                <div><a href={href('review', { id: p.id })} className="text-ink">{titleOf(p, lang)}</a><span className="block font-mono text-xs text-muted">{f.day(p.start)} {f.hm(p.start)}–{f.hm(p.end)}</span></div>
                 <button type="button" className="btn" onClick={() => run(() => source.saveProgress('dismissed', p.id, null))}>{t.review.unskip}</button>
               </li>
             ))}
@@ -226,5 +227,5 @@ function History({ approvals, skipped }: { approvals: Approval[]; skipped: Propo
 }
 
 // AI proposals carry a Chinese title until someone edits the title.
-const titleOf = (p: Proposal, lang: string) => (lang === 'zh' && p.titleZh ? p.titleZh : p.title);
+const titleOf = (p: Proposal, lang: string) => (p.action === 'delete' ? (lang === 'zh' ? '从日历删除：' : 'Remove from calendar: ') : '') + (lang === 'zh' && p.titleZh ? p.titleZh : p.title);
 const nextDay = (day: string) => new Date(Date.parse(day + 'T12:00:00Z') + 86400000).toISOString().slice(0, 10);

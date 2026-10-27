@@ -4,7 +4,7 @@ const C=typeof module!=='undefined'?require('./core.cjs'):window.PlannerCore;
 const valid=x=>typeof x==='string'&&/(Z|[+-]\d\d:\d\d)$/.test(x)&&Number.isFinite(Date.parse(x));
 const canonical=x=>Array.isArray(x)?x.map(canonical):x&&typeof x==='object'?Object.fromEntries(Object.keys(x).sort().map(k=>[k,canonical(x[k])])):x;
 // Provider, source task refs and calendar colour are part of the reviewed identity when present; legacy proposals without one keep their original fingerprints.
-function spec(p){return {...(p.provider?{provider:p.provider}:{}),...(p.sourceRefs?{sourceRefs:p.sourceRefs}:{}),action:p.action||'create',account:p.account,calendar:p.calendar,calendarId:p.calendarId||null,timezone:p.timezone,title:p.title,start:p.start,end:p.end,location:p.location||'',body:p.body||'',busy:p.busy!==false,reminderMinutes:p.reminderMinutes??15,recurrence:p.recurrence||'One time',attendees:p.attendees||[],remoteRef:p.remoteRef||null,before:p.before||null,scope:p.scope||'single',...(p.color!=null?{color:p.color}:{})};}
+function spec(p){return {...(p.provider?{provider:p.provider}:{}),...(p.sourceRefs?{sourceRefs:p.sourceRefs}:{}),action:p.action||'create',account:p.account,calendar:p.calendar,calendarId:p.calendarId||null,timezone:p.timezone,title:p.title,start:p.start,end:p.end,location:p.location||'',body:p.body||'',busy:p.busy!==false,reminderMinutes:p.reminderMinutes??15,recurrence:p.recurrence||'One time',attendees:p.attendees||[],remoteRef:p.remoteRef||null,before:p.before||null,scope:p.scope||'single',...(p.color!=null?{color:p.color}:{}),...(p.replaces?{replaces:p.replaces}:{})};}
 function fingerprint(p){return JSON.stringify(canonical({id:p.id,status:p.status||'proposed',...spec(p)}));}
 function occurrences(p){
  if(!valid(p.start)||!valid(p.end)||Date.parse(p.end)<=Date.parse(p.start))throw Error('Use valid start/end timestamps with explicit offsets.');
@@ -17,13 +17,31 @@ function occurrences(p){
  if(step*(r.count-1)>90)throw Error('Keep the reviewed recurrence horizon within 90 days.');
  return Array.from({length:r.count},(_,i)=>{const d=new Date(Date.parse(date+'T12:00:00Z')+i*step*86400000).toISOString().slice(0,10);return {start:C.zonedISO(d,`${s.hour}:${s.minute}`),end:C.zonedISO(d,`${e.hour}:${e.minute}`)};});
 }
+// Removals (owner request 2026-10-27): a planner `delete` action names, in `replaces`, a block Dayweave already wrote and
+// `remoteRef` its event. While it is proposed (or after it ran) that block no longer holds time or covers work, and its
+// calendar copy no longer counts as a commitment. `dismissed` drops a removal the owner took back.
+function superseded(d,dismissed={}){return new Map((d.proposals||[]).filter(p=>p&&p.action==='delete'&&p.replaces&&!dismissed?.[p.id]).map(p=>[p.replaces,p]));}
+// Calendar events that are copies of superseded blocks: the event its removal names, or an exact copy of the block.
+function goneEvents(d,sup=superseded(d)){const out=new Set();for(const [id,r] of sup){const q=(d.proposals||[]).find(x=>x.id===id);
+ for(const e of d.events||[])if(e.remoteRef===r.remoteRef||e.id===r.remoteRef||(e.calendarId&&e.calendarId+'/'+e.id===r.remoteRef)||q&&e.title===q.title&&Date.parse(e.start)===Date.parse(q.start)&&Date.parse(e.end)===Date.parse(q.end)&&(e.calendarId==null||e.calendarId===q.calendarId))out.add(e.id);}
+ return out;}
+// A removal is checked against the frozen copy and receipt of the block it removes: written by Dayweave, executed with this
+// event reference, not yet started, and the removal shows the same title and time.
+function removalErrors(p,d,now,started){const out=[],copies=[...started,...(d.proposals||[])],h=(d.actionHistory||[]).find(h=>h.id===p.replaces);
+ const q=h&&copies.find(q=>q&&q.id===h.id&&fingerprint(q)===h.fingerprint);
+ if(C.calendarProvider(p)!=='google')out.push('Only Google Calendar blocks can be removed.');
+ if(!p.replaces||!h||h.status!=='executed'||!q||q.origin!=='planner')out.push('A removal needs a Dayweave block that was written and verified.');
+ else{if(!h.remoteRef||h.remoteRef!==p.remoteRef)out.push('The removal must name the event this block was written as.');
+  if(q.calendarId!==p.calendarId||q.title!==p.title||Date.parse(q.start)!==Date.parse(p.start)||Date.parse(q.end)!==Date.parse(p.end))out.push('The removal must show the written block as it was written.');
+  if(Date.parse(q.start)<=+new Date(now))out.push('This block has already started, so it stays.');}
+ return out;}
 function errors(p,d,now=new Date(),started=[]){
  C.configure(d.timezone);const out=[];
  if(!p.id||!p.title?.trim())out.push('An action ID and title are required.');
  if(p.status&&p.status!=='proposed')out.push('Only a current proposed action can be approved.');
  if(!p.account||!p.calendar||p.timezone!==d.timezone)out.push('Specify the verified account, calendar and dashboard timezone.');
  if((p.attendees||[]).length)out.push('Phase 2 actions must have no attendees.');
- if(!['create','update'].includes(p.action||'create'))out.push('Only create and individually reviewed update actions are supported.');
+ if(!['create','update','delete'].includes(p.action||'create'))out.push('Only create, individually reviewed update and removal actions are supported.');
  if(!Number.isInteger(p.reminderMinutes??15)||(p.reminderMinutes??15)<0||(p.reminderMinutes??15)>10080)out.push('Invalid reminder minutes.');
  if(p.color!=null&&!/^(?:[1-9]|1[01])$/.test(p.color))out.push('Calendar colour must be a Google colour ID from 1 to 11.');
  if(d.actionHistory?.some(h=>h.id===p.id&&['pending','unverified','executed'].includes(h.status)))out.push('Action already attempted or verified; reconcile it before retrying.');
@@ -33,10 +51,13 @@ function errors(p,d,now=new Date(),started=[]){
  if(coverage?.account!==p.account||coverage?.calendar!==p.calendar)out.push('Coverage does not match the destination account/calendar.');
  const provider=C.calendarProvider(p);
  if(provider!==C.calendarProvider(coverage))out.push('Coverage provider does not match the destination provider.');
- if(provider==='google'){if((p.action||'create')!=='create')out.push('Google actions only create new personal events.');if(!['One time','none',undefined].includes(p.recurrence))out.push('Google actions are one-time events; recurrence is not supported.');if(!p.calendarId||coverage?.calendarId!==p.calendarId)out.push('Google actions need the exact verified calendar ID.');if(!Array.isArray(coverage?.calendars)||!coverage.calendars.some(c=>c?.id===p.calendarId))out.push('The destination calendar was not among the read calendars.');}
+ if(provider==='google'){if(!['create','delete'].includes(p.action||'create'))out.push('Google actions only create new personal events or remove blocks Dayweave wrote.');if(!['One time','none',undefined].includes(p.recurrence))out.push('Google actions are one-time events; recurrence is not supported.');if(!p.calendarId||coverage?.calendarId!==p.calendarId)out.push('Google actions need the exact verified calendar ID.');if(!Array.isArray(coverage?.calendars)||!coverage.calendars.some(c=>c?.id===p.calendarId))out.push('The destination calendar was not among the read calendars.');}
  // Only the active calendar source counts; an email or coursework failure leaves calendar coverage alone.
  const source=(d.sources||[]).find(s=>s.id===C.calendarSource(coverage));
  if(provider==='google'&&!source||source&&source.status!=='ok')out.push('The calendar source is not healthy; refresh it before requesting changes.');
+ if(p.action==='delete')return [...new Set([...out,...removalErrors(p,d,now,started)])];
+ // A block the plan now removes, and its calendar copy, no longer count against new blocks.
+ const sup=superseded(d),gone=goneEvents(d,sup);
  let exclude=null;
  if(p.action==='update'){
    const target=d.events.find(e=>e.remoteRef&&e.remoteRef===p.remoteRef);
@@ -57,14 +78,16 @@ function errors(p,d,now=new Date(),started=[]){
  const taken=[],copies=[...started,...(d.proposals||[])];
  for(const h of (d.actionHistory||[]).filter(h=>h.id!==p.id&&['pending','unverified','executed'].includes(h.status))){
    if(p.action==='update'&&h.remoteRef&&h.remoteRef===p.remoteRef)continue;
+   if(sup.has(h.id))continue;
    const q=copies.find(q=>q&&q.id===h.id&&fingerprint(q)===h.fingerprint);
+   if(q&&q.action==='delete')continue;
    if(!q){if(h.status!=='executed')out.push('An already started action has no stored copy matching its receipt, so its time is unknown; reconcile it first.');continue;}
    try{taken.push(...occurrences(q));}catch{out.push('An already started action could not be expanded into occurrences; reconcile it first.');}
  }
  for(const o of list){
    if(taken.some(t=>C.overlap(o,t)))out.push('Overlaps an action that was already started (pending, unverified or executed).');
-   const base=C.proposalErrors({...p,...o},{...d,events:d.events.filter(e=>e.id!==exclude),actionHistory:[]},now);out.push(...base);
-   if(d.events.some(e=>e.id!==exclude&&e.title===p.title&&Date.parse(e.start)===Date.parse(o.start)&&Date.parse(e.end)===Date.parse(o.end)))out.push('An event with the same title and interval already exists.');
+   const base=C.proposalErrors({...p,...o},{...d,events:d.events.filter(e=>e.id!==exclude&&!gone.has(e.id)),actionHistory:[]},now);out.push(...base);
+   if(d.events.some(e=>e.id!==exclude&&!gone.has(e.id)&&e.title===p.title&&Date.parse(e.start)===Date.parse(o.start)&&Date.parse(e.end)===Date.parse(o.end)))out.push('An event with the same title and interval already exists.');
  }
  return [...new Set(out)];
 }
@@ -73,8 +96,12 @@ function request(chosen,d,now=new Date(),started=[]){
  const failures=chosen.flatMap(p=>errors(p,d,now,started).map(e=>`${p.title}: ${e}`));
  if(new Set(chosen.map(p=>p.id)).size!==chosen.length)failures.push('Duplicate selected action IDs.');
  const targets=chosen.filter(p=>p.action==='update').map(p=>p.remoteRef);if(new Set(targets).size!==targets.length)failures.push('Select only one change per existing event.');
+ // A new block placed over a written block that a removal frees must be approved together with that removal.
+ const sup=superseded(d),ids=new Set(chosen.map(p=>p.id)),copies=[...started,...(d.proposals||[])];
+ for(const p of chosen.filter(p=>(p.action||'create')==='create'))for(const [old,r] of sup){if(ids.has(r.id)||(d.actionHistory||[]).some(h=>h.id===r.id&&h.status==='executed'))continue;
+  const q=copies.find(x=>x&&x.id===old);if(q&&occurrences(p).some(a=>C.overlap(a,q)))failures.push(`${p.title}: approve it together with the removal of "${q.title}", whose time it takes.`);}
  if(failures.length)throw Error(failures.join('\n'));
- chosen.forEach((p,i)=>chosen.slice(i+1).forEach(q=>{if(occurrences(p).some(a=>occurrences(q).some(b=>C.overlap(a,b))))failures.push(`${p.title} overlaps ${q.title}.`);}));
+ chosen.forEach((p,i)=>chosen.slice(i+1).forEach(q=>{if(p.action==='delete'||q.action==='delete')return;if(occurrences(p).some(a=>occurrences(q).some(b=>C.overlap(a,b))))failures.push(`${p.title} overlaps ${q.title}.`);}));
  if(failures.length)throw Error(failures.join('\n'));
  return 'I approve only the exact personal '+providerName(chosen[0])+' actions below. Re-read the account, target calendar and all affected occurrences immediately before writing. Compare each before state, check conflicts and existing action markers. Stop if anything changed; do not silently move a block. No attendees, invitations, Canvas writes or submissions. Record pending before saving, then reopen and verify every field. Treat an uncertain save as unverified; never blindly retry.\n\n'+JSON.stringify({version:2,snapshot:d.generatedAt,calendarCheckedAt:d.calendarCoverage.checkedAt,actions:chosen.map(p=>({id:p.id,fingerprint:fingerprint(p),...spec(p),occurrences:occurrences(p),marker:`Dayweave action: ${p.id}`}))},null,2);
 }
@@ -99,6 +126,6 @@ function record(history,r){
  const earlier=x=>({status:x.status,recordedAt:x.recordedAt,evidence:x.evidence||null,...Object.fromEntries(['reference','conclusion','hold','holdScope'].filter(k=>x[k]!=null).map(k=>[k,x[k]]))});
  return [...history.filter(x=>x.id!==r.id),{...r,attempts:[...(previous?.attempts||[]),...(previous?[earlier(previous)]:[])]}];
 }
-const api={providerName,spec,fingerprint,occurrences,errors,request,helpRequest,record};
+const api={providerName,spec,fingerprint,occurrences,errors,request,helpRequest,record,superseded,goneEvents};
 if(typeof module!=='undefined')module.exports=api;else window.PlannerPhase2=api;
 })();

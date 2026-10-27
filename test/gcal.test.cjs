@@ -20,8 +20,9 @@ function fakeGoogle({failInsert=null,scope=GC.SCOPE,refresh='ok'}={}){const cals
   if(m==='POST'){a.equal(u.searchParams.get('sendUpdates'),'none');const body=JSON.parse(init.body);f.inserted.push(body);
    const ev={id:'evt'+(++n),status:'confirmed',organizer:{email:cal,self:true},eventType:'default',...body,start:{dateTime:body.start.dateTime,timeZone:body.start.timeZone},end:{dateTime:body.end.dateTime,timeZone:body.end.timeZone}};
    if(failInsert!=='lost-before')cals.set(cal,[...list,ev]);if(failInsert)return json(503,{error:{message:'Backend Error'}});return json(200,ev);}
+  if(m==='DELETE'){a.equal(u.searchParams.get('sendUpdates'),'none');f.deleted.push(eid);cals.set(cal,list.filter(e=>e.id!==eid));return json(204,null);}
   throw Error('unexpected '+m+' '+url);};
- f.inserted=[];f.calls=calls;f.add=(cal,ev)=>cals.set(cal,[...(cals.get(cal)||[]),ev]);return f;}
+ f.inserted=[];f.deleted=[];f.calls=calls;f.add=(cal,ev)=>cals.set(cal,[...(cals.get(cal)||[]),ev]);f.events=cal=>cals.get(cal)||[];return f;}
 const client=(f,account='student@example.com')=>GC.client({account,refreshToken:'rt-1',clientId:'client-1',clientSecret:'shh',fetch:f});
 async function withStore(fn){const dir=fs.mkdtempSync(path.join(os.tmpdir(),'dw-gcal-')),s=new Store(dir);try{await fn(s);}finally{s.close();fs.rmSync(dir,{recursive:true,force:true});}}
 
@@ -86,3 +87,74 @@ test('the owner connects Google Calendar separately from sign-in and writes an a
   const off=await post('calendar/disconnect',{});a.equal(off.json().connected,false);a.ok(api.calls.includes('POST /revoke'));
   a.equal((await post('calendar/write',{reference:q.reference})).status,409);}
  finally{await new Promise(r=>s.close(r));fs.rmSync(dir,{recursive:true,force:true});}});
+
+// After a write, the next calendar read shows the written event; a changed plan proposes its removal with the new block.
+function rewritten(s,f,p,edit=ev=>ev){const d=s.snapshot(),h=d.actionHistory.find(x=>x.id===p.id),[cal,id]=[p.calendarId,h.remoteRef.slice(p.calendarId.length+1)];
+ const ev=edit({id,title:p.title,start:p.start,end:p.end,busy:true,sourceId:'google-calendar',calendarId:cal,account:p.account});d.events=[ev];d.generatedAt=new Date().toISOString();d.calendarCoverage={...d.calendarCoverage,checkedAt:d.generatedAt};for(const x of d.sources)x.lastSuccess=d.generatedAt;s.importSnapshot(d);
+ // The change: the essay is done, and a new todo due at 10:00 that day takes the 09:00 hour.
+ const t=Object.values(s.state().todo).find(x=>x.status==='open');s.completeTodo(t.id,true);const date=p.planDate;
+ s.saveTodo({title:'Synthetic reading notes',dueAt:C.zonedISO(date,'10:00'),durationMinutes:60});const r=s.generatePlan(date);
+ return {r,create:r.blocks.find(b=>b.title==='Focus: Synthetic reading notes'),removal:r.blocks.find(b=>b.action==='delete')};}
+
+test('a changed plan removes the block Dayweave wrote and writes the new one in one approved version',()=>withStore(async s=>{
+ const {p,q}=setup(s),f=fakeGoogle();s.generatePlan(p.planDate);a.equal(s.snapshot().proposals.find(x=>x.id===p.id).lockedBy,'approval','approval lock');
+ await GC.writeApproved(s,q.reference,client(f));
+ const {create,removal}=rewritten(s,f,p);a.ok(create&&removal,'a new block and a removal');a.equal(removal.replaces,p.id);a.match(removal.remoteRef,/\/evt1$/);a.equal(create.start,p.start,'the new block takes the freed hour');
+ a.throws(()=>A.prepare(s,[create.id]),/approve it together with the removal/);
+ const q2=A.prepare(s,[create.id,removal.id]);X.approve(s,q2.reference,'student@example.com');const r=await GC.writeApproved(s,q2.reference,client(f));
+ a.deepEqual(r.actions.map(x=>[x.id,x.status]),[[removal.id,'executed'],[create.id,'executed']],JSON.stringify(r));a.deepEqual(f.deleted,['evt1']);a.equal(f.inserted.length,2);
+ const again=await GC.writeApproved(s,q2.reference,client(f));a.equal(f.deleted.length,1,'never deleted twice');a.ok(again.actions.every(x=>x.already));
+ // The removed block no longer covers the todo or holds time; regenerating keeps the written new block.
+ const d=s.snapshot();d.events=[];d.generatedAt=new Date().toISOString();d.calendarCoverage={...d.calendarCoverage,checkedAt:d.generatedAt};for(const x of d.sources)x.lastSuccess=d.generatedAt;s.importSnapshot(d);
+ const later=s.generatePlan(p.planDate);a.deepEqual(later.blocks.filter(b=>b.title===p.title||b.title===create.title||b.action==='delete'),[],JSON.stringify(later.blocks.map(b=>b.title)));}));
+
+test('an event the owner moved in Google Calendar is kept: its removal and the block over it are skipped',()=>withStore(async s=>{
+ const {p,q}=setup(s),f=fakeGoogle();await GC.writeApproved(s,q.reference,client(f));const {create,removal}=rewritten(s,f,p);
+ const q2=A.prepare(s,[create.id,removal.id]);X.approve(s,q2.reference,'student@example.com');
+ const id=s.snapshot().actionHistory.find(x=>x.id===p.id).remoteRef.split('/').pop(),moved=f.events(p.calendarId).find(e=>e.id===id);moved.summary='Moved by me';
+ const r=await GC.writeApproved(s,q2.reference,client(f)),by=x=>r.actions.find(a=>a.id===x);
+ a.equal(by(removal.id).status,'skipped');a.match(by(removal.id).errors.join(' '),/title was changed/);a.deepEqual(f.deleted,[]);
+ a.equal(by(create.id).status,'skipped',JSON.stringify(r));a.match(by(create.id).errors.join(' '),/Conflicts with/);}));
+
+// Imports the next calendar read: the written event as Google shows it.
+function readBack(s,p){const d=s.snapshot(),h=d.actionHistory.find(x=>x.id===p.id);d.events=[{id:h.remoteRef.slice(p.calendarId.length+1),title:p.title,start:p.start,end:p.end,busy:true,sourceId:'google-calendar',calendarId:p.calendarId,account:p.account}];
+ d.generatedAt=new Date().toISOString();d.calendarCoverage={...d.calendarCoverage,checkedAt:d.generatedAt};for(const x of d.sources)x.lastSuccess=d.generatedAt;s.importSnapshot(d);}
+test('a written block the new plan places again stays as it is: no removal and no second copy',()=>withStore(async s=>{
+ const {p,q}=setup(s),f=fakeGoogle();await GC.writeApproved(s,q.reference,client(f));readBack(s,p);
+ const r=s.generatePlan(p.planDate);a.deepEqual(r.blocks.filter(b=>b.title===p.title||b.action==='delete'),[],JSON.stringify(r.blocks.map(b=>[b.title,b.action])));a.equal(s.snapshot().proposals.filter(x=>x.id===p.id).length,1);}));
+
+test('a block the owner edited before approving is never removed by a later plan',()=>withStore(async s=>{
+ const {p,q}=setup(s);A.edit(s,p.id,{title:p.title+' (mine)'});const e=s.snapshot().proposals.find(x=>x.id===p.id);a.equal(e.locked,true);a.equal(e.lockedBy,undefined);
+ const q2=A.prepare(s,[p.id]);X.approve(s,q2.reference,'student@example.com');const f=fakeGoogle();await GC.writeApproved(s,q2.reference,client(f));readBack(s,e);
+ const t=Object.values(s.state().todo).find(x=>x.status==='open');s.completeTodo(t.id,true);const r=s.generatePlan(p.planDate);
+ a.deepEqual(r.blocks.filter(b=>b.action==='delete'),[]);a.equal(s.snapshot().proposals.filter(x=>x.id===p.id).length,1);}));
+
+test('a written block keeps its time while that time stays free, even when an earlier slot opens',()=>withStore(async s=>{
+ const {p,q}=setup(s),f=fakeGoogle();await GC.writeApproved(s,q.reference,client(f));readBack(s,p);
+ s.savePlanSettings({...PL.planSettings(PL.RECOMMENDED),dayStart:'07:00'});const r=s.generatePlan(p.planDate);
+ a.deepEqual(r.blocks.filter(b=>b.title===p.title||b.action==='delete'),[],JSON.stringify(r.blocks.map(b=>[b.title,b.action,b.start])));}));
+
+test('skipping a removal keeps that written block: later plans leave it and its time alone, and a removal cannot be edited',()=>withStore(async s=>{
+ const {p,q}=setup(s),f=fakeGoogle();await GC.writeApproved(s,q.reference,client(f));const {removal}=rewritten(s,f,p);
+ a.throws(()=>A.edit(s,removal.id,{title:'x'}),/cannot be edited/);s.saveState('dismissed',removal.id,true);
+ const r=s.generatePlan(p.planDate);a.deepEqual(r.blocks.filter(b=>b.action==='delete'),[]);
+ a.ok(!r.blocks.some(b=>b.action!=='delete'&&Date.parse(b.start)<Date.parse(p.end)&&Date.parse(p.start)<Date.parse(b.end)),'nothing over the kept block');
+ a.ok(r.unscheduled.some(u=>u.title==='Synthetic reading notes'&&u.group==='action'),'the new todo, due at 10:00, is listed as not fitting');}));
+
+test('a longer todo keeps its written block and adds the missing minutes; other work avoids written time while it can',()=>withStore(async s=>{
+ const {p,q}=setup(s),f=fakeGoogle();await GC.writeApproved(s,q.reference,client(f));readBack(s,p);
+ const t=Object.values(s.state().todo).find(x=>x.status==='open');s.saveTodo({...t,durationMinutes:90});
+ s.saveTodo({title:'Synthetic reading notes',dueAt:C.zonedISO(p.planDate,'20:00'),durationMinutes:60});const r=s.generatePlan(p.planDate);
+ a.deepEqual(r.blocks.filter(b=>b.action==='delete'),[],JSON.stringify(r.blocks.map(b=>[b.title,b.action,b.start])));
+ const mine=r.blocks.filter(b=>b.sourceRefs?.some(x=>x.kind==='todo')),over=b=>Date.parse(b.start)<Date.parse(p.end)&&Date.parse(p.start)<Date.parse(b.end);
+ a.ok(mine.length>=2&&mine.every(b=>!over(b)),'new blocks go around the written hour');}));
+
+test('a removal is refused unless it names a written, unstarted block by its own event reference',()=>withStore(async s=>{
+ const {p,q}=setup(s),P=require('../src/phase2.cjs'),f=fakeGoogle();
+ const rm=(x)=>({...p,id:'plan-'+p.planDate+'-rm-test',action:'delete',replaces:p.id,remoteRef:p.calendarId+'/evt1',body:'',source:'',sourceRefs:undefined,...x});
+ a.ok(P.errors(rm(),s.snapshot(),new Date(),[]).length,'not written yet');
+ await GC.writeApproved(s,q.reference,client(f));const d=s.snapshot();
+ a.deepEqual(P.errors(rm(),d,new Date(),[]),[]);
+ a.ok(P.errors(rm({remoteRef:p.calendarId+'/evt9'}),d,new Date(),[]).length,'another event');
+ a.ok(P.errors(rm({start:new Date(Date.parse(p.start)+60000).toISOString()}),d,new Date(),[]).length,'another time');
+ a.ok(P.errors(rm(),d,new Date(Date.parse(p.start)+60000),[]).length,'already started');}));

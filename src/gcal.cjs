@@ -45,7 +45,10 @@ function client({account,refreshToken,clientId,clientSecret,fetch:doFetch=global
    return {complete:false,events};},
   insert:(calendarId,body)=>call('POST',cal(calendarId),{sendUpdates:'none'},body),
   get:async(calendarId,id)=>normalize(await call('GET',cal(calendarId)+'/'+encodeURIComponent(id))),
+  remove:(calendarId,id)=>call('DELETE',cal(calendarId)+'/'+encodeURIComponent(id),{sendUpdates:'none'}),
  };}
+// One event by ID, or null when Google says it does not exist (404) or is gone (410). Other failures throw.
+async function getOrGone(c,calendarId,id){try{return await c.get(calendarId,id);}catch(e){if(e.status===404||e.status===410)return null;throw e;}}
 // One complete re-read of the destination and every coverage calendar around an action, in the bridge's live-read shape.
 async function readAround(c,p,calendars,margin,now){const start=new Date(Date.parse(p.start)-margin).toISOString(),end=new Date(Date.parse(p.end)+margin).toISOString(),checkedAt=now().toISOString(),reads=[];
  for(const id of calendars){const r=await c.list(id,start,end);reads.push({calendarId:id,complete:r.complete,events:r.events});}
@@ -60,10 +63,13 @@ async function writeApproved(s,ref,c,{now=()=>new Date()}={}){const q=A.read(s,r
   // A version whose every action already has a final receipt is reported, not run again.
   if(q.value.every(p=>['executed','not_created'].includes(receipt(p))))return {reference:q.reference,stopped:[],actions:q.value.map(p=>({id:p.id,title:p.title,status:receipt(p),already:true}))};
   await c.token();
-  const v=G.verify(s,q.reference,approval,G.required({location:'x',color:'1'}),now());if(v.blockers.length)return {reference:q.reference,stopped:v.blockers,actions:[]};
+  const v=G.verify(s,q.reference,approval,G.required({location:'x',color:'1'}),now(),{direct:true});if(v.blockers.length)return {reference:q.reference,stopped:v.blockers,actions:[]};
   const calendars=[...new Set([q.value[0]?.calendarId,...(cov.calendars||[]).map(x=>x.id)].filter(Boolean))],results=[];
-  for(const a of [...v.actions].sort((x,y)=>Date.parse(q.value.find(p=>p.id===x.id).start)-Date.parse(q.value.find(p=>p.id===y.id).start))){const p=q.value.find(x=>x.id===a.id);
+  // Removals first, so the blocks that take their time see a calendar without them; then everything by start time.
+  const order=a=>{const p=q.value.find(p=>p.id===a.id);return [p.action==='delete'?0:1,Date.parse(p.start)];};
+  for(const a of [...v.actions].sort((x,y)=>{const [i,s1]=order(x),[j,s2]=order(y);return i-j||s1-s2;})){const p=q.value.find(x=>x.id===a.id);
    const done=r=>results.push({id:p.id,title:p.title,...r});
+   if(p.action==='delete'){done(await removeOne(s,q,p,a,approval,c,now));continue;}
    if(a.receipt==='executed'){done({status:'executed',already:true});continue;}
    if(['pending','unverified'].includes(a.receipt)){done(G.reconcile(s,q.reference,p.id,await readAround(c,p,calendars,G.ABSENCE_MARGIN_MS,now),now()));continue;}
    if(a.receipt){done({status:a.receipt,already:true});continue;}
@@ -75,5 +81,15 @@ async function writeApproved(s,ref,c,{now=()=>new Date()}={}){const q=A.read(s,r
    done(event?G.readback(s,q.reference,p.id,{calendarId:p.calendarId,account:c.account,event},now()):G.reconcile(s,q.reference,p.id,await readAround(c,p,calendars,G.ABSENCE_MARGIN_MS,now),now()));}
   return {reference:q.reference,stopped:[],actions:results};}
  finally{running.delete(s.storeId());}}
+// One removal: re-read the event, record pending only while it is still the block as written, delete once, read again.
+async function removeOne(s,q,p,a,approval,c,now){
+ if(a.receipt==='executed')return {status:'executed',already:true};if(a.receipt)return {status:a.receipt,already:true};
+ if(a.errors.length)return {status:'skipped',errors:a.errors};
+ const eventId=p.remoteRef.slice(p.calendarId.length+1);let ev;try{ev=await getOrGone(c,p.calendarId,eventId);}catch(e){return {status:'skipped',errors:['Could not read the written event: '+e.message]};}
+ const changed=G.removalCheck(s,p,ev);if(changed.length)return {status:'skipped',errors:[...changed,'It stays on your calendar.']};
+ G.removePending(s,q.reference,p.id,approval,ev,now());
+ if(ev&&ev.status!=='cancelled'){try{await c.remove(p.calendarId,eventId);}catch{/* the read below decides the outcome */}}
+ let after;try{after=await getOrGone(c,p.calendarId,eventId);}catch{after=undefined;}
+ return G.removeOutcome(s,q.reference,p.id,after===undefined?{status:'unknown'}:after,now());}
 async function revoke(token,{fetch:doFetch=globalThis.fetch}={}){try{await doFetch(REVOKE,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({token}),signal:AbortSignal.timeout(15000)});}catch{}}
 module.exports={SCOPE,vault,hasScope,normalize,toRest,client,readAround,writeApproved,revoke};
