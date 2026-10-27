@@ -2,6 +2,7 @@ import { useApp } from '../data/AppData';
 import { useI18n } from '../i18n/I18n';
 import { Core, Demo } from '../lib/shared';
 import { href } from '../lib/router';
+import { coveredMs, layoutLanes } from '../lib/overlap';
 import type { CalendarEvent, Proposal } from '../data/types';
 
 interface Block { id: string; title: string; start: number; end: number; kind: 'event' | 'proposal' | 'done'; meta?: string }
@@ -17,10 +18,10 @@ export function DayTimeline({ date, scale = 0.9, compact = false }: { date: stri
   const inDay = (e: CalendarEvent) => Date.parse(e.end) > from && Date.parse(e.start) < to;
   const clamp = (e: CalendarEvent) => ({ start: Math.max(from, Date.parse(e.start)), end: Math.min(to, Date.parse(e.end)) });
 
-  const blocks: Block[] = [
+  const blocks = layoutLanes<Block>([
     ...d.events.filter((e) => e.busy !== false && !e.allDay && inDay(e)).map((e) => ({ id: e.id, title: e.title, kind: 'event' as const, ...clamp(e), meta: e.location })),
     ...d.proposals.filter((p: Proposal) => inDay(p) && !progress.dismissed?.[p.id]).map((p) => ({ id: p.id, title: p.title, kind: started(p.id) ? ('done' as const) : ('proposal' as const), ...clamp(p) })),
-  ].sort((a, b) => a.start - b.start);
+  ]);
   const allDay = d.events.filter((e) => e.allDay && inDay(e));
   // Without complete coverage a blank slot may hide an unread event, so it is not drawn as free time.
   const known = d.calendarCoverage?.complete === true;
@@ -28,7 +29,7 @@ export function DayTimeline({ date, scale = 0.9, compact = false }: { date: stri
   const height = Math.round(((to - from) / 60000) * scale);
   const y = (ms: number) => Math.round(((ms - from) / 60000) * scale);
   const hours = Array.from({ length: 16 }, (_, i) => i).filter((i) => !compact || i % 3 === 0);
-  const busy = blocks.reduce((sum, b) => sum + (b.end - b.start), 0);
+  const busy = coveredMs(blocks);
   const freePct = Math.max(0, Math.round((1 - busy / (to - from)) * 100));
   const nowY = +now > from && +now < to ? y(+now) : null;
 
@@ -55,16 +56,19 @@ export function DayTimeline({ date, scale = 0.9, compact = false }: { date: stri
             const label = `${f.hm(new Date(b.start).toISOString())}–${f.hm(new Date(b.end).toISOString())} ${b.title}`;
             const body = (
               <>
-                <span className={`block truncate font-medium ${compact ? 'text-[11px]' : 'text-[13px]'}`}>{b.title}</span>
+                <span className={`block ${b.cols > 1 ? 'line-clamp-2 break-words leading-tight' : 'truncate'} font-medium ${compact ? 'text-[11px]' : 'text-[13px]'}`}>{b.title}</span>
                 {h > 42 && <span className={`block truncate text-[11px] ${b.kind === 'done' ? 'text-on-accent/85' : 'opacity-80'}`}>{f.hm(new Date(b.start).toISOString())}–{f.hm(new Date(b.end).toISOString())}{b.kind === 'proposal' ? ` · ${t.today.legendProposal}` : ''}</span>}
               </>
             );
-            const cls = `absolute inset-x-1 overflow-hidden rounded-md px-2 py-1 no-underline ${style[b.kind]}`;
+            // Overlapping blocks share the width side by side instead of covering each other.
+            const w = `((100% - ${8 + (b.cols - 1) * 3}px) / ${b.cols})`;
+            const pos = { top: y(b.start) + 1, height: h - 2, left: `calc(4px + ${b.col} * (${w} + 3px))`, width: `calc${w}` };
+            const cls = `absolute overflow-hidden rounded-md ${b.cols > 2 ? 'px-1' : 'px-2'} py-1 no-underline ${style[b.kind]}`;
             return (
               <li key={b.id} className="contents">
                 {b.kind === 'proposal'
-                  ? <a href={href('review', { id: b.id })} className={cls} style={{ top: y(b.start) + 1, height: h - 2 }} aria-label={label}>{body}</a>
-                  : <div className={cls} style={{ top: y(b.start) + 1, height: h - 2 }} aria-label={label}>{body}</div>}
+                  ? <a href={href('review', { id: b.id })} className={cls} style={pos} title={label} aria-label={label}>{body}</a>
+                  : <div className={cls} style={pos} title={label} aria-label={label}>{body}</div>}
               </li>
             );
           })}
