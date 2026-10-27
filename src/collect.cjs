@@ -125,8 +125,23 @@ function siteEvents(events,sites,now){const from=now-SITE_EVENT_PAST_DAYS*864000
 // Outlook (calendar and connector) and the old email module are retired sources (owner decision 2026-10-24). The source the
 // calendar coverage or the email record names is never dropped, so a legacy Outlook snapshot still validates.
 function retired(s,d){if(s.id===C.calendarSource(d.calendarCoverage)||s.id===d.email?.sourceId)return false;return /outlook/i.test(s.id+' '+(s.name||''))||/^e-?mail$/i.test(s.id)||/^e-?mail$/i.test(String(s.name||'').trim());}
-// reads: {canvas, courseSites:[fetchSite results], calendar:{status,note,events,coverage}, email:{...contract email record} | {status:'failed',note}, notes}
-function buildSnapshot(current,{canvas,courseSites,calendar,email,schedules,notes={}},{now=Date.now()}={}){
+// AI estimates from the collecting task (estimates.json: [{id, estimateMinutes, checklist?, basis}]), applied after every merge so
+// they cover course-site and Canvas work alike. They fill only an empty estimate or one the task wrote itself (estimateSource
+// "ai"), never an owner-entered or confirmed one, and are re-estimated only when the instructions changed (estimateFor), so
+// planner blocks that carry the estimate are not churned every morning. Unknown, archived and finished work is skipped.
+const DONE_WORK=['submitted','graded','excused'],textHash=x=>require('node:crypto').createHash('sha256').update(String(x||'')).digest('hex').slice(0,16);
+function applyEstimates(assignments,estimates){const report={applied:0,kept:0,skipped:0},byId=new Map(assignments.map(a=>[a.id,a]));
+ if(!Array.isArray(estimates))throw Error('estimates.json must be a list');
+ for(const e of estimates){const a=e&&byId.get(e.id),m=Number(e?.estimateMinutes),basis=typeof e?.basis==='string'?e.basis.trim().slice(0,300):'';
+  if(!a||a.archivedFromSource||DONE_WORK.includes(a.status)||!Number.isInteger(m)||m<5||m>1200||m%5||!basis){report.skipped++;continue;}
+  if(a.estimateMinutes!=null&&a.estimateSource!=='ai'){report.skipped++;continue;}
+  const basedOn=textHash(a.description);if(a.estimateSource==='ai'&&a.estimateFor===basedOn&&a.estimateMinutes!=null){report.kept++;continue;}
+  Object.assign(a,{estimateMinutes:m,estimateSource:'ai',estimateBasis:basis,estimateFor:basedOn});
+  const list=Array.isArray(e.checklist)?e.checklist.filter(x=>typeof x==='string'&&x.trim()).slice(0,8).map(x=>x.trim().slice(0,120)):[];
+  if(list.length&&(!a.checklist?.length||a.checklistSource==='ai'))Object.assign(a,{checklist:list,checklistSource:'ai'});report.applied++;}
+ return report;}
+// reads: {canvas, courseSites:[fetchSite results], calendar:{status,note,events,coverage}, email:{...contract email record} | {status:'failed',note}, notes, estimates}
+function buildSnapshot(current,{canvas,courseSites,calendar,email,schedules,notes={},estimates}={},{now=Date.now()}={}){
  if(!current)throw Error('No current snapshot: import or restore one before cloud collection');
  const at=new Date(now).toISOString(),d=structuredClone(current),report={};C.configure(d.timezone);let sources=d.sources;
  delete d.actionHistory;// receipts are recorded only in the database; the merge keeps them.
@@ -153,6 +168,7 @@ function buildSnapshot(current,{canvas,courseSites,calendar,email,schedules,note
   if(failed){sources=setSource(sources,'gmail',{status:'failed',note:email.note||email.coverage?.note||'Gmail could not be read.'});if(email.enabled)d.email=email;report.email={status:'failed'};}
   else{d.email=email;sources=setSource(sources,'gmail',{name:'Gmail (Yale label)',status:email.coverage?.status==='complete'?'ok':'partial',lastSuccess:at,note:`${email.messages.length} messages from ${email.request?.query}.`});report.email={status:email.coverage?.status,messages:email.messages.length};}}
  if(Array.isArray(courseSites)&&courseSites.length){const r=siteEvents(d.events,courseSites,now);d.events=r.events;report.siteEvents=r.report;}
+ if(estimates!=null)report.estimates=applyEstimates(d.assignments,estimates);
  // A course outside Canvas is not read automatically: its own sources say so instead of warning as failed every day.
  const manualCourses=new Set(d.courses.filter(c=>c.collection?.mode==='manual').map(c=>c.id));
  for(const s of sources){const work=d.assignments.filter(a=>a.sourceId===s.id);if(s.status!=='ok'&&s.status!=='manual'&&work.length&&work.every(a=>manualCourses.has(a.courseId)))sources=setSource(sources,s.id,{status:'manual',note:'Kept from your last review; this course\'s site needs its own sign-in and is not read automatically.'});}
@@ -163,4 +179,4 @@ function buildSnapshot(current,{canvas,courseSites,calendar,email,schedules,note
  d.priorities=Array.isArray(notes.priorities)?notes.priorities:[];
  if(typeof notes.weeklyReview==='string')d.weeklyReview=notes.weeklyReview;if(Array.isArray(notes.questions))d.questions=notes.questions;
  C.validate(d);return {snapshot:d,report};}
-module.exports={buildSnapshot,mergeCanvas,mergeCourseSites,siteEvents,mergeSchedules,scheduleChanges,canvasId};
+module.exports={buildSnapshot,applyEstimates,mergeCanvas,mergeCourseSites,siteEvents,mergeSchedules,scheduleChanges,canvasId};
