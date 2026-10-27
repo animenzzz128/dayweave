@@ -80,6 +80,8 @@ export interface Progress {
 
 export interface Approval {
   id: number; reference: string; status: string; at: string; value: Proposal[]; fingerprints: Record<string, string>;
+  /** The owner's approval recorded on the page (server mode), or null. */
+  approval?: { channel: string; text: string; at: string; by: string } | null;
 }
 
 export interface PlanResult {
@@ -103,6 +105,9 @@ export interface DataSource {
   /** Demo only: adds an AI proposal from one sentence to the review queue. It still needs approval like any other. */
   addProposal?(p: Proposal): Promise<void>;
   prepare(ids: string[]): Promise<Approval>;
+  /** Server only: records or withdraws the owner's approval of an exact prepared version. */
+  approve?(reference: string): Promise<void>;
+  withdraw?(reference: string): Promise<void>;
   /** Demo only: stands in for the assistant's approved execution and read-back. */
   simulateApproval?(approval: Approval): Promise<void>;
   /** Demo only: makes the calendar and Gmail fail, to show how failures stay visible. */

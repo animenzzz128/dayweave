@@ -43,6 +43,8 @@ export class ApiSource implements DataSource {
   async generatePlan(date: string) { return this.call<PlanResult>('plan/generate', { date }); }
   async editProposal(id: string, changes: Partial<Proposal>) { await this.call('proposals/edit', { id, changes }); }
   async prepare(ids: string[]) { return this.call<Approval>('approvals/prepare', { ids }); }
+  async approve(reference: string) { await this.call('approvals/approve', { reference }); }
+  async withdraw(reference: string) { await this.call('approvals/withdraw', { reference }); }
   async backups() { return (await this.call<{ backups: string[] }>('health')).backups; }
   async backup() { return (await this.call<{ name: string }>('backup', {})).name; }
   async restore(name: string) { await this.call('restore', { name }); }
