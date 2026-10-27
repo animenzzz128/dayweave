@@ -24,7 +24,12 @@ function mergeCanvas(assignments,courses,canvas,now){
  const out=assignments.map(a=>({...a})),seen=new Set(),added=[],updated=[],detailed=[],items=canvas.items.filter(x=>x.kind==='assignment'&&x.assignmentId);
  const flags=canvas.submissions?.status==='ok'?new Map(canvas.submissions.items.map(x=>[x.assignmentId,x])):null;
  const sourceFacts=(a,item,track=true)=>{const f=flags?.get(item.assignmentId);let changed=fillDescription(a,item.description);changed=applyStatus(a,canvasStatus(f))||changed;
-  if(f&&a.requirement==='uncertain'&&f.points>0){a.requirement='required';changed=true;}if(changed&&track)detailed.push(a.id);};
+  if(f&&a.requirement==='uncertain'&&f.points>0){a.requirement='required';changed=true;}
+  // Without a planner read the feed cannot say whether work was submitted: Canvas assignments count as required coursework and are
+  // marked statusUnread, so they are listed by due time with a tag rather than in verification (owner decision 2026-10-27).
+  if(!f&&a.status==='unknown'){if(!a.statusUnread){a.statusUnread=true;changed=true;}if(a.requirement==='uncertain'){a.requirement='required';changed=true;}}
+  else if(a.statusUnread&&a.status!=='unknown'){delete a.statusUnread;changed=true;}
+  if(changed&&track)detailed.push(a.id);};
  courses=courses.map(c=>({...c}));const byId=new Map(out.map(a=>[canvasId(a),a]).filter(([k])=>k));
  // A Canvas site (including a merged site whose name matches no course code) belongs to the course of the assignments already
  // matched to it; `canvasCourseIds` records that link. A site linked to two courses is ambiguous and not used for new work.
@@ -43,7 +48,7 @@ function mergeCanvas(assignments,courses,canvas,now){
   if(!course&&item.course&&!courses.some(c=>item.courseId&&(c.canvasCourseIds||[]).includes(item.courseId))){course={id:'canvas-course-'+(item.courseId||norm(item.course).replace(/[^a-z0-9]+/g,'-')),code:item.course,name:item.course,category:'academic',note:'Added from the Canvas calendar feed.',...(item.courseId?{canvasCourseIds:[item.courseId]}:{})};if(item.url)course.source=new URL(item.url).origin;courses.push(course);}
   const record={id:'canvas-'+item.assignmentId,courseId:course?.id||null,course:course?.code||item.course||'',title:item.title,dueAt,status:'unknown',requirement:'uncertain',sourceId:'canvas',
    source:item.url||'',canvasAssignmentId:item.assignmentId,estimateMinutes:null,
-   evidence:flags?.has(item.assignmentId)?`Canvas calendar feed (title, due time${item.description?', instructions':''}) and Canvas planner (submission status${flags.get(item.assignmentId).points!=null?`, ${flags.get(item.assignmentId).points} points`:''}).`:`Canvas calendar feed: title, due time${item.description?' and instructions':''}. Submission state and whether the work is required are not in the feed.`,
+   evidence:flags?.has(item.assignmentId)?`Canvas calendar feed (title, due time${item.description?', instructions':''}) and Canvas planner (submission status${flags.get(item.assignmentId).points!=null?`, ${flags.get(item.assignmentId).points} points`:''}).`:`Canvas calendar feed: title, due time${item.description?' and instructions':''}. Submission state is not in the feed; counted as required.`,
    description:'',materials:'',checklist:[],aiPolicy:'Unknown: check the course policy before asking for help.'};
   if(!record.source)delete record.source;sourceFacts(record,item,false);out.push(record);byId.set(item.assignmentId,record);seen.add(record.id);added.push(record.id);}
  const removed=out.filter(a=>canvasId(a)&&!seen.has(a.id)&&!a.archivedFromSource&&a.dueAt&&Date.parse(a.dueAt)>=from&&Date.parse(a.dueAt)<=to).map(a=>a.id);

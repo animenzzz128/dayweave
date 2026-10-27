@@ -7,7 +7,9 @@ function dayKey(x){return new Intl.DateTimeFormat('en-CA',{timeZone:TZ,year:'num
 function classify(a,now){
   if(['submitted','graded','excused'].includes(a.status))return 'submitted';
   if(a.requirement==='choice')return 'optional';
-  if(a.requirement==='uncertain'||a.status==='unknown')return 'verify';
+  // statusUnread: the source cannot report submission (the Canvas feed without a token); such work is listed by its due time with a
+  // "status not read" tag instead of in verification (owner decision 2026-10-27). Its status stays unknown.
+  if(a.requirement==='uncertain'||a.status==='unknown'&&!a.statusUnread)return 'verify';
   if(!a.dueAt)return 'undated';
   const h=(stamp(a.dueAt)-stamp(now))/3600000;
   return h<0?'overdue':h<=72?'soon':h<=168?'week':'later';

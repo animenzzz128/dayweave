@@ -101,3 +101,9 @@ test('page-order scripts render Standard by default and Reduced with every warni
  const target=vm.runInContext("[coursework(new URLSearchParams('tab=history&q=Later required')),coursework(new URLSearchParams('q=Later required'))]",ctx);a.match(target[0],/<h3>Later required<\/h3>[\s\S]*Unarchive locally/);a.doesNotMatch(target[1],/Later required<\/h3>/,'the Current tab hides it, so the link must not point there');a.deepEqual(S.archive,{later:true});a.match(section('focus-selectable'),/Pick one<\/a> <span class="tag ">Selectable \(choice\)/);a.match(html,/href="\/coursework\?q=Pick%20one"/);
  S.preferences={workloadMode:'turbo'};await vm.runInContext('render()',ctx);a.match(node('#page').innerHTML,/Focus mode: Standard/,'an unknown stored mode renders Standard');
 });
+
+test('status-unread work is listed by due time, not in verification (owner decision 2026-10-27)',()=>{
+ const W=require('../src/workload.cjs'),now='2026-10-07T12:00:00Z',src=[{id:'canvas',status:'ok'}];
+ const base={courseId:'c',course:'C',sourceId:'canvas',status:'unknown',requirement:'required',statusUnread:true};
+ const r=W.focus([{...base,id:'a',title:'A',dueAt:'2026-10-08T12:00:00Z'},{...base,id:'b',title:'B',dueAt:'2026-10-09T12:00:00Z',statusUnread:undefined},{...base,id:'c',title:'C',dueAt:'2026-10-09T12:00:00Z',requirement:'choice'}],src,now);
+ a.deepEqual(r.urgent.map(x=>x.id),['a']);a.deepEqual(r.verification.map(x=>x.id),['b']);a.deepEqual(r.selectable.map(x=>x.id),['c']);});

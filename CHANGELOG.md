@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased — Canvas work without submission status
+
+- Canvas feed work with no readable submission status (no Canvas token) is marked `statusUnread`, counted as required and listed by its due time with a "Status not read" tag, instead of filling Needs verification. Its status stays `unknown`; Mark done records completion. Owner decision 2026-10-27.
+
 ## Unreleased — Assignment instructions and submission status from sources
 
 - The Canvas feed's plain-text instructions now fill an empty assignment description, so new Canvas work shows its requirements instead of a bare title. Reviewed descriptions are kept.

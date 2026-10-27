@@ -121,6 +121,7 @@ function AssignmentCard({ a, initiallyOpen, select }: { a: Assignment; initially
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {a.requirement === 'choice' && <Tag tone="info">{t.status.optional}</Tag>}
+          {a.statusUnread && a.status === 'unknown' && !m && <Tag tone="neutral">{t.coursework.statusUnread}</Tag>}
           <Tag tone={past ? 'warn' : tone}>{m ? t.coursework.mark[m] : past ? t.coursework.pastTag : k === 'verify' ? t.status.verify : k === 'submitted' ? workStatus(a.status) : k === 'overdue' ? t.status.overdue : f.when(a.dueAt, now)}</Tag>
           <span aria-hidden="true" className="text-muted">{open ? '−' : '+'}</span>
         </div>
