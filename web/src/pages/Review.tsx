@@ -143,7 +143,12 @@ export function ApproveButton({ approval }: { approval: Approval }) {
   const ref = approval.reference;
   // Hosted with Google Calendar connected: approving writes straight away (docs/google-direct.md).
   const direct = !!calendarWrite?.connected && !!source.writeCalendar;
-  const connect = !!calendarWrite?.available && !calendarWrite.connected && <><a className="btn w-full text-center" href="/auth/calendar/connect">{t.review.connect}</a><p className="text-xs text-muted">{t.review.connectNote}</p></>;
+  const connect = !!calendarWrite?.available && !calendarWrite.connected && <>
+    {source.connectCalendar
+      ? <button type="button" className="btn w-full" onClick={() => run(() => source.connectCalendar!(), t.review.calendarConnected)}>{t.review.connect}</button>
+      : <a className="btn w-full text-center" href="/auth/calendar/connect">{t.review.connect}</a>}
+    <p className="text-xs text-muted">{source.connectCalendar ? t.review.connectDemoNote : t.review.connectNote}</p>
+  </>;
   const write = async () => {
     const r = await source.writeCalendar!(ref);
     if (r.stopped.length) throw new Error(t.review.writeStopped + r.stopped.join(' '));
@@ -152,17 +157,8 @@ export function ApproveButton({ approval }: { approval: Approval }) {
   const summary = (r: WriteResult) => {
     const n = (s: string[]) => r.actions.filter((a) => s.includes(a.status)).length;
     const why = r.actions.find((a) => a.errors?.length || a.mismatches?.length);
-    return t.review.writeSummary(n(['executed']), n(['skipped', 'not_created']), n(['unverified', 'pending'])) + (why ? ` · ${why.title}: ${(why.errors || why.mismatches || [])[0]}` : '');
+    return t.review.writeSummary(n(['executed']), n(['skipped', 'not_created']), n(['unverified', 'pending'])) + (why ? ` · ${why.title}: ${(why.errors || why.mismatches || [])[0]}` : '') + (source.mode === 'demo' ? ` · ${t.demo.simulated}` : '');
   };
-  if (source.simulateApproval) {
-    return (
-      <div className="space-y-1.5">
-        <p className="text-sm font-medium text-ok">{t.review.prepared(approval.reference)}</p>
-        <button type="button" className="btn btn-primary w-full" onClick={() => run(() => source.simulateApproval!(approval), t.demo.simulated)}>{t.review.approve(approval.reference)}</button>
-        <p className="text-xs text-muted">{t.review.approveDemoNote}</p>
-      </div>
-    );
-  }
   if (approval.approval) {
     return (
       <div className="space-y-1.5 rounded-lg bg-ok-soft p-3">

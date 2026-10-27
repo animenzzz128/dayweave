@@ -62,10 +62,12 @@ function Fold({ title, items, render }: { title: string; items: Triaged[]; rende
 
 function Message({ x, adopted }: { x: Triaged; adopted: boolean }) {
   const { f, now, source, run, snapshot: d } = useApp();
-  const { t } = useI18n();
+  const { t, lang } = useI18n();
   const [adopting, setAdopting] = useState(false);
   const { m, category, handled, overridden } = x;
   const tr = m.triage;
+  // Summary and action in the interface language: the Chinese version when there is one, English otherwise.
+  const said = tr && lang === 'zh' && tr.zh ? tr.zh : tr;
   const assignment = tr?.assignmentId ? d.assignments.find((a) => a.id === tr.assignmentId) : undefined;
   const save = (patch: { category?: TriageCategory | null; handled?: boolean }, done: string) => {
     const current = { ...(category && overridden ? { category } : {}), ...(handled ? { handled } : {}) } as Record<string, unknown>;
@@ -89,10 +91,10 @@ function Message({ x, adopted }: { x: Triaged; adopted: boolean }) {
           <span className="font-mono text-xs text-muted">{f.ago(m.receivedAt, now)}</span>
         </div>
       </div>
-      {tr?.summary
-        ? <p className="mt-2 text-sm text-body"><span className="mr-1.5 text-xs font-medium text-muted">{overridden ? t.email.yours : t.email.ai}</span>{tr.summary}</p>
+      {said?.summary
+        ? <p className="mt-2 text-sm text-body"><span className="mr-1.5 text-xs font-medium text-muted">{overridden ? t.email.yours : t.email.ai}</span>{said.summary}</p>
         : m.snippet && <p className="mt-2 text-sm text-body">{m.snippet}</p>}
-      {tr?.action && <p className="mt-1 text-sm"><span className="text-muted">{t.email.suggested}</span> {tr.action}</p>}
+      {said?.action && <p className="mt-1 text-sm"><span className="text-muted">{t.email.suggested}</span> {said.action}</p>}
       {(tr?.dueAt || assignment) && (
         <p className="mt-1 text-[13px] text-muted">
           {tr?.dueAt && <span className="mr-3">{t.email.due(f.when(tr.dueAt, now))}</span>}
@@ -117,7 +119,7 @@ function Message({ x, adopted }: { x: Triaged; adopted: boolean }) {
       {adopting && !adopted && (
         <div className="mt-3 max-w-xl">
           <p className="mb-2 text-xs text-muted">{tr ? t.email.adoptHintAi : t.email.adoptHint}</p>
-          <TodoForm origin={{ type: 'email', messageId: m.id }} initialTitle={tr?.action || m.subject} initialDue={dueLocal} onDone={() => setAdopting(false)} />
+          <TodoForm origin={{ type: 'email', messageId: m.id }} initialTitle={said?.action || m.subject} initialDue={dueLocal} onDone={() => setAdopting(false)} />
         </div>
       )}
     </li>
