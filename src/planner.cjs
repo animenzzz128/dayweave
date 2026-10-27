@@ -212,6 +212,14 @@ function keep(old,result){
  const fine=p=>p.provider===C.calendarProvider(cov)&&p.account===cov.account&&p.calendarId===cov.calendarId&&(p.sourceRefs||[]).every(r=>{if(r.kind!=='assignment')return true;const a=assignments.get(r.id);return a&&!a.archivedFromSource&&!sourceProblem(result,a.sourceId,gen)&&a.requirement==='required'&&a.status==='not_submitted'&&(a.dueAt||null)===(r.dueAt||null)&&(!('estimateMinutes' in r)||a.estimateMinutes===r.estimateMinutes);});
  return (old.proposals||[]).filter(p=>p.origin==='planner'&&!ids.has(p.id)&&(attempted(old,p.id)||(Date.parse(p.end)>gen&&fine(p))));
 }
-const api={SETTINGS,RECOMMENDED,REVIEW,INTERVIEW,validDate,nextDay,hash,chunks,merge,minutesFree,slot,sourceProblem,candidates,gaps,plan,summary,keep,replaceable,attempted,ATTEMPTED,planSettings,isoDay};
+// Calendar events that are Dayweave's own written blocks, by the ownEvents rule above. A read after a write imports each block
+// as an ordinary event; views draw the approved block once instead of twice.
+function ownEventIds(d){const receipt=new Map((d.actionHistory||[]).filter(h=>ATTEMPTED.includes(h.status)).map(h=>[h.id,h.fingerprint])),copies=new Map(),occ=new Map();
+ for(const p of d.proposals||[])if(receipt.has(p.id)&&P.fingerprint(p)===receipt.get(p.id)&&!copies.has(p.id))copies.set(p.id,p);
+ for(const [id,p] of copies){try{occ.set(id,P.occurrences(p).map(o=>[Date.parse(o.start),Date.parse(o.end)]));}catch{/* time unknown: not matched */}}
+ // An event found only by its receipt, with no copy left to draw in its place, stays visible.
+ const refs=new Map((d.actionHistory||[]).filter(h=>h.status==='executed'&&h.remoteRef).map(h=>[h.remoteRef,h.id])),ref=e=>refs.get(e.remoteRef)??refs.get(e.id)??(e.calendarId&&e.id?refs.get(e.calendarId+'/'+e.id):undefined);
+ return new Set([...ownEvents(d,copies,occ)].filter(e=>{const id=ref(e);return id===undefined||copies.has(id);}).map(e=>e.id));}
+const api={SETTINGS,RECOMMENDED,REVIEW,INTERVIEW,validDate,nextDay,hash,chunks,merge,minutesFree,slot,sourceProblem,candidates,gaps,plan,summary,keep,replaceable,attempted,ATTEMPTED,planSettings,isoDay,ownEventIds};
 if(typeof module!=='undefined')module.exports=api;else window.PlannerPlanner=api;
 })();
