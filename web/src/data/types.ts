@@ -100,6 +100,18 @@ export interface CalendarWrite { available: boolean; connected?: boolean; accoun
 /** One direct write run: each action's outcome, or why the whole version stopped. */
 export interface WriteResult { reference: string; stopped: string[]; actions: { id: string; title: string; status: string; already?: boolean; errors?: string[]; mismatches?: string[] }[] }
 
+/** Server only: two dated weeks from retained source snapshots (src/trends.cjs). Unknown stays unknown, never zero. */
+export interface TrendWeek {
+  start: string; end: string; current: boolean; retentionLimited: boolean; observations: number; imports: number; unread: number;
+  latest: { generatedAt: string; counts: Record<string, number>; noFresh: boolean } | null;
+  sources: { id: string; name: string; ok: number; failed: number; other: number; notReported: number; latestStatus: string | null }[];
+}
+export interface Trends {
+  available: boolean; reason?: string; timezone: string; defaultWeek: boolean;
+  nav: { earlier: string | null; later: string | null }; retention: { days: number };
+  weeks: [TrendWeek, TrendWeek]; comparison: { comparable: boolean; reasons: string[]; changes: Record<string, number> | null };
+}
+
 export interface Loaded { snapshot: Snapshot; progress: Progress; approvals: Approval[]; outage?: boolean; planSettings: PlanSettings; planSettingsSaved: boolean; calendarWrite?: CalendarWrite }
 
 export interface DataSource {
@@ -122,6 +134,11 @@ export interface DataSource {
   withdraw?(reference: string): Promise<void>;
   /** Hosted only: writes an approved version to Google Calendar now, or forgets the stored Google consent. */
   writeCalendar?(reference: string): Promise<WriteResult>;
+  /** Freezes the estimate and recorded actual minutes as a calibration sample, or removes it. Not a submission record. */
+  confirmEffort?(id: string): Promise<void>;
+  clearEffort?(id: string): Promise<void>;
+  /** Server only: weekly evidence trends; `week` is a Monday (YYYY-MM-DD), latest observed week when omitted. */
+  trends?(week?: string): Promise<Trends>;
   disconnectCalendar?(): Promise<void>;
   /** Demo only: stands in for the assistant's approved execution and read-back. */
   simulateApproval?(approval: Approval): Promise<void>;

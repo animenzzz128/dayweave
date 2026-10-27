@@ -1,5 +1,5 @@
 import template from '../../../examples/luna-demo.json';
-import { Core, Demo, Phase2, Planner, Todos } from '../lib/shared';
+import { Core, Demo, Effort, Phase2, Planner, Todos } from '../lib/shared';
 import { trackEvent } from '../lib/analytics';
 import type { Approval, DataSource, Loaded, PlanResult, PlanSettings, Progress, Proposal, Receipt, Snapshot, Todo } from './types';
 
@@ -94,6 +94,24 @@ export class DemoSource implements DataSource {
     const bucket = (s.progress[kind] ??= {}) as Record<string, unknown>;
     if (value === null || value === undefined || value === false) delete bucket[id];
     else bucket[id] = value;
+    // As on the server: editing actual minutes removes that work's calibration confirmation.
+    if (kind === 'actual' && s.progress.effortCalibration) delete s.progress.effortCalibration[id];
+    this.save();
+  }
+
+  async confirmEffort(id: string) {
+    const { d, s } = this.build();
+    const a = d.assignments.find((x) => x.id === id), actual = s.progress.actual?.[id];
+    if (!a) throw new Error('Unknown assignment');
+    if (!Effort.positive(a.estimateMinutes)) throw new Error('Effort confirmation needs a positive estimate');
+    if (!Effort.positive(actual)) throw new Error('Record positive actual minutes before confirming');
+    (s.progress.effortCalibration ??= {})[id] = { estimateMinutes: a.estimateMinutes, actualMinutes: actual, requirement: a.requirement, confirmedAt: new Date().toISOString() };
+    this.save();
+  }
+
+  async clearEffort(id: string) {
+    const { s } = this.build();
+    if (s.progress.effortCalibration) delete s.progress.effortCalibration[id];
     this.save();
   }
 
