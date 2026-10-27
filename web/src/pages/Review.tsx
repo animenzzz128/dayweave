@@ -149,10 +149,20 @@ function ApproveButton({ approval }: { approval: Approval }) {
       </div>
     );
   }
+  if (approval.approval) {
+    return (
+      <div className="space-y-1.5 rounded-lg bg-ok-soft p-3">
+        <p className="text-sm font-medium text-ok">{t.review.approvedWaiting(approval.reference)}</p>
+        <p className="text-xs text-muted">{t.review.approvedNote}</p>
+        <button type="button" className="btn w-full" onClick={() => run(() => source.withdraw!(approval.reference))}>{t.review.withdraw}</button>
+      </div>
+    );
+  }
   return (
-    <div className="space-y-1.5 rounded-lg bg-ok-soft p-3">
-      <p className="text-sm font-medium text-ok">{t.review.approveLocal(approval.reference)}</p>
-      <p className="text-xs text-muted">{t.review.approveLocalNote}</p>
+    <div className="space-y-1.5">
+      <p className="text-sm font-medium text-ok">{t.review.prepared(approval.reference)}</p>
+      <button type="button" className="btn btn-primary w-full" onClick={() => run(() => source.approve!(approval.reference))}>{t.review.approve(approval.reference)}</button>
+      <p className="text-xs text-muted">{t.review.approveServerNote}</p>
     </div>
   );
 }
@@ -162,6 +172,7 @@ function History({ approvals, skipped }: { approvals: Approval[]; skipped: Propo
   const { t } = useI18n();
   const label: Record<string, [string, 'ok' | 'warn' | 'info' | 'neutral']> = {
     executed: [t.review.executed, 'ok'], invalidated: [t.review.invalidated, 'warn'], prepared: [t.review.preparedState, 'info'],
+    pending: [t.review.pendingState, 'info'], partial: [t.review.partialState, 'warn'], unverified: [t.review.unverifiedState, 'warn'], failed: [t.review.failedState, 'warn'],
   };
   if (!approvals.length && !skipped.length) return <Empty>{t.review.noHistory}</Empty>;
   return (
@@ -171,7 +182,7 @@ function History({ approvals, skipped }: { approvals: Approval[]; skipped: Propo
           <h2 className="mb-2 text-lg font-semibold">{t.review.history}</h2>
           <ul className="divide-y divide-line rounded-xl border border-line">
             {approvals.map((a) => {
-              const [text, tone] = label[a.status] || [a.status, 'neutral'];
+              const [text, tone] = a.status === 'prepared' && a.approval ? [t.review.approvedState, 'info' as const] : label[a.status] || [a.status, 'neutral'];
               return (
                 <li key={a.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
                   <div className="min-w-0"><span className="font-mono text-xs text-muted">{a.reference}</span> {a.value.map((p) => p.title).join(', ')}<span className="block text-xs text-muted">{a.value.map((p) => `${f.day(p.start)} ${f.hm(p.start)}–${f.hm(p.end)}`).join(' · ')}</span></div>

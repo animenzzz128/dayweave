@@ -13,6 +13,7 @@ Hosted mode turns on only when `DAYWEAVE_PUBLIC_ORIGIN` is set (`scripts/serve.c
 | `DAYWEAVE_ALLOWED_EMAIL` | Fly secrets | The one account allowed in. Matched case-insensitively and must be Google-verified. |
 | `DAYWEAVE_SESSION_SECRET` | Fly secrets | At least 32 random characters (a constant value such as all "A"s is refused); signs the session and login cookies. Rotating it signs everyone out. |
 | `DAYWEAVE_INGEST_SECRET` | Fly secrets (optional) | At least 32 random characters; enables `/api/ingest`. Unset means ingest always returns 401. |
+| `DAYWEAVE_EXECUTE_SECRET` | Fly secrets (optional) | At least 32 random characters, different from the ingest secret; enables the calendar executor API (`/api/execute`, [cloud-execute.md](cloud-execute.md)). Unset means it always returns 401. |
 | `DAYWEAVE_CANVAS_ICS_URL` | Fly secrets (optional) | Canvas calendar feed link (https). The server reads it for the cloud collector; it never appears in responses or errors. |
 | `DAYWEAVE_CANVAS_TOKEN` | Fly secrets (optional) | Canvas access token for submission status ([cloud collection](cloud-collection.md#configuration-owner)). One GET-only planner read on the feed's Canvas host; never appears in responses or errors. |
 | `DAYWEAVE_COURSE_SITES`, `DAYWEAVE_COURSE_TOKEN_<CODE>` | Fly secrets (optional) | Course sites with a Yelukerest API and their personal tokens ([cloud collection](cloud-collection.md#configuration-owner)). The server reads them for the cloud collector with GET requests only; tokens never appear in responses or errors. |

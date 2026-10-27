@@ -48,7 +48,7 @@ List `gmail` and `google-calendar` in `sources[]` with `status` (`ok`, `partial`
 
 ## Approved Google Calendar writes (root procedure)
 
-Only the root assistant, after the human's own chat message approving an exact Q version, may write. The page's Prepare button creates that immutable version and nothing else; no web route executes or records receipts. `scripts/google-calendar.cjs` works on private JSON files the assistant produced with its connector tools and writes only local receipts. It never contacts Google. Contract: [execution receipts](data-contract.md#approved-google-calendar-execution).
+Only after the human approves an exact Q version may anyone write: by their own chat message ("Approve Q-N") for the CLI bridge below, or by **Approve Q-N** on the signed-in page of the private instance, which the [calendar executor](cloud-execute.md) then carries out with the same steps through `/api/execute`. The page's Prepare button creates the immutable version; its Approve button only records the owner's approval. No page route writes to a calendar. `scripts/google-calendar.cjs` works on private JSON files the assistant produced with its connector tools and writes only local receipts. It never contacts Google. Contract: [execution receipts](data-contract.md#approved-google-calendar-execution).
 
 **Scope (initial).** Create one new personal, timed event on the destination calendar recorded with owner access. Recurrence is one time only. No attendees, online meeting, email reminder or changes to existing, course or shared events. With no attendees there is nobody to invite; the connector has no invitation-update setting, so Dayweave claims no provider notification behavior. Planner focus blocks are the intended use.
 
