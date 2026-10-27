@@ -214,7 +214,7 @@ export function WorkList({ items, empty }: { items: Assignment[]; empty?: string
           <li key={a.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
             <div className="min-w-0">
               <a href={href('coursework', { open: a.id })} className="font-medium text-ink">{a.title}</a>
-              <div className="text-xs text-muted">{a.course}{a.estimateMinutes ? ` · ${t.common.est(f.duration(a.estimateMinutes))}` : ''}</div>
+              <div className="text-xs text-muted">{a.course}{a.estimateMinutes ? ` · ${t.common.est(f.duration(a.estimateMinutes))}${a.estimateSource === 'ai' ? ` (${t.common.aiEstimate})` : ''}` : ''}</div>
             </div>
             <div className="flex items-center gap-2">
               {a.requirement === 'choice' && <Tag tone="info">{t.status.optional}</Tag>}

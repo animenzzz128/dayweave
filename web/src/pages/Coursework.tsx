@@ -117,7 +117,7 @@ function AssignmentCard({ a, initiallyOpen, select }: { a: Assignment; initially
       <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} className="flex min-w-0 flex-1 flex-wrap items-center justify-between gap-3 px-4 py-3.5 text-left hover:bg-soft">
         <div className="min-w-0">
           <div className="font-medium">{a.title}</div>
-          <div className="text-xs text-muted">{a.course}{a.estimateMinutes ? ` · ${t.common.est(f.duration(a.estimateMinutes))}` : ''}{list.length ? ` · ${t.coursework.progress(done, list.length)}` : ''}</div>
+          <div className="text-xs text-muted">{a.course}{a.estimateMinutes ? ` · ${t.common.est(f.duration(a.estimateMinutes))}${a.estimateSource === 'ai' ? ` (${t.common.aiEstimate})` : ''}` : ''}{list.length ? ` · ${t.coursework.progress(done, list.length)}` : ''}</div>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           {a.requirement === 'choice' && <Tag tone="info">{t.status.optional}</Tag>}

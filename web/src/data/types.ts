@@ -6,7 +6,7 @@ export interface Course { id: string; code: string; name: string; category?: str
 export interface Assignment {
   id: string; courseId?: string; course: string; title: string; dueAt?: string | null;
   status: string; requirement: 'required' | 'choice' | 'uncertain' | string; sourceId?: string; source?: string;
-  estimateMinutes?: number; statusUnread?: boolean; evidence?: string; description?: string; materials?: string; aiPolicy?: string;
+  estimateMinutes?: number; /** 'ai' when the collecting task estimated it from the instructions. */ estimateSource?: string; estimateBasis?: string; statusUnread?: boolean; evidence?: string; description?: string; materials?: string; aiPolicy?: string;
   checklist?: string[]; archivedFromSource?: boolean; submissionUnknown?: boolean;
 }
 

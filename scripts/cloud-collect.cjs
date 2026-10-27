@@ -2,7 +2,7 @@
 // Cloud collection helper (#56, docs/cloud-collection.md). Needs DAYWEAVE_INGEST_URL (the instance origin) and
 // DAYWEAVE_INGEST_SECRET. Files stay in the ignored work folder (default .local/collect) and are never printed in full.
 //   context [dir]          read the current snapshot, the server-side Canvas feed and course-site APIs
-//   build [dir]            current.json + canvas.json + course-sites.json + course-connector.json + calendar.json/email.json/schedules.json/notes.json (each optional) -> snapshot.json
+//   build [dir]            current.json + canvas.json + course-sites.json + course-connector.json + calendar.json/email.json/schedules.json/notes.json/estimates.json (each optional) -> snapshot.json
 //   send [dir] [--dry-run] post snapshot.json; a dry run validates and reports archives without writing
 const fs=require('node:fs'),path=require('node:path'),{buildSnapshot}=require('../src/collect.cjs'),{withConnectorReads}=require('../src/coursesite.cjs'),{root}=require('./paths.cjs');
 const [cmd,...rest]=process.argv.slice(2),dry=rest.includes('--dry-run'),dir=path.resolve(rest.find(x=>!x.startsWith('--'))||path.join(root,'.local','collect'));
@@ -15,7 +15,7 @@ async function call(method,query='',body){const origin=process.env.DAYWEAVE_INGE
   console.log(JSON.stringify({snapshot:s?{generatedAt:s.generatedAt,timezone:s.timezone,assignments:s.assignments.length,events:s.events.length,sources:s.sources.map(x=>x.id+':'+x.status)}:null,
    calendar:cov?{provider:cov.provider,account:cov.account,calendarId:cov.calendarId,calendars:cov.calendars}:null,email:s?.email?{account:s.email.account,query:s.email.request?.query}:null,
    canvas:{status:v.canvas.status,items:v.canvas.items.length,error:v.canvas.error},courseSites:(v.courseSites||[]).map(x=>({course:x.course,status:x.status,assignments:x.assignments?.length,meetings:x.meetings?.length,error:x.error})),manualCourses:(s?.courses||[]).filter(c=>c.collection?.mode==='manual').map(c=>({id:c.id,code:c.code,scheduleUrl:c.collection.scheduleUrl||null}))},null,1));return;}
- if(cmd==='build'){const {snapshot,report}=buildSnapshot(read('current.json'),{canvas:read('canvas.json'),courseSites:withConnectorReads(read('course-sites.json'),read('course-connector.json')),calendar:read('calendar.json'),email:read('email.json'),schedules:read('schedules.json'),notes:read('notes.json')});write('snapshot.json',snapshot);console.log(JSON.stringify(report,null,1));return;}
+ if(cmd==='build'){const {snapshot,report}=buildSnapshot(read('current.json'),{canvas:read('canvas.json'),courseSites:withConnectorReads(read('course-sites.json'),read('course-connector.json')),calendar:read('calendar.json'),email:read('email.json'),schedules:read('schedules.json'),notes:read('notes.json'),estimates:read('estimates.json')});write('snapshot.json',snapshot);console.log(JSON.stringify(report,null,1));return;}
  if(cmd==='send'){const s=read('snapshot.json');if(!s)throw Error('Run build first');console.log(JSON.stringify(await call('POST',dry?'?dryRun=1':'',s),null,1));return;}
  throw Error('Usage: cloud-collect.cjs context|build|send [dir] [--dry-run]');
 })().catch(e=>{console.error(e.message);process.exit(1);});
