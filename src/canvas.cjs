@@ -1,7 +1,9 @@
 'use strict';
 // Canvas calendar feed (ICS), read by the hosted server. The feed URL carries a private token in its path, so it lives only in
-// the host's secret store; results and errors never include it. The feed gives titles and due times, not submission state.
-const MAX_BYTES=5e6,TIMEOUT_MS=15000,MAX_ITEMS=500,PAST_DAYS=14,FUTURE_DAYS=180;
+// the host's secret store; results and errors never include it. The feed gives titles, due times and each assignment's
+// instructions as plain text, not submission state. That comes from an optional Canvas access token (DAYWEAVE_CANVAS_TOKEN), used
+// for one GET-only read of the owner's planner items: submitted/excused/graded flags and points, never scores or submission bodies.
+const MAX_BYTES=5e6,TIMEOUT_MS=15000,MAX_ITEMS=500,PAST_DAYS=14,FUTURE_DAYS=180,MAX_DESCRIPTION=4000,MAX_PAGES=5;
 const unescapeText=v=>v.replace(/\\n/gi,'\n').replace(/\\([,;\\])/g,'$1');
 // Local wall time in an IANA zone to an instant (two passes settle DST offsets).
 function zoned(local,tz){const m=local.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})$/);if(!m)return null;
@@ -21,21 +23,38 @@ function parseIcs(text){
   const m=line.match(/^([A-Za-z0-9-]+)((?:;[^:;=]+=(?:"[^"]*"|[^:;"]*))*):(.*)$/);if(!m)continue;
   const params=Object.fromEntries([...m[2].matchAll(/;([^:;=]+)=("[^"]*"|[^:;"]*)/g)].map(p=>[p[1].toUpperCase(),p[2]]));cur[m[1].toUpperCase()]={params,value:m[3]};}
  return events.map(e=>{
-  const uid=e.UID?.value||'',summary=unescapeText(e.SUMMARY?.value||'').trim(),url=e.URL?.value||'',start=e.DTSTART&&when(e.DTSTART.params,e.DTSTART.value),end=e.DTEND&&when(e.DTEND.params,e.DTEND.value);
+  const uid=e.UID?.value||'',summary=unescapeText(e.SUMMARY?.value||'').trim(),description=unescapeText(e.DESCRIPTION?.value||'').replace(/\n{3,}/g,'\n\n').trim(),url=e.URL?.value||'',start=e.DTSTART&&when(e.DTSTART.params,e.DTSTART.value),end=e.DTEND&&when(e.DTEND.params,e.DTEND.value);
   const bracket=summary.match(/^(.*?)\s*\[([^\]]+)\]$/),assignmentId=(uid.match(/^event-assignment-(?:override-)?(\d+)$/)||url.match(/#assignment_(\d+)/)||[])[1]||null;
   return {uid,kind:/^event-assignment-/.test(uid)||assignmentId?'assignment':'event',assignmentId,courseId:(url.match(/include_contexts=course_(\d+)/)||[])[1]||null,
-   course:bracket?bracket[2]:null,title:bracket?bracket[1]:summary,start:start?.at||null,end:end?.at||null,date:start?.date||null,url:/^https:\/\//.test(url)?url:null};
+   course:bracket?bracket[2]:null,title:bracket?bracket[1]:summary,start:start?.at||null,end:end?.at||null,date:start?.date||null,url:/^https:\/\//.test(url)?url:null,...(description?{description:description.length>MAX_DESCRIPTION?description.slice(0,MAX_DESCRIPTION-1).trimEnd()+'…':description}:{})};
  }).filter(x=>x.uid&&x.title&&(x.start||x.date));}
 // Keeps a bounded window around now, so a feed with years of history stays small.
 function windowed(items,now=Date.now()){const from=now-PAST_DAYS*86400000,to=now+FUTURE_DAYS*86400000,t=x=>Date.parse(x.start||x.date+'T12:00:00Z');
  return items.filter(x=>t(x)>=from&&t(x)<=to).sort((a,b)=>t(a)-t(b)).slice(0,MAX_ITEMS);}
-async function fetchCanvas(url,{fetch:doFetch=globalThis.fetch,now=Date.now()}={}){
+// Planner items cover every active course in one paged read. Quizzes and graded discussions name their assignment ID in the
+// plannable, so they match feed items by the same ID. Only booleans and points are kept.
+async function fetchCanvasStatus(origin,token,{fetch:doFetch=globalThis.fetch,now=Date.now()}={}){
+ if(!token)return {status:'unconfigured'};const fail=error=>({status:'failed',error});
+ const day=t=>new Date(t).toISOString().slice(0,10);let next=`${origin}/api/v1/planner/items?${new URLSearchParams({start_date:day(now-PAST_DAYS*86400000),end_date:day(now+FUTURE_DAYS*86400000),per_page:'100'})}`;const items=[];
+ try{for(let page=0;next&&page<MAX_PAGES;page++){
+   const r=await doFetch(next,{headers:{Accept:'application/json',Authorization:'Bearer '+token},redirect:'error',signal:AbortSignal.timeout(TIMEOUT_MS)});
+   if(r.status===401||r.status===403)return fail(`Canvas refused the access token (HTTP ${r.status}): check or renew it`);if(!r.ok)return fail('Canvas API returned HTTP '+r.status);
+   const text=await r.text();if(text.length>MAX_BYTES)return fail('Canvas API answer is too large');const list=JSON.parse(text);if(!Array.isArray(list))return fail('Canvas API answer is not a list');
+   for(const x of list){const p=x.plannable||{},id=x.plannable_type==='assignment'?x.plannable_id:p.assignment_id;if(id==null)continue;const s=x.submissions||{};
+    items.push({assignmentId:String(id),submitted:!!s.submitted,excused:!!s.excused,graded:!!s.graded,missing:!!s.missing,points:Number.isFinite(p.points_possible)?p.points_possible:null});}
+   // Canvas pages with a Link header; only a next page on the same host is followed, so the token never leaves Canvas.
+   const link=String(r.headers?.get?.('link')||'').split(',').find(l=>/rel="next"/.test(l)),u=link&&link.match(/<([^>]+)>/)?.[1];next=u&&new URL(u).origin===origin?u:null;}
+  return {status:'ok',items};}
+ catch(e){return fail(e.name==='TimeoutError'?'Canvas API timed out':'Canvas API could not be read');}}
+async function fetchCanvas(url,{fetch:doFetch=globalThis.fetch,now=Date.now(),token=''}={}){
  const fetchedAt=new Date(now).toISOString();if(!url)return {status:'unconfigured',fetchedAt,items:[]};
  const fail=error=>({status:'failed',fetchedAt,error,items:[]});
  try{const r=await doFetch(url,{redirect:'follow',signal:AbortSignal.timeout(TIMEOUT_MS)});if(!r.ok)return fail('Canvas feed returned HTTP '+r.status);
   if(Number(r.headers?.get?.('content-length'))>MAX_BYTES)return fail('Canvas feed is too large');const text=await r.text();if(text.length>MAX_BYTES)return fail('Canvas feed is too large');
   if(!/BEGIN:VCALENDAR/.test(text))return fail('Canvas feed is not a calendar');const all=parseIcs(text),items=windowed(all,now);
-  return {status:'ok',fetchedAt,total:all.length,window:{pastDays:PAST_DAYS,futureDays:FUTURE_DAYS},items};}
+  const result={status:'ok',fetchedAt,total:all.length,window:{pastDays:PAST_DAYS,futureDays:FUTURE_DAYS},items};
+  if(token)result.submissions=await fetchCanvasStatus(new URL(url).origin,token,{fetch:doFetch,now});
+  return result;}
  catch(e){return fail(e.name==='TimeoutError'?'Canvas feed timed out':'Canvas feed could not be read');}}
 function canvasUrl(value){if(!value)return '';const u=new URL(value);if(u.protocol!=='https:')throw Error('DAYWEAVE_CANVAS_ICS_URL must be an https URL');return u.href;}
-module.exports={parseIcs,fetchCanvas,canvasUrl,windowed};
+module.exports={parseIcs,fetchCanvas,fetchCanvasStatus,canvasUrl,windowed};

@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — Assignment instructions and submission status from sources
+
+- The Canvas feed's plain-text instructions now fill an empty assignment description, so new Canvas work shows its requirements instead of a bare title. Reviewed descriptions are kept.
+- Optional `DAYWEAVE_CANVAS_TOKEN` (Fly secret): the server reads the owner's Canvas planner with one paged GET and sets submission status (submitted, graded, excused, not submitted) and marks work with points as required. Only flags and points are kept; never scores or submission bodies. A refused token makes the Canvas source partial with the reason.
+- Course-site connector reads can include instructions (`bodies`), the owner's submissions and quiz submissions. Work with a filled-in submission or a taken quiz becomes submitted, upcoming work without one becomes not submitted, past work without one keeps its status. Submitted values are dropped before the snapshot is built.
+- A source status read never turns reviewed submitted, graded or excused work back into not submitted.
+
 ## Unreleased — Course sites with an API
 
 - The server reads course sites that run Yelukerest (PostgREST, e.g. `www.656.mba`, `www.802.mba`) with the owner's personal API token from Fly secrets (`DAYWEAVE_COURSE_SITES`, `DAYWEAVE_COURSE_TOKEN_<CODE>`) and returns them to the cloud collector in `GET /api/ingest`. Only GET requests for meetings, assignments (with extension-aware deadlines) and quizzes; never grades or submissions; tokens never appear in responses or errors.

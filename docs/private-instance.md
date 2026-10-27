@@ -14,6 +14,7 @@ Hosted mode turns on only when `DAYWEAVE_PUBLIC_ORIGIN` is set (`scripts/serve.c
 | `DAYWEAVE_SESSION_SECRET` | Fly secrets | At least 32 random characters (a constant value such as all "A"s is refused); signs the session and login cookies. Rotating it signs everyone out. |
 | `DAYWEAVE_INGEST_SECRET` | Fly secrets (optional) | At least 32 random characters; enables `/api/ingest`. Unset means ingest always returns 401. |
 | `DAYWEAVE_CANVAS_ICS_URL` | Fly secrets (optional) | Canvas calendar feed link (https). The server reads it for the cloud collector; it never appears in responses or errors. |
+| `DAYWEAVE_CANVAS_TOKEN` | Fly secrets (optional) | Canvas access token for submission status ([cloud collection](cloud-collection.md#configuration-owner)). One GET-only planner read on the feed's Canvas host; never appears in responses or errors. |
 | `DAYWEAVE_COURSE_SITES`, `DAYWEAVE_COURSE_TOKEN_<CODE>` | Fly secrets (optional) | Course sites with a Yelukerest API and their personal tokens ([cloud collection](cloud-collection.md#configuration-owner)). The server reads them for the cloud collector with GET requests only; tokens never appear in responses or errors. |
 | `DAYWEAVE_DATA_DIR`, `PORT` | `fly.toml` `[env]` | `/data` (the volume) and `8080`. |
 | `DAYWEAVE_WEB_DIST` | Docker image | The built `web/` front end (server mode). Set by the image; unset serves the classic UI at `/`. |
