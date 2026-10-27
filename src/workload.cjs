@@ -22,7 +22,7 @@ function focus(assignments,sources,now,m){
   if(k==='submitted')continue;
   if(k==='verify')out.verification.push({...a,verifyReason:reason(a,sources)});
   // Selectable work with unknown submission status stays selectable and is also listed for verification.
-  else if(k==='optional'){if(a.status==='unknown'){out.selectable.push({...a,submissionUnknown:true});out.verification.push({...a,verifyReason:reason(a,sources)});}else out.selectable.push(a);}
+  else if(k==='optional'){if(a.status==='unknown'&&!a.statusUnread){out.selectable.push({...a,submissionUnknown:true});out.verification.push({...a,verifyReason:reason(a,sources)});}else out.selectable.push(a);}
   else if(a.requirement!=='required')out.verification.push({...a,verifyReason:reason(a,sources)});
   else (k==='overdue'||k==='soon'?out.urgent:out.upcoming).push({...a,urgency:k});
  }
