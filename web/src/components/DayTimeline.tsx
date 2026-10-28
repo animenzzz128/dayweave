@@ -54,7 +54,7 @@ export function DayTimeline({ date, scale = 0.9, compact = false, startHour: fix
       <div className="relative flex" style={{ height }}>
         <div className={`relative ${compact ? 'w-0' : 'w-14'} shrink-0`} aria-hidden="true">
           {!compact && hours.map((i) => (
-            <span key={i} className="absolute right-2 -translate-y-1/2 font-mono text-[11px] text-muted" style={{ top: y(from + i * 3600000) }}>{String(startHour + i).padStart(2, '0')}:00</span>
+            <span key={i} className="absolute right-2 -translate-y-1/2 font-mono text-xs text-muted" style={{ top: y(from + i * 3600000) }}>{String(startHour + i).padStart(2, '0')}:00</span>
           ))}
         </div>
         <ol className={`${known ? 'hatch' : 'bg-soft'} relative flex-1 overflow-hidden rounded-lg border ${known ? 'border-line' : 'border-dashed border-warn-edge'}`} aria-label={f.long(Date.parse(Core.zonedISO(date, '12:00')))}>
@@ -66,8 +66,8 @@ export function DayTimeline({ date, scale = 0.9, compact = false, startHour: fix
             const fit = fitText(h - 2, b.cols, 8, b.kind === 'proposal' ? 3 : 0);
             const body = (
               <>
-                <span className={`block font-medium ${compact ? fit.title.replace('text-[13px]', 'text-[11px]') : fit.title}`} style={fit.style}>{b.title}</span>
-                {fit.times && <span className={`block truncate text-[11px] leading-4 ${b.kind === 'done' ? 'text-on-accent/85' : 'opacity-80'}`}>{f.hm(new Date(b.start).toISOString())}–{f.hm(new Date(b.end).toISOString())}{b.kind === 'proposal' ? ` · ${t.today.legendProposal}` : ''}</span>}
+                <span className={`block font-medium ${compact ? fit.title.replace('text-[13px]', 'text-xs') : fit.title}`} style={fit.style}>{b.title}</span>
+                {fit.times && <span className={`block truncate text-xs leading-4 ${b.kind === 'done' ? 'text-on-accent/85' : 'opacity-80'}`}>{f.hm(new Date(b.start).toISOString())}–{f.hm(new Date(b.end).toISOString())}{b.kind === 'proposal' ? ` · ${t.today.legendProposal}` : ''}</span>}
               </>
             );
             // Overlapping blocks share the width side by side instead of covering each other.

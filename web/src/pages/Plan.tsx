@@ -240,7 +240,7 @@ function BlockRow({ p, version, problem, removal }: { p: Proposal; version?: App
           {e - s > q && <button type="button" className="btn py-0.5 text-xs" onClick={() => edit(s, e - q)}>{t.plan.shorter}</button>}
           <button type="button" className="btn py-0.5 text-xs" onClick={() => edit(s, e + q)}>{t.plan.longer}</button>
           {p.locked && <button type="button" className="btn py-0.5 text-xs" onClick={() => run(() => source.editProposal(p.id, { locked: false }))}>{t.plan.unlock}</button>}
-          <button type="button" className="btn py-0.5 text-xs" onClick={() => run(() => source.saveProgress('dismissed', p.id, true))}>{t.plan.remove}</button>
+          <button type="button" className="btn btn-danger py-0.5 text-xs" onClick={() => run(() => source.saveProgress('dismissed', p.id, true))}>{t.plan.remove}</button>
           <a className="btn py-0.5 text-xs no-underline" href={href('review', { id: p.id })}>…</a>
         </div>
       )}
@@ -320,7 +320,7 @@ function Rules() {
         {v.breaks.map((b, i) => (
           <li key={i} className="flex flex-wrap items-center gap-2 text-sm">
             {time(b.start, (x) => set({ breaks: v.breaks.map((y, j) => (j === i ? { ...y, start: x } : y)) }), t.plan.breaks)}–{time(b.end, (x) => set({ breaks: v.breaks.map((y, j) => (j === i ? { ...y, end: x } : y)) }), t.plan.breaks, true)}
-            <button type="button" className="btn py-0.5 text-xs" onClick={() => set({ breaks: v.breaks.filter((_, j) => j !== i) })}>{t.plan.delete}</button>
+            <button type="button" className="btn btn-danger py-0.5 text-xs" onClick={() => set({ breaks: v.breaks.filter((_, j) => j !== i) })}>{t.plan.delete}</button>
           </li>
         ))}
       </ul>
@@ -341,7 +341,7 @@ function Rules() {
                   {COLOR_IDS.map((c, k) => <option key={c} value={c}>{t.plan.colorNames[k]}</option>)}
                 </select>
               </label>
-              <button type="button" className="btn ml-auto py-0.5 text-xs" onClick={() => set({ habits: v.habits.filter((_, j) => j !== i) })}>{t.plan.delete}</button>
+              <button type="button" className="btn btn-danger ml-auto py-0.5 text-xs" onClick={() => set({ habits: v.habits.filter((_, j) => j !== i) })}>{t.plan.delete}</button>
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-1.5" role="group" aria-label={t.plan.days}>
               {t.plan.weekdays.map((w, k) => (

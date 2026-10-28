@@ -82,7 +82,7 @@ function Backups() {
             {shown.map((name) => (
               <li key={name} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
                 <span className="font-mono text-[12px] break-all">{name}</span>
-                <button type="button" className="btn" onClick={() => { if (window.confirm(t.health.restoreConfirm(name))) run(() => source.restore!(name), t.health.restored(name)).then(refresh); }}>{t.health.restore}</button>
+                <button type="button" className="btn btn-danger" onClick={() => { if (window.confirm(t.health.restoreConfirm(name))) run(() => source.restore!(name), t.health.restored(name)).then(refresh); }}>{t.health.restore}</button>
               </li>
             ))}
           </ul>

@@ -66,7 +66,7 @@ export function PlanTimeline({ date, startHour, onChange }: { date: string; star
   return (
     <div className="relative flex select-none" style={{ height }} onPointerMove={move} onPointerUp={end} onPointerCancel={() => setDrag(null)}>
       <div className="relative w-14 shrink-0" aria-hidden="true">
-        {hours.map((i) => <span key={i} className="absolute right-2 -translate-y-1/2 font-mono text-[11px] text-muted" style={{ top: y(from + i * 3600000) }}>{String(startHour + i).padStart(2, '0')}:00</span>)}
+        {hours.map((i) => <span key={i} className="absolute right-2 -translate-y-1/2 font-mono text-xs text-muted" style={{ top: y(from + i * 3600000) }}>{String(startHour + i).padStart(2, '0')}:00</span>)}
       </div>
       <ol className="hatch relative flex-1 overflow-hidden rounded-lg border border-line" aria-label={f.long(Date.parse(Core.zonedISO(date, '12:00')))}>
         {hours.map((i) => <li key={'h' + i} aria-hidden="true" className="absolute inset-x-0 border-t border-grid" style={{ top: y(from + i * 3600000) }} />)}
@@ -82,7 +82,7 @@ export function PlanTimeline({ date, startHour, onChange }: { date: string; star
               style={{ top: y(b.start), height: h, width: `calc(${w})`, left: `calc(4px + ${b.col} * (${w} + 3px))`, ...(b.p?.color ? { borderLeft: `4px solid ${CALENDAR_COLORS[b.p.color]}` } : {}) }}
               onPointerDown={begin(b, 'move')}>
               <span className={`block font-medium ${fit.title}`} style={fit.style}>{b.locked && <span aria-label={t.plan.locked}>🔒 </span>}{b.title}</span>
-              {fit.times && <span className="block truncate text-[11px] leading-4 opacity-80">{times}</span>}
+              {fit.times && <span className="block truncate text-xs leading-4 opacity-80">{times}</span>}
               {editable && <span aria-hidden="true" className="absolute inset-x-0 bottom-0 h-2 cursor-ns-resize" onPointerDown={begin(b, 'resize')} />}
             </li>
           );

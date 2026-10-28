@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — Clearer type and button hierarchy
+
+- One type scale: page titles 24 px on phones and 28 px on wider screens, section notes 13 px, and nothing smaller than 12 px (timeline times, chips, counts and labels were 11 px). Digits in monospace line up (tabular figures).
+- Buttons come in three tiers: primary (one per view), secondary and a quiet text action; a red outline marks actions that remove or overwrite (withdraw approval, restore a backup, remove a block, delete a rule). Dismiss, cancel and clear-estimate are now quiet text actions.
+- Buttons, fields and tabs are at least 44 px tall on phones.
+
 ## Unreleased — Phone layout: bottom tabs and a one-line header
 
 - Phones (under 640 px) get a bottom tab bar with Today, Plan, Review (with its count) and Coursework, plus More, which opens a sheet with Week, Career, Email, Data health, Case study, theme, language and sign-out. Before, the top navigation scrolled sideways and hid Career, Email and Data health.

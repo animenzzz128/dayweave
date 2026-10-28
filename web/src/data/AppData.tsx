@@ -113,7 +113,7 @@ function EmptyRestore({ source, onRestored }: { source: DataSource; onRestored: 
         {list.slice(0, 7).map((name) => (
           <li key={name} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
             <span className="font-mono text-[12px] break-all">{name}</span>
-            <button type="button" className="btn" onClick={() => { if (window.confirm(t.health.restoreConfirm(name))) source.restore!(name).then(onRestored, (e: Error) => setFailure(e.message)); }}>{t.health.restore}</button>
+            <button type="button" className="btn btn-danger" onClick={() => { if (window.confirm(t.health.restoreConfirm(name))) source.restore!(name).then(onRestored, (e: Error) => setFailure(e.message)); }}>{t.health.restore}</button>
           </li>
         ))}
       </ul>

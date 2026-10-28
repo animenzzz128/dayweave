@@ -167,7 +167,7 @@ export function ApproveButton({ approval }: { approval: Approval }) {
         <p className="text-xs text-muted">{calendarWrite?.available ? t.review.approvedDirectNote : t.review.approvedNote}</p>
         {direct && <button type="button" className="btn btn-primary w-full" onClick={() => run(write, summary)}>{t.review.writeNow}</button>}
         {connect}
-        <button type="button" className="btn w-full" onClick={() => run(() => source.withdraw!(approval.reference))}>{t.review.withdraw}</button>
+        <button type="button" className="btn btn-danger w-full" onClick={() => run(() => source.withdraw!(approval.reference))}>{t.review.withdraw}</button>
       </div>
     );
   }

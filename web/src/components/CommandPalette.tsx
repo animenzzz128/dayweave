@@ -103,7 +103,7 @@ export function CommandPalette({ open, onOpenChange }: { open: boolean; onOpenCh
             lastGroup = c.group;
             return (
               <li key={c.id} role="presentation">
-                {heading && <div role="presentation" className="px-2.5 pb-1 pt-2.5 text-[11px] font-semibold uppercase tracking-wide text-muted">{heading}</div>}
+                {heading && <div role="presentation" className="px-2.5 pb-1 pt-2.5 text-xs font-semibold uppercase tracking-wide text-muted">{heading}</div>}
                 <div id={`${listId}-${i}`} role="option" aria-selected={i === active} onMouseMove={() => setActive(i)} onClick={() => choose(c)}
                   className={`flex cursor-pointer items-center justify-between gap-3 rounded-lg px-2.5 py-2 text-sm ${i === active ? 'bg-selected text-ink' : 'text-body'}`}>
                   <span className="truncate">{c.label}</span>

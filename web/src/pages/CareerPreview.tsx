@@ -16,7 +16,7 @@ export function SoonBanner({ intro }: { intro: string }) {
   const { t } = useI18n();
   return (
     <div className="mb-5 flex flex-wrap items-start gap-x-3 gap-y-1 rounded-xl border border-dashed border-accent-line bg-accent-soft px-4 py-3 text-sm">
-      <span className="rounded-md border border-dashed border-accent px-2 py-0.5 font-mono text-[11px] uppercase tracking-wider text-accent-ink">{t.career.soon}</span>
+      <span className="rounded-md border border-dashed border-accent px-2 py-0.5 font-mono text-xs uppercase tracking-wider text-accent-ink">{t.career.soon}</span>
       <p className="min-w-0 flex-1">{intro} <span className="text-muted">{t.career.soonNote}</span></p>
     </div>
   );
@@ -239,7 +239,7 @@ function PathLine({ yours, theirs, link, note }: { yours: string; theirs: string
   return (
     <>
       <span className={`min-w-0 rounded-md border px-2.5 py-1.5 ${LINK_TONE[link]}`}>{yours}</span>
-      <span className={`self-center text-center font-mono text-[11px] ${link === 'none' ? 'text-muted' : 'text-accent-ink'}`} title={t.career.link[link]}>{link === 'same' ? '=' : link === 'near' ? '≈' : '≠'}<span className="sr-only"> {t.career.link[link]}</span></span>
+      <span className={`self-center text-center font-mono text-xs ${link === 'none' ? 'text-muted' : 'text-accent-ink'}`} title={t.career.link[link]}>{link === 'same' ? '=' : link === 'near' ? '≈' : '≠'}<span className="sr-only"> {t.career.link[link]}</span></span>
       <span className={`min-w-0 rounded-md border px-2.5 py-1.5 ${LINK_TONE[link]}`}>{theirs}</span>
       {note && <span className="col-span-3 -mt-1 text-center text-xs text-muted">{note}</span>}
     </>

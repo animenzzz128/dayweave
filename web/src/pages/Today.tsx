@@ -39,7 +39,7 @@ export function Today() {
     <div className="space-y-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 id="day" className="text-[28px] font-semibold leading-tight">{f.long(now)}</h1>
+          <h1 id="day" className="text-2xl font-semibold leading-tight sm:text-[28px]">{f.long(now)}</h1>
           <p className="mt-1 font-mono text-xs text-muted">{t.today.calendarRead(f.ago(d.calendarCoverage?.checkedAt, now))}</p>
         </div>
         <a href={href('health')} className={`inline-flex items-center gap-2 rounded-full border px-3 py-1 text-[13px] no-underline ${attention ? 'border-danger-line bg-danger-soft text-danger' : 'border-ok-line bg-ok-soft text-ok'}`}>
@@ -62,7 +62,7 @@ export function Today() {
             {([[today, t.today.todayTab], [tomorrow, t.today.tomorrowTab]] as const).map(([day, label]) => (
               <button key={day} type="button" aria-pressed={shown === day} onClick={() => setShown(day)}
                 className={`min-h-8 rounded-md px-3 text-[13px] ${shown === day ? 'bg-ink text-on-ink' : 'text-sub hover:bg-soft'}`}>
-                {label}{proposalsOn(day) > 0 && <span className={`ml-1.5 font-mono text-[11px] ${shown === day ? 'text-on-ink/80' : 'text-accent'}`}>{proposalsOn(day)}</span>}
+                {label}{proposalsOn(day) > 0 && <span className={`ml-1.5 font-mono text-xs ${shown === day ? 'text-on-ink/80' : 'text-accent'}`}>{proposalsOn(day)}</span>}
               </button>
             ))}
           </div>
@@ -103,7 +103,7 @@ export function Today() {
               <ul className="flex flex-wrap gap-1.5" aria-label={t.today.sources}>
                 {d.sources.map((s) => (
                   <li key={s.id} title={`${s.name} · ${t.status[s.status as 'ok'] ?? s.status} · ${f.ago(s.lastSuccess, now)}`}
-                    className="flex items-center gap-1.5 rounded-full border border-line px-2 py-0.5 text-[11px] text-sub">
+                    className="flex items-center gap-1.5 rounded-full border border-line px-2 py-0.5 text-xs text-sub">
                     <Dot tone={sourceTone(s.status)} /><span className="max-w-32 truncate">{s.name}</span>
                   </li>
                 ))}
@@ -154,11 +154,11 @@ function WeekLoad({ work }: { work: Assignment[] }) {
           const tip = `${label}: ${t.today.loadTip(items.length, minutes ? f.duration(minutes) : '')}${items.length ? '\n' + items.map((a) => `· ${a.course} ${a.title}`).join('\n') : ''}`;
           return (
             <li key={day} className="flex flex-col items-center gap-1" title={tip} aria-label={tip}>
-              <span className="h-4 font-mono text-[11px] leading-4 text-sub">{items.length || ''}</span>
+              <span className="h-4 font-mono text-xs leading-4 text-sub">{items.length || ''}</span>
               <div className="flex w-full items-end justify-center" style={{ height: H }}>
                 <div className={`w-full max-w-9 rounded-t ${items.length ? (day === today ? 'bg-accent' : 'bg-accent/55') : 'bg-line'}`} style={{ height: h }} />
               </div>
-              <span className={`text-[11px] ${day === today ? 'font-semibold text-accent' : 'text-muted'}`}>{day === today ? t.today.todayTab : f.weekday(Core.zonedISO(day, '12:00'))}</span>
+              <span className={`text-xs ${day === today ? 'font-semibold text-accent' : 'text-muted'}`}>{day === today ? t.today.todayTab : f.weekday(Core.zonedISO(day, '12:00'))}</span>
             </li>
           );
         })}
@@ -186,7 +186,7 @@ function CareerCard() {
         : <>
             <dl className="mb-3 grid grid-cols-3 gap-2 text-center">
               {([[t.career.roles, c.roles?.length || 0], [t.career.people, c.candidates?.length || 0], [t.today.careerSaved, saved]] as const).map(([k, v]) => (
-                <div key={k} className="rounded-lg bg-soft px-2 py-1.5"><dd className="font-mono text-lg font-semibold leading-tight">{v}</dd><dt className="text-[11px] text-muted">{k}</dt></div>
+                <div key={k} className="rounded-lg bg-soft px-2 py-1.5"><dd className="font-mono text-lg font-semibold leading-tight">{v}</dd><dt className="text-xs text-muted">{k}</dt></div>
               ))}
             </dl>
             <ul className="space-y-1.5">

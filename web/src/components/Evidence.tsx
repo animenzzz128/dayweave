@@ -20,7 +20,7 @@ export function CitedSentence({ s, numbers, onOpen }: { s: Sentence; numbers: Ma
       {s.text}
       {s.cites.map((c) => (
         <button key={c} type="button" onClick={() => onOpen([c])} aria-label={t.ai.cite(numbers.get(c) ?? 0)}
-          className="ml-1 inline-flex min-h-6 min-w-6 -translate-y-0.5 items-center justify-center rounded-md border border-accent-line bg-raised px-1 align-middle font-mono text-[11px] text-accent hover:bg-accent-soft">
+          className="ml-1 inline-flex min-h-6 min-w-6 -translate-y-0.5 items-center justify-center rounded-md border border-accent-line bg-raised px-1 align-middle font-mono text-xs text-accent hover:bg-accent-soft">
           {numbers.get(c)}
         </button>
       ))}{' '}
@@ -98,7 +98,7 @@ function RecordCard({ reference, onNavigate }: { reference: string; onNavigate: 
   }
   return (
     <section className="panel p-4">
-      <div className="mb-1.5 flex items-center justify-between gap-2"><Tag>{label}</Tag><span className="font-mono text-[11px] text-muted">{reference}</span></div>
+      <div className="mb-1.5 flex items-center justify-between gap-2"><Tag>{label}</Tag><span className="font-mono text-xs text-muted">{reference}</span></div>
       {body}
     </section>
   );
