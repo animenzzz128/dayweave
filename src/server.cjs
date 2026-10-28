@@ -53,6 +53,7 @@ function createServer(dir,{hosted=null,ingestSecret='',executeSecret='',canvasIc
  if(req.method==='POST'&&u.pathname==='/api/todos/save')return send(200,store.saveTodo(body?.todo));
  if(req.method==='POST'&&u.pathname==='/api/todos/complete')return send(200,store.completeTodo(body?.id,body?.done));
  if(req.method==='POST'&&u.pathname==='/api/career/save')return send(200,store.saveCareer(body?.kind,body?.record));
+ if(req.method==='POST'&&u.pathname==='/api/career/settings')return send(200,store.saveCareerSettings(body?.settings));
  if(req.method==='POST'&&u.pathname==='/api/career/remove')return send(200,store.removeCareer(body?.kind,body?.id));
  if(req.method==='POST'&&u.pathname==='/api/plan/generate')return send(200,body?.days==null?store.generatePlan(body?.date):{days:store.generatePlans(body?.date,body.days)});
  if(req.method==='POST'&&u.pathname==='/api/workload-mode')return send(200,{mode:store.setWorkloadMode(body?.mode)});

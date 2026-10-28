@@ -84,6 +84,8 @@ export interface Contact {
 }
 /** What the owner enters; `event` adds a note to a job's timeline. */
 export type JobInput = Partial<Omit<Job, 'timeline' | 'appliedAt' | 'createdAt' | 'updatedAt' | 'version'>> & { event?: string };
+/** Career source settings (src/career.cjs cleanSettings): companies whose public boards are read, and which sources you use. */
+export interface CareerSettings { watch: { ats: string; slug: string; company: string; market: string }[]; keywords: string[]; sources: Record<string, boolean>; updatedAt?: string }
 export type ContactInput = Partial<Omit<Contact, 'origin' | 'createdAt' | 'updatedAt' | 'version'>>;
 
 // Progress mirrors the server's `progress` table: kind -> id -> value.
@@ -97,6 +99,7 @@ export interface Progress {
   todo?: Record<string, Todo>;
   careerJob?: Record<string, Job>;
   careerContact?: Record<string, Contact>;
+  careerSettings?: Record<string, CareerSettings>;
   emailTriage?: Record<string, { category?: TriageCategory; handled?: boolean; at?: string } | null>;
   [kind: string]: Record<string, unknown> | undefined;
 }
@@ -155,6 +158,7 @@ export interface DataSource {
   /** Server only for now: the career tracker. Stage changes record what the owner did; nothing is sent anywhere. */
   saveCareer?(kind: 'job' | 'contact', record: JobInput | ContactInput): Promise<void>;
   removeCareer?(kind: 'job' | 'contact', id: string): Promise<void>;
+  saveCareerSettings?(settings: CareerSettings): Promise<void>;
   generatePlan(date: string): Promise<PlanResult>;
   /** Plans `days` days from `from`, earliest first, in one go (the server's generatePlans). */
   generatePlans(from: string, days: number): Promise<PlanDay[]>;

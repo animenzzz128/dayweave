@@ -63,6 +63,7 @@ class Store{
   return this.transaction(()=>{const row=this.db.prepare('SELECT value FROM progress WHERE kind=? AND id=?').get(table,id);if(!row)throw Error('Unknown '+kind);this.db.prepare('DELETE FROM progress WHERE kind=? AND id=?').run(table,id);
   if(kind==='job')for(const r of this.db.prepare("SELECT id,value FROM progress WHERE kind='careerContact'").all()){const c=JSON.parse(r.value);if(c.jobId===id)this.db.prepare("UPDATE progress SET value=? WHERE kind='careerContact' AND id=?").run(JSON.stringify({...c,jobId:null}),r.id);}
   this.log('career','removed',id,{[kind]:JSON.parse(row.value)});return {removed:id};});}
+ saveCareerSettings(input,now=new Date()){const v=require('./career.cjs').cleanSettings(input,{now});return this.transaction(()=>{this.db.prepare('INSERT OR REPLACE INTO progress VALUES(?,?,?,?)').run('careerSettings','main',JSON.stringify(v),v.updatedAt);this.log('career','settings','Career sources saved',{watch:v.watch.length,keywords:v.keywords.length});return {settings:v};});}
  // Copies the assistant's earlier research into the tracker once (docs/data-contract.md, career tracker). Needs a snapshot.
  migrateCareer(now=new Date()){if(this.db.prepare("SELECT 1 FROM meta WHERE key='career-migrated'").get())return null;const d=this.snapshot();if(!d)return null;
   const {jobs,contacts}=require('./career.cjs').fromResearch(d.career,this.state().career||{},now),put=this.db.prepare('INSERT OR IGNORE INTO progress VALUES(?,?,?,?)');

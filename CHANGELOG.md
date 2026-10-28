@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — Career: source library and companies to watch
+
+- New **Sources** tab on the private Career page: 28 job sources across overseas, mainland China and Hong Kong/Singapore, each marked by how far Dayweave can help: reads itself (public official feeds), you save it (LinkedIn, Workday sites, campus sites, 猎聘…) or manual only (BOSS直聘 chats, school systems). Mark a source "not for me" to move it to the bottom.
+- **Companies to watch**: companies on Greenhouse, Lever, Ashby or SmartRecruiters by their board short name and market, saved through `POST /api/career/settings`. The daily read of these public boards comes in the next PR.
+
 ## Unreleased — Career: a real application tracker
 
 - The private Career page is now a tracker instead of a read-only research list: **Applications** (stages from "want to apply" to offer, closed ones folded away), **Contacts**, and the assistant's earlier **research** as its own tab.

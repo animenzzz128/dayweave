@@ -79,4 +79,18 @@ function stats(jobs={},today){const list=Object.values(jobs),t=day(today+'T00:00
  return {total:list.length,open:list.filter(j=>OPEN.includes(j.stage)).length,sent:sent.length,week:sent.filter(j=>t-day(j.appliedAt.slice(0,10)+'T00:00:00Z')<7).length,
   replied:sent.filter(j=>['assessment','interview','offer','rejected'].includes(j.stage)).length,interviews:list.filter(j=>['interview','offer'].includes(j.stage)).length};}
 
-module.exports={STAGES,SENT,OPEN,CHANNELS,MARKETS,RELATIONS,TRACKS,STALE_DAYS,canonical,cleanJob,cleanContact,fromResearch,nextActions,stats};
+// Companies whose public job boards the daily fetch may read (src/career-fetch.cjs). Only boards with an official, unauthenticated
+// JSON endpoint are listed; anything else is saved by hand or with the bookmarklet.
+const ATS=['greenhouse','lever','ashby','smartrecruiters'];
+const MAX_WATCH=60;
+function cleanSettings(input,{now=new Date()}={}){
+ if(!plain(input))throw Error('Invalid career settings');const watch=Array.isArray(input.watch)?input.watch:[];if(watch.length>MAX_WATCH)throw Error('At most '+MAX_WATCH+' companies.');
+ const seen=new Set(),out=[];for(const w of watch){if(!plain(w))throw Error('Invalid company');const ats=pick(w.ats,ATS,'job board','');if(!ats)throw Error('Choose the job board.');
+  const slug=text(w.slug,80,'Board name',true);if(!/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(slug))throw Error('The board name is the short name in the board link, e.g. "acme" in boards.greenhouse.io/acme.');
+  const key=ats+':'+slug.toLowerCase();if(seen.has(key))continue;seen.add(key);out.push({ats,slug,company:text(w.company,120,'Company')||slug,market:pick(w.market,MARKETS,'market','US')});}
+ const keywords=(Array.isArray(input.keywords)?input.keywords:[]).map(k=>text(k,60,'Keyword')).filter(Boolean).slice(0,40);
+ const sources=plain(input.sources)?Object.fromEntries(Object.entries(input.sources).filter(([k,v])=>/^[a-z0-9-]{1,40}$/.test(k)&&typeof v==='boolean').slice(0,100)):{};
+ return {watch:out,keywords,sources,updatedAt:new Date(now).toISOString()};
+}
+
+module.exports={ATS,cleanSettings,STAGES,SENT,OPEN,CHANNELS,MARKETS,RELATIONS,TRACKS,STALE_DAYS,canonical,cleanJob,cleanContact,fromResearch,nextActions,stats};
