@@ -1,0 +1,1 @@
+import"./AppData-C7U54l5v.js";var e=[];function t(e,t){return{used:`rules`,reason:`local`}}function n(e,t){let n=Math.abs(e.length-t.length);for(let r=0;r<Math.min(e.length,t.length);r++)(e[r].text.trim()!==t[r].text.trim()||e[r].minutes!==t[r].minutes)&&n++;return n}export{e as n,n as r,t};
