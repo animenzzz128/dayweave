@@ -100,7 +100,7 @@ function Card({ item, title, detail, evidence, meta, children }: { item: { id: s
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {s === 'saved' || s === 'dismissed'
           ? <button type="button" className="btn" onClick={() => set('reset')}>{t.career.restore}</button>
-          : <><button type="button" className="btn" onClick={() => set('saved')}>{t.career.save}</button><button type="button" className="btn" onClick={() => set('dismissed')}>{t.career.dismiss}</button></>}
+          : <><button type="button" className="btn" onClick={() => set('saved')}>{t.career.save}</button><button type="button" className="btn btn-quiet" onClick={() => set('dismissed')}>{t.career.dismiss}</button></>}
         <External url={item.source} className="ml-auto text-[13px]">{t.common.source}</External>
       </div>
     </article>

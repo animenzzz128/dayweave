@@ -189,7 +189,7 @@ function EffortConfirm({ a, actual }: { a: Assignment; actual?: number }) {
   const state = Effort.state(progress.effortCalibration?.[a.id], actual);
   if (!Effort.positive(a.estimateMinutes)) return <p className="mt-2 text-xs text-muted">{t.coursework.effortNeedsEstimate}</p>;
   const confirm = <button type="button" className="btn" onClick={() => run(() => source.confirmEffort!(a.id), t.coursework.effortConfirmedNote)}>{t.coursework.confirmEffort}</button>;
-  const clear = <button type="button" className="btn" onClick={() => run(() => source.clearEffort!(a.id), t.coursework.effortCleared)}>{t.coursework.clearEffort}</button>;
+  const clear = <button type="button" className="btn btn-quiet" onClick={() => run(() => source.clearEffort!(a.id), t.coursework.effortCleared)}>{t.coursework.clearEffort}</button>;
   return (
     <div className="mt-2 flex flex-wrap items-center gap-2">
       {state === 'confirmed' ? <><Tag tone="ok">{t.coursework.effortConfirmed}</Tag>{clear}</>

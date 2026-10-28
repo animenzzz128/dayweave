@@ -33,8 +33,8 @@ export function PageHeader({ title, subtitle, actions }: { title: string; subtit
   return (
     <div className="mb-6 flex flex-wrap items-end justify-between gap-4">
       <div className="max-w-3xl">
-        <h1 className="text-[28px] font-semibold leading-tight">{title}</h1>
-        {subtitle && <p className="mt-1 text-muted">{subtitle}</p>}
+        <h1 className="text-2xl font-semibold leading-tight sm:text-[28px]">{title}</h1>
+        {subtitle && <p className="mt-1.5 text-[15px] text-muted">{subtitle}</p>}
       </div>
       {actions}
     </div>
@@ -46,7 +46,7 @@ export function Section({ title, aside, children, className = '' }: { title: str
     <section className={className} aria-label={title}>
       <div className="mb-2.5 flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-lg font-semibold">{title}</h2>
-        {aside && <span className="text-xs text-muted">{aside}</span>}
+        {aside && <span className="text-[13px] text-muted">{aside}</span>}
       </div>
       {children}
     </section>
@@ -58,7 +58,7 @@ export function Tabs<T extends string>({ items, value, onChange, label }: { item
     <div role="tablist" aria-label={label} className="mb-5 flex flex-wrap gap-1.5">
       {items.map(([v, text, count]) => (
         <button key={v} type="button" role="tab" aria-selected={v === value} onClick={() => onChange(v)}
-          className={`min-h-9 rounded-full border px-3.5 text-sm ${v === value ? 'border-ink bg-ink text-on-ink' : 'border-line bg-raised text-ink hover:bg-soft'}`}>
+          className={`min-h-10 rounded-full border px-4 text-sm ${v === value ? 'border-ink bg-ink text-on-ink' : 'border-line bg-raised text-ink hover:bg-soft'}`}>
           {text}{count !== undefined && <span className={`ml-1.5 font-mono text-xs ${v === value ? 'text-on-ink/80' : 'text-muted'}`}>{count}</span>}
         </button>
       ))}

@@ -71,7 +71,7 @@ export function Breakdown({ a }: { a: Assignment }) {
             <button type="button" className="btn" onClick={() => setEditing([...editing, { text: '', minutes: 30 }])}>{t.ai.addStep}</button>
             <button type="button" className="btn btn-primary" disabled={!editing.length || editing.some((s) => !s.text.trim() || !(s.minutes > 0))}
               onClick={async () => { const steps = editing.map((s) => ({ text: s.text.trim(), minutes: s.minutes })); if (await save(stepEdits(suggested, steps) ? 'edited' : 'accepted', steps)) setEditing(null); }}>{t.ai.saveEdited}</button>
-            <button type="button" className="btn" onClick={() => setEditing(null)}>{t.common.cancel}</button>
+            <button type="button" className="btn btn-quiet" onClick={() => setEditing(null)}>{t.common.cancel}</button>
           </div>
         </div>
       ) : (
@@ -88,7 +88,7 @@ export function Breakdown({ a }: { a: Assignment }) {
           <div className="mt-3 flex flex-wrap gap-2">
             <button type="button" className="btn btn-primary" onClick={() => save('accepted', suggested)}>{t.ai.accept}</button>
             <button type="button" className="btn" onClick={() => setEditing(suggested)}>{t.ai.edit}</button>
-            <button type="button" className="btn" onClick={() => save('dismissed', [])}>{t.ai.dismiss}</button>
+            <button type="button" className="btn btn-quiet" onClick={() => save('dismissed', [])}>{t.ai.dismiss}</button>
           </div>
         </>
       )}
