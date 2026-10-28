@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — Today leads with what is now and next
+
+- Today opens with one lead card: what is on the calendar now (until when) and next today, the most urgent piece of work, and a link to the plan. It reads the same events and blocks as the day timeline and changes nothing. When the calendar read is incomplete, an empty rest of the day is not called free.
+- The four counts sit beside it (in one row of four on phones, with short labels). Only overdue work is coloured; the coloured side bars are gone.
+- Today's brief is a plain card with a small heading instead of a large blue block, and the day and workload switches are 36 px tall.
+
 ## Unreleased — Clearer type and button hierarchy
 
 - One type scale: page titles 24 px on phones and 28 px on wider screens, section notes 13 px, and nothing smaller than 12 px (timeline times, chips, counts and labels were 11 px). Digits in monospace line up (tabular figures).

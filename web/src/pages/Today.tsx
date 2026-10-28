@@ -47,11 +47,14 @@ export function Today() {
         </a>
       </header>
 
-      <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(170px,1fr))]">
-        <Kpi href={href('coursework')} label={mode === 'reduced' ? t.today.urgent : t.today.due72} value={mode === 'reduced' ? focus.urgent.length : due72.length} tone={overdue ? 'danger' : due72.length ? 'warn' : 'ok'} note={overdue ? t.today.kpiOverdue(overdue) : t.today.kpiOpen(openWork.length)} />
-        <Kpi href={href('coursework', { tab: 'verify' })} label={t.today.verification} value={focus.verification.length} tone={focus.verification.length ? 'warn' : 'ok'} note={t.today.kpiVerifyNote} />
-        <Kpi href={href('review')} label={t.today.kpiProposals} value={waiting.length} tone={waiting.length ? 'info' : 'neutral'} note={t.today.kpiProposalsNote} />
-        <Kpi href={href('email')} label={t.today.kpiEmail} value={handleCount} tone={handleCount ? 'info' : 'neutral'} note={'shown' in inbox ? t.today.kpiUnread(inbox.unread as number) : t.email.disabled} />
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
+        <NowNext top={(mode === 'reduced' ? [...focus.urgent, ...focus.upcoming] : due72)[0]} />
+        <div className="grid grid-cols-4 gap-2 lg:grid-cols-2 lg:gap-3">
+          <Kpi href={href('coursework')} label={mode === 'reduced' ? t.today.urgent : t.today.due72} short={mode === 'reduced' ? t.today.kpiShort.urgent : t.today.kpiShort.due} value={mode === 'reduced' ? focus.urgent.length : due72.length} tone={overdue ? 'danger' : due72.length ? 'warn' : 'ok'} note={overdue ? t.today.kpiOverdue(overdue) : t.today.kpiOpen(openWork.length)} />
+          <Kpi href={href('coursework', { tab: 'verify' })} label={t.today.verification} short={t.today.kpiShort.verify} value={focus.verification.length} tone={focus.verification.length ? 'warn' : 'ok'} note={t.today.kpiVerifyNote} />
+          <Kpi href={href('review')} label={t.today.kpiProposals} short={t.today.kpiShort.proposals} value={waiting.length} tone={waiting.length ? 'info' : 'neutral'} note={t.today.kpiProposalsNote} />
+          <Kpi href={href('email')} label={t.today.kpiEmail} short={t.today.kpiShort.email} value={handleCount} tone={handleCount ? 'info' : 'neutral'} note={'shown' in inbox ? t.today.kpiUnread(inbox.unread as number) : t.email.disabled} />
+        </div>
       </div>
 
       <DeadlineRisks />
@@ -61,7 +64,7 @@ export function Today() {
           <div role="group" aria-label={t.today.showDay} className="mb-3 inline-flex rounded-lg border border-line p-0.5">
             {([[today, t.today.todayTab], [tomorrow, t.today.tomorrowTab]] as const).map(([day, label]) => (
               <button key={day} type="button" aria-pressed={shown === day} onClick={() => setShown(day)}
-                className={`min-h-8 rounded-md px-3 text-[13px] ${shown === day ? 'bg-ink text-on-ink' : 'text-sub hover:bg-soft'}`}>
+                className={`min-h-9 rounded-md px-3 text-[13px] ${shown === day ? 'bg-ink text-on-ink' : 'text-sub hover:bg-soft'}`}>
                 {label}{proposalsOn(day) > 0 && <span className={`ml-1.5 font-mono text-xs ${shown === day ? 'text-on-ink/80' : 'text-accent'}`}>{proposalsOn(day)}</span>}
               </button>
             ))}
@@ -70,8 +73,8 @@ export function Today() {
         </section>
 
         <div className="min-w-0 flex-[999_1_520px] space-y-6">
-          <section aria-labelledby="brief" className="rounded-[14px] border border-accent-line bg-accent-soft px-5 py-4">
-            <h2 id="brief" className="text-sm font-semibold text-accent">{t.today.brief}</h2>
+          <section aria-labelledby="brief" className="panel px-5 py-4">
+            <h2 id="brief" className="eyebrow !text-accent">{t.today.brief}</h2>
             <Brief />
           </section>
 
@@ -82,10 +85,10 @@ export function Today() {
                 <div role="group" aria-label={t.today.mode} title={t.today.modeHint[mode as 'standard' | 'reduced']} className="flex rounded-lg border border-line p-0.5">
                   {(['standard', 'reduced'] as const).map((m) => (
                     <button key={m} type="button" aria-pressed={mode === m} onClick={() => run(() => source.setWorkloadMode(m))}
-                      className={`min-h-7 rounded-md px-2.5 text-xs ${mode === m ? 'bg-ink text-on-ink' : 'text-sub hover:bg-soft'}`}>{t.today[m]}</button>
+                      className={`min-h-9 rounded-md px-3 text-[13px] ${mode === m ? 'bg-ink text-on-ink' : 'text-sub hover:bg-soft'}`}>{t.today[m]}</button>
                   ))}
                 </div>
-                <a href={href('coursework')} className="text-xs">{t.today.viewAll} →</a>
+                <a href={href('coursework')} className="text-[13px]">{t.today.viewAll} →</a>
               </div>
             </div>
             <WorkList items={(mode === 'reduced' ? [...focus.urgent, ...focus.upcoming] : due72).slice(0, 5)} empty={t.today.due72Empty} />
@@ -117,15 +120,62 @@ export function Today() {
   );
 }
 
-function Kpi({ href: to, label, value, note, tone }: { href: string; label: string; value: number; note: string; tone: Tone }) {
-  const bar = { ok: 'bg-ok-dot', warn: 'bg-warn-dot', danger: 'bg-danger-dot', info: 'bg-accent', neutral: 'bg-neutral-dot' }[tone];
+/** One count. Only a count that needs action now (overdue work) gets colour; the rest stay quiet so the "Next" card leads. */
+function Kpi({ href: to, label, short, value, note, tone }: { href: string; label: string; short: string; value: number; note: string; tone: Tone }) {
+  const hot = tone === 'danger';
   return (
-    <a href={to} className="panel group relative block overflow-hidden px-4 py-3.5 text-ink no-underline transition-colors hover:bg-soft">
-      <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-1 ${bar}`} />
-      <span className="block text-[13px] text-muted">{label}</span>
-      <span className="mt-0.5 block font-mono text-[32px] font-semibold leading-none tracking-tight">{value}</span>
-      <span className={`mt-1.5 block text-xs ${tone === 'danger' ? 'text-danger' : 'text-muted'}`}>{note}</span>
+    <a href={to} aria-label={`${label}: ${value}. ${note}`}
+      className={`flex min-w-0 flex-col rounded-xl border px-2.5 py-2 no-underline transition-colors sm:px-4 sm:py-3 lg:justify-between ${hot ? 'border-danger-line bg-danger-soft hover:bg-danger-soft/70' : 'border-line bg-raised hover:bg-soft'}`}>
+      <span className={`block font-mono text-[22px] font-semibold leading-none tracking-tight sm:text-[28px] ${hot ? 'text-danger' : 'text-ink'}`}>{value}</span>
+      <span className="mt-1 block text-xs leading-tight text-sub sm:hidden">{short}</span>
+      <span className="max-sm:hidden"><span className="mt-1 block text-[13px] leading-snug text-sub">{label}</span>
+        <span className={`mt-0.5 block text-xs ${hot ? 'text-danger' : 'text-muted'}`}>{note}</span></span>
     </a>
+  );
+}
+
+interface Slot { id: string; title: string; start: number; end: number; kind: 'event' | 'proposal' | 'done' }
+
+/**
+ * The lead card: what is on the calendar now and next today, and the most urgent piece of work. It reads the same
+ * events and blocks the day timeline draws, and changes nothing.
+ */
+function NowNext({ top }: { top?: Assignment }) {
+  const { snapshot: d, f, now, started, progress, ownEvents } = useApp();
+  const { t } = useI18n();
+  const today = f.dayKey(now);
+  const end = Date.parse(Core.zonedISO(Demo.addDays(today, 1), '00:00'));
+  const t0 = +now;
+  const slots: Slot[] = [
+    ...d.events.filter((e) => e.busy !== false && !e.allDay && !ownEvents.has(e.id)).map((e) => ({ id: e.id, title: e.title, start: Date.parse(e.start), end: Date.parse(e.end), kind: 'event' as const })),
+    ...d.proposals.filter((p) => !progress.dismissed?.[p.id] && p.action !== 'delete')
+      .map((p) => ({ id: p.id, title: p.title, start: Date.parse(p.start), end: Date.parse(p.end), kind: started(p.id) ? ('done' as const) : ('proposal' as const) })),
+  ].filter((x) => x.end > t0 && x.start < end).sort((a, b) => a.start - b.start);
+  const current = slots.find((x) => x.start <= t0);
+  const next = slots.find((x) => x.start > t0);
+  const hm = (ms: number) => f.hm(new Date(ms).toISOString());
+  const kind = (x: Slot) => (x.kind === 'event' ? t.today.calendarBlock : x.kind === 'done' ? t.today.doneBlock : t.today.proposalBlock);
+  const row = (label: string, x: Slot, time: string) => (
+    <div className="min-w-0">
+      <div className="text-xs font-semibold uppercase tracking-wide text-on-accent/75">{label} · {time}</div>
+      <div className="truncate text-lg font-semibold leading-snug sm:text-xl">{x.title}</div>
+      <div className="text-[13px] text-on-accent/80">{kind(x)} · {hm(x.start)}–{hm(x.end)}</div>
+    </div>
+  );
+  return (
+    <section aria-label={`${t.today.now} / ${t.today.next}`} className="grid content-start gap-3 rounded-2xl bg-accent p-4 text-on-accent sm:p-5">
+      {current && row(t.today.now, current, t.today.until(hm(current.end)))}
+      {next && row(t.today.next, next, t.today.at(hm(next.start)))}
+      {/* Without complete calendar coverage an empty rest of the day may hide an unread event, so it is not called free. */}
+      {!current && !next && <p className="text-[15px] font-medium">{d.calendarCoverage?.complete === true ? t.today.nothingLeft : t.today.unknownLeft}</p>}
+      {top && (
+        <a href={href('coursework', { open: top.id })} className="flex min-w-0 items-center justify-between gap-3 rounded-xl bg-on-accent/12 px-3 py-2 text-on-accent no-underline hover:bg-on-accent/20">
+          <span className="min-w-0"><span className="block text-xs text-on-accent/75">{t.today.topWork}</span><span className="block truncate font-medium">{top.course} · {top.title}</span></span>
+          <span className="shrink-0 text-[13px]">{f.when(top.dueAt, now)}</span>
+        </a>
+      )}
+      <a href={href('plan')} className="justify-self-start rounded-lg bg-on-accent px-3 py-2 text-[13px] font-semibold text-accent no-underline hover:opacity-90">{t.today.openPlan} →</a>
+    </section>
   );
 }
 

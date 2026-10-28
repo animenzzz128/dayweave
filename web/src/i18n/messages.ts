@@ -102,6 +102,9 @@ const en = {
     uncertain: 'Requirement uncertain', choiceUnknown: 'Selectable: submission status unknown', unknown: 'Submission status unknown', requirement: 'Requirement unknown',
   },
   today: {
+    now: 'Now', next: 'Next', until: (time: string) => `until ${time}`, at: (time: string) => `at ${time}`, nothingLeft: 'Nothing else on your calendar today.', unknownLeft: 'Nothing else found today, but the calendar read is incomplete, so check your calendar.',
+    topWork: 'Most urgent work', openPlan: 'Open the plan', calendarBlock: 'Calendar', proposalBlock: 'Block waiting for approval', doneBlock: 'Written block',
+    kpiShort: { due: 'Due in 72h', urgent: 'Urgent', verify: 'To verify', proposals: 'To approve', email: 'Email' },
     calendarRead: (t: string) => `Calendar read ${t}`,
     timelineHint: 'Dashed blue blocks are AI proposals. They reach the calendar only after you approve them.',
     legendEvent: 'Calendar event', legendProposal: 'AI proposal', legendDone: 'Approved', legendFree: (pct: number) => `Free (${pct}% kept)`, legendUnknown: 'Blank: unknown, not free',
@@ -460,6 +463,9 @@ const zh: Messages = {
     uncertain: '是否必交不确定', choiceUnknown: '可选任务：提交状态未知', unknown: '提交状态未知', requirement: '要求未知',
   },
   today: {
+    now: '现在', next: '下一个', until: (time: string) => `到 ${time}`, at: (time: string) => `${time} 开始`, nothingLeft: '今天日历上没有别的安排了。', unknownLeft: '今天没找到别的安排，但日历读取不完整，请以日历为准。',
+    topWork: '最紧急的作业', openPlan: '打开规划', calendarBlock: '日历', proposalBlock: '待批准的时间块', doneBlock: '已写入的时间块',
+    kpiShort: { due: '72 小时到期', urgent: '紧急', verify: '待核实', proposals: '待审批', email: '邮件' },
     calendarRead: (t: string) => `日历 ${t} 已读取`,
     timelineHint: '蓝色虚线是 AI 提议的专注时段，批准后才会写入日历。',
     legendEvent: '日历事件', legendProposal: 'AI 提议', legendDone: '已批准', legendFree: (pct: number) => `空闲（保留 ${pct}%）`, legendUnknown: '空白：未知，不代表空闲',
