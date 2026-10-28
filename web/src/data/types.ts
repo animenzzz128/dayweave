@@ -86,6 +86,12 @@ export interface Contact {
 export type JobInput = Partial<Omit<Job, 'timeline' | 'appliedAt' | 'createdAt' | 'updatedAt' | 'version'>> & { event?: string };
 /** Career source settings (src/career.cjs cleanSettings): companies whose public boards are read, and which sources you use. */
 export interface CareerSettings { watch: { ats: string; slug: string; company: string; market: string }[]; keywords: string[]; sources: Record<string, boolean>; updatedAt?: string }
+/** A posting read from a watched public job board (src/career-fetch.cjs), scored by rules; `status` is the owner's decision. */
+export interface Posting {
+  id: string; ats: string; company: string; title: string; url: string; location: string; market: string; track: string; score: number; reasons: string[];
+  postedAt: string | null; summary: string; firstSeenAt: string; lastSeenAt: string; status: 'new' | 'tracked' | 'dismissed'; jobId?: string;
+}
+export interface CareerFetch { at: string; found: number; removed: number; boards: { company: string; ats: string; slug: string; status: string; postings?: number; kept?: number; error?: string }[] }
 export type ContactInput = Partial<Omit<Contact, 'origin' | 'createdAt' | 'updatedAt' | 'version'>>;
 
 // Progress mirrors the server's `progress` table: kind -> id -> value.
@@ -100,6 +106,8 @@ export interface Progress {
   careerJob?: Record<string, Job>;
   careerContact?: Record<string, Contact>;
   careerSettings?: Record<string, CareerSettings>;
+  careerPosting?: Record<string, Posting>;
+  careerFetch?: Record<string, CareerFetch>;
   emailTriage?: Record<string, { category?: TriageCategory; handled?: boolean; at?: string } | null>;
   [kind: string]: Record<string, unknown> | undefined;
 }
@@ -159,6 +167,9 @@ export interface DataSource {
   saveCareer?(kind: 'job' | 'contact', record: JobInput | ContactInput): Promise<void>;
   removeCareer?(kind: 'job' | 'contact', id: string): Promise<void>;
   saveCareerSettings?(settings: CareerSettings): Promise<void>;
+  /** Reads the watched public job boards now (rate-limited), or records the owner's decision on one posting. */
+  refreshCareer?(): Promise<Partial<CareerFetch> & { skipped?: string }>;
+  actOnPosting?(id: string, action: 'track' | 'dismiss' | 'restore'): Promise<void>;
   generatePlan(date: string): Promise<PlanResult>;
   /** Plans `days` days from `from`, earliest first, in one go (the server's generatePlans). */
   generatePlans(from: string, days: number): Promise<PlanDay[]>;

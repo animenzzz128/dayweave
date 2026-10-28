@@ -332,6 +332,16 @@ const en = {
     planned: 'Planned', open: 'Open', using: 'I use this', notUsing: 'Not for me', hidden: 'Moved to the bottom', shown: 'Marked as in use',
     campusNote: 'Campus recruiting: add each company’s application window as a job with its deadline; the Applications tab and your plan count down to it.',
   },
+  inbox: {
+    tab: 'New jobs', title: 'From watched companies', scoreNote: 'Score = rules: track, early-career level, preferred place, your keywords',
+    refresh: 'Check boards now', refreshed: (n: number) => `Boards read: ${n} matching posting${n === 1 ? '' : 's'}`, noWatch: 'No companies watched yet. Add some under Sources.', goWatch: 'Go to Sources',
+    lastRead: (ago: string, n: number) => `Last read ${ago} · ${n} board${n === 1 ? '' : 's'} · read again after each daily collection`, neverRead: 'Not read yet. Boards are read after each daily collection.',
+    filter: { new: 'New', tracked: 'Tracked', dismissed: 'Dismissed' }, allTracks: 'All tracks',
+    emptyNew: 'No new matching postings. Lower-scoring roles (senior, internships, unrelated) are left out.', empty: 'Nothing here.',
+    track: 'Track', dismiss: 'Not for me', restore: 'Put back', inTracker: 'In Applications', done: { track: 'Added to Applications', dismiss: 'Dismissed', restore: 'Back in New' },
+    score: (n: number) => `Match score ${n} of 100`, posted: (d: string) => `posted ${d}`,
+    reason: { ai: 'AI', early: 'Early career', senior: 'Senior level', intern: 'Internship' },
+  },
   email: {
     title: 'Email',
     subtitle: 'The last read-only Gmail snapshot. Nothing is sent, deleted or labelled.',
@@ -732,6 +742,16 @@ const zh: Messages = {
     tierNote: { A: '官方公开接口：Dayweave 每天自动读取，不需要登录。', B: '你自己找到职位后保存链接，Dayweave 负责截止日和进度。', C: '只能在你自己的账号里操作（App、聊天、学校系统），Dayweave 只做记录。' },
     planned: '计划中', open: '打开', using: '我在用', notUsing: '不用', hidden: '已移到底部', shown: '已标为在用',
     campusNote: '校招：把每家公司的网申窗口作为一个职位加入并填截止日，「投递」页和规划会倒数提醒。',
+  },
+  inbox: {
+    tab: '新职位', title: '关注公司的新职位', scoreNote: '分数按规则：方向、届别、偏好地点、你的关键词',
+    refresh: '立即检查', refreshed: (n: number) => `已读取，匹配 ${n} 个职位`, noWatch: '还没有关注公司，先到「来源」里添加。', goWatch: '去来源页',
+    lastRead: (ago: string, n: number) => `上次读取 ${ago} · ${n} 个招聘页 · 每次日常采集后自动再读`, neverRead: '还没读取过。每次日常采集后会自动读取。',
+    filter: { new: '新', tracked: '已加入', dismissed: '已忽略' }, allTracks: '全部方向',
+    emptyNew: '没有新的匹配职位。资深岗、实习和不相关岗位分数低，不会出现。', empty: '这里没有内容。',
+    track: '加入投递', dismiss: '不考虑', restore: '放回', inTracker: '已在投递里', done: { track: '已加入投递', dismiss: '已忽略', restore: '已放回新职位' },
+    score: (n: number) => `匹配分 ${n} / 100`, posted: (d: string) => `${d} 发布`,
+    reason: { ai: 'AI', early: '校招/初级', senior: '资深岗', intern: '实习' },
   },
   email: {
     title: '邮件',

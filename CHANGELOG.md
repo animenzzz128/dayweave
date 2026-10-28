@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased — Career: new jobs from watched companies
+
+- The server reads the public job boards (Greenhouse, Lever, Ashby, SmartRecruiters) of the companies you watch after each daily collection, and on **Check boards now** (6 times an hour at most). Official unauthenticated JSON endpoints only; no account, no applying, no API cost. A slow board never delays the collection: the read runs after the answer.
+- A new **New jobs** tab ranks matching postings by a rules-only score (0–100): track (AI product 40; strategy and operations 35; consulting 20), +10 AI, +20 early-career/2027 wording, −40 senior, −30 internship, +15 for a preferred place from your stored profile, +10 per own keyword (up to 2). Postings under 30 are left out; at most 25 per company. Reasons are shown on every card.
+- **Track** copies a posting into Applications (once, by link); **Not for me** hides it. Unacted postings not seen for 45 days leave the inbox; a board that fails keeps its old postings and its error is shown.
+
 ## Unreleased — Career: source library and companies to watch
 
 - New **Sources** tab on the private Career page: 28 job sources across overseas, mainland China and Hong Kong/Singapore, each marked by how far Dayweave can help: reads itself (public official feeds), you save it (LinkedIn, Workday sites, campus sites, 猎聘…) or manual only (BOSS直聘 chats, school systems). Mark a source "not for me" to move it to the bottom.
