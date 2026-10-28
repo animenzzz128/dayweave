@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — Plan: one main button, days you can swipe
+
+- The Plan page has one main button: approve the day. "Plan the next 7 days" is a secondary button and "Regenerate this day" a text action.
+- The seven days scroll sideways on phones instead of wrapping onto three rows, and each day shows a thin bar of planned against usable minutes (amber above 80%).
+- On phones the day's approve button stays above the tab bar while the timeline scrolls; once a version is prepared it leads to that version's approval. It runs the same step as the button in the page.
+- Review's "Try" sentences are left-aligned body text instead of small monospace chips.
+
 ## Unreleased — Today leads with what is now and next
 
 - Today opens with one lead card: what is on the calendar now (until when) and next today, the most urgent piece of work, and a link to the plan. It reads the same events and blocks as the day timeline and changes nothing. When the calendar read is incomplete, an empty rest of the day is not called free.

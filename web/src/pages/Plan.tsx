@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../data/AppData';
 import { useI18n } from '../i18n/I18n';
 import { PlanTimeline } from '../components/PlanTimeline';
@@ -54,6 +55,7 @@ export function Plan({ params }: { params: URLSearchParams }) {
   const ok = open.filter((p) => !clash(p) && !Phase2.errors(p, d, now, []).length);
   const summary = (progress.plan as Record<string, Summary> | undefined)?.[date];
   const planned = live.filter(counts).reduce((n, p) => n + minutes(p), 0);
+  const dayMinutes = (day: string) => d.proposals.filter((p) => f.dayKey(p.start) === day && !dismissed(p) && counts(p)).reduce((n, p) => n + minutes(p), 0);
   const usable = summary?.usable?.minutes ?? 0;
   const startHour = dayStartHour(d, progress.dismissed, date, planSettings.dayStart);
   // The day version: an exact match for the open, passing blocks of this day, if one is already prepared.
@@ -79,11 +81,22 @@ export function Plan({ params }: { params: URLSearchParams }) {
     <>
       <PageHeader title={t.plan.title} subtitle={t.plan.subtitle} />
       <div className="mb-5"><DeadlineRisks /></div>
-      <div className="mb-5 flex flex-wrap gap-1.5" role="tablist" aria-label={t.plan.title}>
-        {days.map((day) => (
-          <button key={day} type="button" role="tab" aria-selected={day === date} onClick={() => setDate(day)}
-            className={`rounded-lg px-3 py-1.5 text-sm ${day === date ? 'bg-ink font-medium text-surface' : 'border border-line hover:bg-soft'}`}>{f.day(iso(noon(day)))}</button>
-        ))}
+      {/* Phones scroll the seven days sideways; each day shows how full its plan is (planned of usable minutes). */}
+      <div className="-mx-4 mb-5 flex snap-x gap-1.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0" role="tablist" aria-label={t.plan.title}>
+        {days.map((day) => {
+          const use = (progress.plan as Record<string, Summary> | undefined)?.[day]?.usable?.minutes ?? 0;
+          const fill = use ? Math.min(100, Math.round((dayMinutes(day) / use) * 100)) : 0;
+          const sel = day === date;
+          return (
+            <button key={day} type="button" role="tab" aria-selected={sel} onClick={() => setDate(day)}
+              className={`flex min-h-11 shrink-0 snap-start flex-col justify-center gap-1 rounded-lg px-3 py-1.5 text-sm ${sel ? 'bg-ink font-medium text-surface' : 'border border-line hover:bg-soft'}`}>
+              <span className="whitespace-nowrap">{f.day(iso(noon(day)))}</span>
+              <span aria-hidden="true" className={`block h-1 w-full overflow-hidden rounded-full ${sel ? 'bg-surface/25' : 'bg-soft'}`}>
+                <span className={`block h-full rounded-full ${fill > 80 ? 'bg-warn-dot' : sel ? 'bg-surface' : 'bg-accent'}`} style={{ width: `${fill}%` }} />
+              </span>
+            </button>
+          );
+        })}
       </div>
       <div className="flex flex-wrap gap-8">
         <div className="min-w-0 flex-[1_1_340px]">
@@ -97,8 +110,8 @@ export function Plan({ params }: { params: URLSearchParams }) {
                 {summary && <p className={`text-xs ${usable && planned > usable * 0.8 ? 'text-warn' : 'text-muted'}`}>{usable && planned > usable * 0.8 ? t.plan.overload : t.plan.reserve}</p>}
               </div>
               <div className="flex flex-wrap gap-1.5">
-                <button type="button" className="btn btn-primary" disabled={busy} onClick={regenerateDays}>{busy ? t.plan.regenerating : t.plan.regenerateDays(PLAN_DAYS)}</button>
-                <button type="button" className="btn" disabled={busy} onClick={regenerate}>{t.plan.regenerate}</button>
+                <button type="button" className="btn" disabled={busy} onClick={regenerateDays}>{busy ? t.plan.regenerating : t.plan.regenerateDays(PLAN_DAYS)}</button>
+                <button type="button" className="btn btn-quiet" disabled={busy} onClick={regenerate}>{t.plan.regenerate}</button>
               </div>
             </div>
             {summary?.usable && usable > 0 && <div className="mt-3 h-2 overflow-hidden rounded-full bg-soft" aria-hidden="true"><div className={`h-full ${planned > usable * 0.8 ? 'bg-warn' : 'bg-accent'}`} style={{ width: `${Math.min(100, Math.round((planned / usable) * 100))}%` }} /></div>}
@@ -145,6 +158,7 @@ export function Plan({ params }: { params: URLSearchParams }) {
           <Rules />
         </div>
       </div>
+      <PhoneApproveBar ok={ok} version={dayVersion} />
     </>
   );
 }
@@ -186,12 +200,33 @@ function ColorLegend() {
   );
 }
 
+/**
+ * Phones: the day's approve action stays in thumb reach above the tab bar while the timeline scrolls. It runs the same
+ * prepare as the button in the page, and once a version exists it only leads to it.
+ */
+function PhoneApproveBar({ ok, version }: { ok: Proposal[]; version?: Approval }) {
+  const { source, run } = useApp();
+  const { t } = useI18n();
+  if (!ok.length && !version) return null;
+  return (
+    <>
+      <div aria-hidden="true" className="h-20 sm:hidden" />
+      {/* A portal: the page's entrance animation leaves a transform on its wrapper, which would pin a fixed bar to the page. */}
+      {createPortal(<div className="fixed inset-x-0 z-40 border-t border-line bg-surface/95 px-4 py-2 backdrop-blur sm:hidden" style={{ bottom: 'calc(57px + env(safe-area-inset-bottom, 0px))' }}>
+        {version
+          ? <a href="#approve-day" className="btn w-full no-underline" onClick={(e) => { e.preventDefault(); document.getElementById('approve-day')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>{t.plan.toApproval} ↓</a>
+          : <button type="button" className="btn btn-primary w-full" onClick={() => run(() => source.prepare(ok.map((p) => p.id)))}>{t.plan.approveDay(...split(ok))}</button>}
+      </div>, document.body)}
+    </>
+  );
+}
+
 function ApproveDay({ ok, failing, version }: { ok: Proposal[]; failing: number; version?: Approval }) {
   const { source, run } = useApp();
   const { t } = useI18n();
   if (!ok.length && !failing && !version) return null;
   return (
-    <section className="rounded-[14px] border border-accent-line bg-accent-soft p-4">
+    <section id="approve-day" className="scroll-mt-4 rounded-[14px] border border-accent-line bg-accent-soft p-4">
       {ok.length || version ? (version ? <ApproveButton approval={version} /> : (
         <>
           <button type="button" className="btn btn-primary w-full" onClick={() => run(() => source.prepare(ok.map((p) => p.id)))}>{t.plan.approveDay(...split(ok))}</button>

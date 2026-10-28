@@ -38,10 +38,10 @@ export function OneLine({ onAdded }: { onAdded: (id: string) => void }) {
         <input id="one-line-input" className="field min-w-0 flex-[1_1_260px]" maxLength={300} placeholder={presets[0][lang]} value={text} onChange={(e) => { setText(e.target.value); setNote(false); }} />
         <button type="submit" className="btn">{t.ai.ask}</button>
       </form>
-      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        <span className="text-xs text-muted">{t.ai.presets}</span>
+      <div className="mt-3 flex flex-wrap items-center gap-1.5">
+        <span className="w-full text-xs text-muted">{t.ai.presets}</span>
         {presets.map((p) => <button key={p.key} type="button" aria-pressed={chosen?.key === p.key} onClick={() => pick(p)}
-          className={`chip ${chosen?.key === p.key ? 'border-accent text-accent' : ''}`}>{p[lang]}</button>)}
+          className={`min-h-9 rounded-lg border px-2.5 py-1 text-left text-[13px] leading-snug transition-colors ${chosen?.key === p.key ? 'border-accent bg-raised text-accent' : 'border-line bg-raised text-body hover:border-accent-line'}`}>{p[lang]}</button>)}
       </div>
       {note && <p className="mt-3 text-[13px] text-muted">{t.ai.liveNote}</p>}
       {chosen && <Result key={chosen.key + lang} preset={chosen} />}
