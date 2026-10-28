@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — Planning rules audit
+
+- Fix: a weekly goal asking for more sessions than its ticked weekdays allow (for example 7 a week on Monday–Friday at 1 a day) made the server refuse the whole save, so a new day start such as 08:30 was never stored, plans kept the old 09:00 and a refresh showed the old rules. The page now runs the same check before saving, says in place which goal cannot hold and why (ticked weekdays × per day, not the 7 planned days), keeps Save off until it holds, and marks unsaved edits.
+- Saving rules now plans the next 7 days again with them ("Save and plan the next 7 days again"); written blocks that move get a removal and a new block to approve, as before.
+- The plan summary names blocks kept because you edited or approved them, and warns when one now sits outside the rules.
+- Fix: day views started at 09:00 (or 07:00), cutting an 08:30 class to 09:00. They now start at the saved day start, or earlier at the hour of the first event or block that day; the Week page lines its columns up.
+- Tests: every rule (save and reload, day start and end, breaks, daily coursework limit, weekly goals per week/per day/weekdays/windows/colour/off, edited blocks, rewriting a written block after a rule change) through the store's 7-day generation.
+
 ## Unreleased — Classic UI retired
 
 - Data health shows the action history (search, dates, status, details, pages of 20) and the last 30 measured runs.

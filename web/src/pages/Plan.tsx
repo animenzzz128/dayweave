@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useApp } from '../data/AppData';
 import { useI18n } from '../i18n/I18n';
 import { PlanTimeline } from '../components/PlanTimeline';
@@ -8,6 +8,7 @@ import { href } from '../lib/router';
 import { CALENDAR_COLORS, COLOR_IDS } from '../lib/calendarColors';
 import { ApproveButton } from './Review';
 import { DeadlineRisks } from '../components/DeadlineRisks';
+import { dayStartHour } from '../components/DayTimeline';
 import type { Approval, Habit, PlanSettings, Proposal, Unscheduled } from '../data/types';
 
 const MIN = 60000;
@@ -19,7 +20,8 @@ const minutes = (p: { start: string; end: string }) => Math.round((Date.parse(p.
 const iso = (ms: number) => new Date(ms).toISOString();
 const isoDay = (k: string) => new Date(Date.parse(k + 'T12:00:00Z')).getUTCDay() || 7;
 
-interface Summary { usable?: { minutes: number; budget: number; allocated: number }; unscheduled?: Unscheduled[]; gaps?: string[] }
+interface Held { id: string; title: string; start: string; end: string; why: 'edited' | 'approved'; outside?: boolean }
+interface Summary { usable?: { minutes: number; budget: number; allocated: number }; unscheduled?: Unscheduled[]; gaps?: string[]; held?: Held[] }
 // Summaries stored before items carried a group are sorted by their reason.
 const groupOf = (u: Unscheduled) => u.group ?? (/^(Already covered|Spread over|Archived locally|Selectable|Today already has|Not planned: the day has ended)|falls before the/.test(u.reason) ? 'hidden' : /^(Review starts|Starts \d+ days)/.test(u.reason) ? 'later' : 'action');
 
@@ -53,7 +55,7 @@ export function Plan({ params }: { params: URLSearchParams }) {
   const summary = (progress.plan as Record<string, Summary> | undefined)?.[date];
   const planned = live.filter(counts).reduce((n, p) => n + minutes(p), 0);
   const usable = summary?.usable?.minutes ?? 0;
-  const early = live.some((p) => Date.parse(p.start) < Date.parse(Core.zonedISO(date, '09:00'))) || planSettings.dayStart < '09:00';
+  const startHour = dayStartHour(d, progress.dismissed, date, planSettings.dayStart);
   // The day version: an exact match for the open, passing blocks of this day, if one is already prepared.
   const fp = Object.fromEntries(ok.map((p) => [p.id, Phase2.fingerprint(p)]));
   const dayVersion = approvals.find((a) => a.status === 'prepared' && JSON.stringify(a.fingerprints) === JSON.stringify(fp))
@@ -85,7 +87,7 @@ export function Plan({ params }: { params: URLSearchParams }) {
       </div>
       <div className="flex flex-wrap gap-8">
         <div className="min-w-0 flex-[1_1_340px]">
-          <PlanTimeline date={date} startHour={early ? 7 : 9} onChange={shift} />
+          <PlanTimeline date={date} startHour={startHour} onChange={shift} />
         </div>
         <div className="min-w-0 flex-[999_1_480px] space-y-6">
           <section className="panel p-4" aria-label={t.plan.load(planned, usable)}>
@@ -101,6 +103,12 @@ export function Plan({ params }: { params: URLSearchParams }) {
             </div>
             {summary?.usable && usable > 0 && <div className="mt-3 h-2 overflow-hidden rounded-full bg-soft" aria-hidden="true"><div className={`h-full ${planned > usable * 0.8 ? 'bg-warn' : 'bg-accent'}`} style={{ width: `${Math.min(100, Math.round((planned / usable) * 100))}%` }} /></div>}
             {!!summary?.gaps?.length && <ul className="mt-2 list-disc pl-5 text-sm text-danger">{summary.gaps.map((g, i) => <li key={i}>{g}</li>)}</ul>}
+            {!!summary?.held?.length && (
+              <div className="mt-2 text-xs">
+                <p className={summary.held.some((h) => h.outside) ? 'text-warn' : 'text-muted'}>{t.plan.held(summary.held.length)}</p>
+                <ul className="mt-1 list-disc pl-5 text-muted">{summary.held.map((h) => <li key={h.id}>{f.hm(h.start)}–{f.hm(h.end)} {h.title} · {t.plan.heldWhy[h.why]}{h.outside && <span className="text-warn"> · {t.plan.heldOutside}</span>}</li>)}</ul>
+              </div>
+            )}
             <p className="mt-2 text-xs text-muted">{t.plan.autoNote}</p>
             <ColorLegend />
           </section>
@@ -267,10 +275,32 @@ function Goals({ date }: { date: string }) {
   );
 }
 
+/** Why the server would refuse these rules (planner.planSettings, shared with it), or null when they can be saved. */
+function refusal(v: PlanSettings): string | null {
+  try { Planner.planSettings(v); return null; } catch (e) { return (e as Error).message; }
+}
+
 function Rules() {
-  const { source, run, planSettings, planSettingsSaved } = useApp();
+  const { source, run, planSettings, planSettingsSaved, f, now } = useApp();
   const { t } = useI18n();
   const [v, setV] = useState<PlanSettings>(() => JSON.parse(JSON.stringify(planSettings)));
+  const [saving, setSaving] = useState(false);
+  const saved = JSON.stringify(planSettings);
+  // The form follows the saved rules whenever they change (after a save, or a reload with rules saved elsewhere).
+  useEffect(() => { setV(JSON.parse(saved)); }, [saved]);
+  const dirty = JSON.stringify(v) !== saved;
+  const problem = refusal(v);
+  const hm = (x: string) => (x === '24:00' ? 1440 : Number(x.slice(0, 2)) * 60 + Number(x.slice(3)));
+  // The goal problems the page explains in place, in the page's language; other refusals show the planner's own words.
+  const tooMany = (h: Habit) => h.perWeek > h.days.length * (h.perDay ?? 1);
+  const noWindow = (h: Habit) => h.windows.every((w) => Math.min(hm(w.end), hm(v.dayEnd)) - Math.max(hm(w.start), hm(v.dayStart)) < h.minutes);
+  const explained = v.habits.some((h) => tooMany(h) || noWindow(h));
+  // Saving applies at once: the next PLAN_DAYS days are planned again with the new rules (a refused save changes nothing).
+  const save = async () => {
+    setSaving(true);
+    await run(async () => { await source.savePlanSettings(v); return source.generatePlans(f.dayKey(now), PLAN_DAYS); }, (r) => t.plan.savedAndPlanned(r.filter((x) => x.ready).length, PLAN_DAYS));
+    setSaving(false);
+  };
   const set = (patch: Partial<PlanSettings>) => setV({ ...v, ...patch });
   const goal = (i: number, patch: Partial<Habit>) => set({ habits: v.habits.map((h, j) => (j === i ? { ...h, ...patch } : h)) });
   const time = (value: string, on: (x: string) => void, label: string, end = false) => (
@@ -278,7 +308,7 @@ function Rules() {
   );
   return (
     <details className="panel p-4">
-      <summary className="cursor-pointer font-semibold">{t.plan.settings} {!planSettingsSaved && <Tag tone="info">{t.plan.recommended}</Tag>}</summary>
+      <summary className="cursor-pointer font-semibold">{t.plan.settings} {!planSettingsSaved && <Tag tone="info">{t.plan.recommended}</Tag>} {dirty && <Tag tone="warn">{t.plan.unsaved}</Tag>}</summary>
       <p className="mt-1 text-xs text-muted">{t.plan.settingsNote}</p>
       <div className="mt-3 flex flex-wrap gap-4 text-sm">
         <label className="flex items-center gap-2">{t.plan.maxDailyWork}<input type="number" min={60} max={720} step={15} className="field w-24 py-1" value={v.maxDailyWork ?? ''} onChange={(e) => set({ maxDailyWork: e.target.value === '' ? undefined : Number(e.target.value) })} /></label>
@@ -329,13 +359,21 @@ function Rules() {
               ))}
               {h.windows.length < 3 && <button type="button" className="btn py-0.5 text-xs" onClick={() => goal(i, { windows: [...h.windows, { start: '19:00', end: '21:00' }] })}>{t.plan.addWindow}</button>}
             </div>
-            {h.perWeek > h.days.length * (h.perDay ?? 1) && <p className="mt-1.5 text-xs text-danger">{t.plan.tooMany(h.perWeek, h.days.length, h.perDay ?? 1)}</p>}
+            {noWindow(h) && <p className="mt-1.5 text-xs text-danger">{t.plan.noWindow(h.minutes, v.dayStart, v.dayEnd)}</p>}
+            {tooMany(h) && <p className="mt-1.5 text-xs text-danger">{t.plan.tooMany(h.perWeek, h.days.map((x) => t.plan.weekdays[x - 1]), h.perDay ?? 1)}</p>}
             {h.windows.some((w) => w.start < v.dayStart || (v.dayEnd !== '24:00' && (w.end === '24:00' || w.end > v.dayEnd))) && <p className="mt-1.5 text-xs text-warn">{t.plan.outsideDay}</p>}
           </li>
         ))}
       </ul>
       {v.habits.length < 12 && <button type="button" className="btn mt-2 py-0.5 text-xs" onClick={() => set({ habits: [...v.habits, { id: 'goal-' + Date.now().toString(36), title: '', minutes: 60, perWeek: 2, days: [1, 2, 3, 4, 5], windows: [{ start: '19:00', end: '21:00' }], enabled: true, perDay: 1 }] })}>{t.plan.addGoal}</button>}
-      <div className="mt-4"><button type="button" className="btn btn-primary" onClick={() => run(() => source.savePlanSettings(v), t.plan.saved)}>{t.plan.save}</button></div>
+      <div className="mt-4 space-y-1.5">
+        {problem && <p role="alert" className="text-sm text-danger">{t.plan.cannotSave} {explained ? t.plan.fixMarked : problem}</p>}
+        {dirty && !problem && <p className="text-xs text-warn">{t.plan.unsavedNote}</p>}
+        <div className="flex flex-wrap gap-1.5">
+          <button type="button" className="btn btn-primary" disabled={!!problem || saving || (!dirty && planSettingsSaved)} onClick={save}>{saving ? t.plan.regenerating : t.plan.saveAndPlan(PLAN_DAYS)}</button>
+          {dirty && <button type="button" className="btn" disabled={saving} onClick={() => setV(JSON.parse(saved))}>{t.plan.discard}</button>}
+        </div>
+      </div>
     </details>
   );
 }
