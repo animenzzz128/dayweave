@@ -106,3 +106,19 @@ test('server: career routes need the session; refresh reads watched boards; inge
   await s.careerRefresh;a.equal(calls,4,'the ingest read the two watched boards again');
  }finally{await new Promise(r=>s.close(r));fs.rmSync(dir,{recursive:true,force:true});}
 });
+
+test('planner: a near deadline gets an application block before it; job-search habit blocks name the jobs and due contacts',()=>withStore(s=>{
+ const C=require('../src/core.cjs'),PL=require('../src/planner.cjs'),TZ='America/New_York';C.configure(TZ);
+ const real=Date.now(),today=C.dayKey(real),end=PL.addDays(today,8),d=structuredClone(require('../examples/google-snapshot.json'));
+ d.generatedAt=new Date(real-60000).toISOString();d.calendarCoverage={...d.calendarCoverage,start:C.zonedISO(today,'00:00'),end:C.zonedISO(end,'00:00'),checkedAt:d.generatedAt};
+ d.events=[];d.proposals=[];d.assignments=[];for(const x of d.sources)x.lastSuccess=d.generatedAt;d.email={...d.email,messages:[]};delete d.career;s.importSnapshot(d);
+ const deadline=PL.addDays(today,3),{job:acme}=s.saveCareer('job',job({company:'Acme',deadline,url:'https://jobs.example.com/acme/1'}));
+ s.saveCareer('job',job({company:'Later Co',deadline:PL.addDays(today,30),url:''}));s.saveCareer('contact',{name:'Sam Example',company:'Acme',nextFollowUp:today});
+ s.generatePlans(today,7);let blocks=s.snapshot().proposals.filter(p=>p.origin==='planner');
+ const apply=blocks.filter(p=>p.sourceRefs.some(r=>r.kind==='job'));a.equal(apply.length,1,'one 60-minute application block');a.match(apply[0].title,/^Apply: Acme · /);a.equal(apply[0].color,'3');
+ a.ok(Date.parse(apply[0].end)<=Date.parse(C.zonedISO(deadline,'23:59')));a.match(apply[0].body,/Apply on the company's own site yourself/);
+ a.equal(blocks.filter(p=>p.sourceRefs.some(r=>r.kind==='job'&&r.id!==acme.id)).length,0,'a deadline 30 days out waits for weekly job-search time');
+ const habit=blocks.filter(p=>p.sourceRefs.some(r=>r.kind==='habit'&&r.id==='job-applications'));a.ok(habit.length);a.ok(habit.every(p=>/^Job applications · (Acme, )?Later Co$/.test(p.title)),habit.map(p=>p.title).join('|'));a.ok(habit.some(p=>p.planDate<=deadline&&/Acme/.test(p.title))||habit.every(p=>p.planDate>deadline),'Acme is named only up to its deadline');a.match(habit[0].body,/- (Acme|Later Co) · AI Product Manager/);
+ const li=blocks.filter(p=>p.sourceRefs.some(r=>r.kind==='habit'&&r.id==='linkedin'));a.ok(li.length);a.ok(li.every(p=>/Sam Example/.test(p.title)));
+ const {removedBlocks}=s.saveCareer('job',{...acme,stage:'applied'});a.deepEqual(removedBlocks,apply.map(p=>p.id),'applying removes the unstarted application block');
+}));

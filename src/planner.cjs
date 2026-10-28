@@ -15,8 +15,18 @@ const REVIEW=Object.freeze([{kind:'exam',re:/\b(exam|midterm)s?\b|\bfinal exam/i
 const INTERVIEW=Object.freeze({minutes:120,undated:60,perDay:120});
 // Google Calendar event colours (colorId 1–11) by what a block is for, so written blocks read apart on the calendar. A weekly
 // goal uses its own `color` when set, else the default for its recommended ID, else HABIT_COLOR.
-const COLORS=Object.freeze({coursework:'9',review:'6',interview:'11',todo:'5'}),HABIT_COLOR='2',HABIT_COLORS=Object.freeze({gym:'10','job-applications':'3',linkedin:'3'});
+const COLORS=Object.freeze({coursework:'9',review:'6',interview:'11',todo:'5',job:'3'}),HABIT_COLOR='2',HABIT_COLORS=Object.freeze({gym:'10','job-applications':'3',linkedin:'3'});
 const COLOR_IDS=Object.freeze(['1','2','3','4','5','6','7','8','9','10','11']);
+// Application blocks for career-tracker deadlines (see candidates) and what job-search habit blocks name (habitFocus).
+const APPLY=Object.freeze({days:7,minutes:60});
+// The job-application habit names up to three jobs you still want to apply to (nearest deadline first, then oldest); the
+// LinkedIn habit names up to five contacts whose follow-up is due. Other habits are unchanged.
+function habitFocus(h,career={},date){const out={names:[],lines:[]};
+ if(h.id==='job-applications'){const jobs=Object.values(career?.jobs||{}).filter(j=>j&&['saved','preparing'].includes(j.stage)&&!(j.deadline&&j.deadline<date)).sort((a,b)=>(a.deadline||'9999').localeCompare(b.deadline||'9999')||String(a.createdAt).localeCompare(String(b.createdAt))).slice(0,3);
+  out.names=jobs.map(j=>String(j.company).slice(0,40));out.lines=jobs.map(j=>`- ${j.company} · ${j.title}${j.deadline?' (deadline '+j.deadline+')':''}${j.url?' '+j.url:''}`);}
+ if(h.id==='linkedin'){const people=Object.values(career?.contacts||{}).filter(c=>c&&c.nextFollowUp&&c.nextFollowUp<=date).sort((a,b)=>a.nextFollowUp.localeCompare(b.nextFollowUp)).slice(0,5);
+  out.names=people.map(c=>String(c.name).slice(0,40));out.lines=people.map(c=>`- Follow up: ${c.name}${c.company?' ('+c.company+')':''}${c.url?' '+c.url:''}`);}
+ return out;}
 const habitColor=h=>h.color||HABIT_COLORS[h.id]||HABIT_COLOR;
 // Suggested rules used until the owner saves their own (docs/data-contract.md, planning settings).
 const RECOMMENDED=Object.freeze({dayStart:'09:00',dayEnd:'24:00',breaks:[{start:'12:00',end:'13:00'},{start:'18:00',end:'19:00'}],habits:[
@@ -81,7 +91,7 @@ function sourceProblem(d,id,now,settings=SETTINGS){
  return null;
 }
 // Coursework that is required, not submitted, from an eligible source and has a positive estimate; everything else is listed with a reason.
-function candidates(d,todos,archive,now=new Date(),settings=SETTINGS,emailTriage={}){
+function candidates(d,todos,archive,now=new Date(),settings=SETTINGS,emailTriage={},career={}){
  const tasks=[],skipped=[];
  for(const a of d.assignments||[]){
   if(a.archivedFromSource||DONE.includes(a.status))continue;
@@ -102,6 +112,10 @@ function candidates(d,todos,archive,now=new Date(),settings=SETTINGS,emailTriage
   tasks.push({...ref,dueAt:a.dueAt||null,minutes:Math.round(a.estimateMinutes),estimateMinutes:a.estimateMinutes,source:a.source||'',course:a.course||'',...(unread?{unread:true}:{})});
  }
  for(const t of Object.values(todos||{}))if(t&&t.status==='open')tasks.push({kind:'todo',id:t.id,title:t.title,dueAt:t.dueAt||null,minutes:t.durationMinutes,version:t.version});
+ // Career tracker: a job you still want to apply to whose deadline is within APPLY.days gets one application block before the
+ // deadline's end of day (the owner's own entry; nothing is submitted). Later deadlines wait for the weekly job-application time.
+ const today=C.dayKey(now);for(const j of Object.values(career?.jobs||{})){if(!j||!['saved','preparing'].includes(j.stage)||!j.deadline||j.deadline<today||j.deadline>addDays(today,APPLY.days))continue;
+  tasks.push({kind:'job',id:j.id,title:(j.company+' · '+j.title).slice(0,160),dueAt:C.zonedISO(j.deadline,'23:59'),minutes:APPLY.minutes,version:j.version,source:/^https?:\/\//.test(j.url||'')?j.url:''});}
  // Interview mail (collector triage or the owner's override), not handled: preparation before the stated time, or an hour today.
  if(d.email?.enabled)for(const m of d.email.messages||[]){const o=emailTriage?.[m.id]||{};if((o.category||m.triage?.category)!=='interview'||o.handled)continue;
   const at=m.triage?.dueAt?Date.parse(m.triage.dueAt):NaN;if(Number.isFinite(at)&&at<=+now)continue;
@@ -135,7 +149,7 @@ function ownEvents(d,copies,occ){
 }
 const local=x=>new Intl.DateTimeFormat('en-US',{timeZone:C.TZ,month:'short',day:'numeric',hour:'numeric',minute:'2-digit'}).format(new Date(x));
 const plural=(n,w)=>n+' '+w+(n===1?'':'s');
-function plan({snapshot:d,date,now=new Date(),todos={},archive={},dismissed={},started=[],settings={},emailTriage={},rewrite=false}){
+function plan({snapshot:d,date,now=new Date(),todos={},archive={},dismissed={},started=[],settings={},emailTriage={},rewrite=false,career={}}){
  const s={...SETTINGS,...settings};now=new Date(now);
  if(!validDate(date))throw Error('Choose a valid date (YYYY-MM-DD).');
  if(!d)throw Error('No snapshot');C.configure(d.timezone);
@@ -144,7 +158,7 @@ function plan({snapshot:d,date,now=new Date(),todos={},archive={},dismissed={},s
  const cov=d.calendarCoverage||{},result={date,timezone:d.timezone,generatedAt:now.toISOString(),window:{start:new Date(from).toISOString(),end:new Date(to).toISOString()},ready:false,blocks:[],unscheduled:[],gaps:[],
   assumptions:[`Planning window ${s.dayStart}–${s.dayEnd} ${d.timezone}; every block, weekly goals included, stays inside it.`,...(s.breaks.length?['Breaks kept free: '+s.breaks.map(b=>b.start+'–'+b.end).join(', ')+'.']:[]),...(s.habits.some(h=>h.enabled)?[`Weekly goals are placed in their own windows after coursework due within ${s.urgentHours} hours, spread evenly over the allowed days left this week (Monday–Sunday), at most their sessions per day.`]:[]),`Focus blocks are at most ${s.maxBlock} minutes with ${s.gap}-minute rest gaps around blocks and busy events.`,`At least ${Math.round(s.reserve*100)}% of usable time stays unallocated.`,'Durations come only from your todo durations and source estimates; recorded actual minutes are not subtracted.',`Quizzes get ${REVIEW[1].minutes} minutes of review in the ${REVIEW[1].days} days before; exams get ${REVIEW[0].minutes} minutes over the ${REVIEW[0].days} days before, at most ${REVIEW[0].perDay} a day.`,`Interview emails come first: ${INTERVIEW.minutes} minutes of preparation before the stated time (${INTERVIEW.undated} today when no time is stated), at most ${INTERVIEW.perDay} a day.`,'Busy calendar events, including all-day events and expanded recurring occurrences, block time; events marked free do not.','Work is ordered by deadline (undated last). Blocks must end before the deadline.','Nothing is written to any calendar. Blocks are proposals; only an exact Q version you approve can be written.'],
   usable:{minutes:0,budget:0,allocated:0}};
- const {tasks,skipped}=candidates(d,todos,archive,now,s,emailTriage);result.unscheduled.push(...skipped);
+ const {tasks,skipped}=candidates(d,todos,archive,now,s,emailTriage,career);result.unscheduled.push(...skipped);
  if(to<=+now){result.gaps.push('This day has already ended.');result.unscheduled.push(...tasks.map(t=>({kind:t.kind,id:t.id,title:t.title,reason:'Not planned: the day has ended.',group:'hidden'})));return result;}
  result.gaps.push(...gaps(d,from,to,now,s));
  if(result.gaps.length){result.unscheduled.push(...tasks.map(t=>({kind:t.kind,id:t.id,title:t.title,reason:'Not planned: calendar coverage is not verified for this day.',group:'action'})));return result;}
@@ -221,9 +235,9 @@ function plan({snapshot:d,date,now=new Date(),todos={},archive={},dismissed={},s
    for(const w of h.windows){const ws=Math.max(start,at(date,w.start)),we=Math.min(to,at(date,w.end));if(we-ws<h.minutes*MIN)continue;[t0,kept]=place(ref,h.minutes*MIN,ws,we);if(t0!==null)break;}
    if(t0===null){why='No free '+h.minutes+'-minute slot in its windows ('+h.windows.map(w=>w.start+'–'+w.end).join(', ')+') today.';break;}
    if(kept){blocked.push([t0-s.gap*MIN,t0+(h.minutes+s.gap)*MIN]);allocated+=h.minutes;placed++;continue;}
-   const b={start:new Date(t0).toISOString(),end:new Date(t0+h.minutes*MIN).toISOString()},title=h.title.slice(0,200),id='plan-'+date+'-'+hash(['habit',h.id,b.start,b.end,title,cov.account,cov.calendarId].join('|'));
+   const focus=habitFocus(h,career,date),b={start:new Date(t0).toISOString(),end:new Date(t0+h.minutes*MIN).toISOString()},title=(h.title+(focus.names.length?' · '+focus.names.join(', '):'')).slice(0,200),id='plan-'+date+'-'+hash(['habit',h.id,b.start,b.end,title,cov.account,cov.calendarId].join('|'));
    const p={id,title,start:b.start,end:b.end,status:'proposed',action:'create',provider:'google',account:cov.account,calendar:cov.calendar,calendarId:cov.calendarId,timezone:d.timezone,recurrence:'One time',attendees:[],location:'',busy:true,reminderMinutes:s.reminderMinutes,color:habitColor(h),
-    body:`Dayweave block for the weekly goal "${h.title}".`,source:'',origin:'planner',planDate:date,sourceRefs:[{kind:'habit',id:h.id}],
+    body:`Dayweave block for the weekly goal "${h.title}".`+(focus.lines.length?'\n'+focus.lines.join('\n'):''),source:'',origin:'planner',planDate:date,sourceRefs:[{kind:'habit',id:h.id}],
     reason:`Weekly goal: session ${done+placed+1} of ${h.perWeek} this week · ${h.minutes} minutes.`};
    const errs=freshIds.has(p.id)?[]:P.errors(p,checkD,now,checkStarted);if(errs.length){why='Rejected by calendar checks: '+errs.join(' ');break;}
    result.blocks.push(p);blocked.push([t0-s.gap*MIN,t0+(h.minutes+s.gap)*MIN]);allocated+=h.minutes;placed++;}
@@ -260,12 +274,12 @@ function plan({snapshot:d,date,now=new Date(),todos={},archive={},dismissed={},s
    const [at,kept]=place(ref,len*MIN,start,until);if(at===null){why=until<to?'No free slot that ends before the deadline.':'No free slot of '+len+' minutes left today.';break;}
    if(kept){blocked.push([at-s.gap*MIN,at+(len+s.gap)*MIN]);allocated+=len;placed+=len;if(!t.interview)work+=len;continue;}
    const b={start:new Date(at).toISOString(),end:new Date(at+len*MIN).toISOString()};
-   const title=((t.interview?'Interview prep: ':t.review?'Review: ':'Focus: ')+t.title).slice(0,200),id='plan-'+date+'-'+hash([t.kind,t.id,t.version??'',b.start,b.end,title,cov.account,cov.calendarId].join('|'));
+   const title=((t.interview?'Interview prep: ':t.review?'Review: ':t.kind==='job'?'Apply: ':'Focus: ')+t.title).slice(0,200),id='plan-'+date+'-'+hash([t.kind,t.id,t.version??'',b.start,b.end,title,cov.account,cov.calendarId].join('|'));
    const p={id,title,start:b.start,end:b.end,status:'proposed',action:'create',provider:'google',account:cov.account,calendar:cov.calendar,calendarId:cov.calendarId,timezone:d.timezone,recurrence:'One time',attendees:[],location:'',busy:true,reminderMinutes:s.reminderMinutes,
-    color:COLORS[t.interview?'interview':t.review?'review':t.kind==='todo'?'todo':'coursework'],
-    body:t.interview?'Dayweave preparation block for an interview email.':`Dayweave ${t.review?'review':'focus'} block for ${t.kind==='todo'?'todo':'assignment'} "${t.title}".`,source:t.kind==='assignment'?t.source:'',origin:'planner',planDate:date,
-    sourceRefs:[{kind:t.kind,id:t.id,...(t.kind==='todo'?{version:t.version}:t.kind==='email'?{}:{dueAt:t.dueAt,estimateMinutes:t.estimateMinutes})}],
-    reason:`${t.interview?'Interview preparation'+(t.dueAt?' before '+local(t.dueAt):' (interview time not stated)'):t.review?'Review for the '+t.review+' on '+local(t.dueAt):(t.kind==='todo'?'Todo':'Required coursework')+(t.dueAt?' due '+local(t.dueAt):' with no deadline')+(t.unread?' · submission status not read: remove this block if it is already submitted':'')} · block ${i+1} of ${parts.length} · ${len} of ${need} remaining minutes${have?` (${have} already planned)`:''}.`};
+    color:COLORS[t.interview?'interview':t.review?'review':t.kind==='todo'?'todo':t.kind==='job'?'job':'coursework'],
+    body:t.interview?'Dayweave preparation block for an interview email.':t.kind==='job'?`Dayweave application block for "${t.title}". Apply on the company's own site yourself, then mark it applied in Career.${t.source?' '+t.source:''}`:`Dayweave ${t.review?'review':'focus'} block for ${t.kind==='todo'?'todo':'assignment'} "${t.title}".`,source:t.kind==='assignment'||t.kind==='job'?t.source:'',origin:'planner',planDate:date,
+    sourceRefs:[{kind:t.kind,id:t.id,...(t.kind==='todo'||t.kind==='job'?{version:t.version}:t.kind==='email'?{}:{dueAt:t.dueAt,estimateMinutes:t.estimateMinutes})}],
+    reason:`${t.interview?'Interview preparation'+(t.dueAt?' before '+local(t.dueAt):' (interview time not stated)'):t.review?'Review for the '+t.review+' on '+local(t.dueAt):t.kind==='job'?'Application deadline '+local(t.dueAt):(t.kind==='todo'?'Todo':'Required coursework')+(t.dueAt?' due '+local(t.dueAt):' with no deadline')+(t.unread?' · submission status not read: remove this block if it is already submitted':'')} · block ${i+1} of ${parts.length} · ${len} of ${need} remaining minutes${have?` (${have} already planned)`:''}.`};
    const errs=freshIds.has(p.id)?[]:P.errors(p,checkD,now,checkStarted);if(errs.length){why='Rejected by calendar checks: '+errs.join(' ');break;}
    result.blocks.push(p);blocked.push([at-s.gap*MIN,at+(len+s.gap)*MIN]);allocated+=len;placed+=len;if(!t.interview)work+=len;
   }
@@ -282,9 +296,9 @@ function plan({snapshot:d,date,now=new Date(),todos={},archive={},dismissed={},s
 // Deadline risk (owner request 2026-10-27, after Motion): required work due in the next `days` days whose planned minutes
 // before its deadline fall short of what it needs. Planned = occurrences of non-dismissed blocks for it that end by the
 // deadline and are started or still ahead, plus attempted receipts without a copy. It reads the snapshot only.
-function risks({snapshot:d,now=new Date(),days=7,todos={},archive={},dismissed={},settings={},emailTriage={}}){
+function risks({snapshot:d,now=new Date(),days=7,todos={},archive={},dismissed={},settings={},emailTriage={},career={}}){
  const s={...SETTINGS,...settings};now=new Date(now);C.configure(d.timezone);
- const until=Date.parse(C.zonedISO(addDays(C.dayKey(now),days),'00:00')),{tasks}=candidates(d,todos,archive,now,s,emailTriage),out=[];
+ const until=Date.parse(C.zonedISO(addDays(C.dayKey(now),days),'00:00')),{tasks}=candidates(d,todos,archive,now,s,emailTriage,career),out=[];
  // As in plan(): a collector proposal without sourceRefs belongs to the assignment whose source URL it carries.
  const bySource=new Map((d.assignments||[]).filter(a=>a.source).map(a=>[a.source,a.id])),refsOf=p=>p.sourceRefs||(bySource.has(p.source)?[{kind:'assignment',id:bySource.get(p.source)}]:[]),sup=P.superseded(d,dismissed);
  for(const t of tasks){const due=t.dueAt?Date.parse(t.dueAt):NaN;if(!(due>+now&&due<=until))continue;
@@ -311,6 +325,6 @@ function ownEventIds(d){const receipt=new Map((d.actionHistory||[]).filter(h=>AT
  // An event found only by its receipt, with no copy left to draw in its place, stays visible.
  const refs=new Map((d.actionHistory||[]).filter(h=>h.status==='executed'&&h.remoteRef).map(h=>[h.remoteRef,h.id])),ref=e=>refs.get(e.remoteRef)??refs.get(e.id)??(e.calendarId&&e.id?refs.get(e.calendarId+'/'+e.id):undefined);
  return new Set([...ownEvents(d,copies,occ)].filter(e=>{const id=ref(e);return id===undefined||copies.has(id);}).map(e=>e.id));}
-const api={risks,addDays,SETTINGS,RECOMMENDED,COLORS,HABIT_COLOR,HABIT_COLORS,COLOR_IDS,habitColor,REVIEW,INTERVIEW,validDate,nextDay,hash,chunks,merge,minutesFree,slot,sourceProblem,candidates,gaps,plan,summary,keep,replaceable,attempted,ATTEMPTED,planSettings,isoDay,ownEventIds};
+const api={habitFocus,APPLY,risks,addDays,SETTINGS,RECOMMENDED,COLORS,HABIT_COLOR,HABIT_COLORS,COLOR_IDS,habitColor,REVIEW,INTERVIEW,validDate,nextDay,hash,chunks,merge,minutesFree,slot,sourceProblem,candidates,gaps,plan,summary,keep,replaceable,attempted,ATTEMPTED,planSettings,isoDay,ownEventIds};
 if(typeof module!=='undefined')module.exports=api;else window.PlannerPlanner=api;
 })();

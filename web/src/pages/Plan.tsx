@@ -194,7 +194,7 @@ function ColorLegend() {
   const kinds = Planner.COLORS as Record<string, string>;
   return (
     <ul className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted" aria-label={t.plan.colorLegend}>
-      {(['coursework', 'review', 'interview', 'todo'] as const).map((k) => <li key={k} className="flex items-center gap-1"><span aria-hidden="true" className="inline-block size-2.5 rounded-full" style={{ background: CALENDAR_COLORS[kinds[k]] }} />{t.plan.colorKinds[k]}</li>)}
+      {(['coursework', 'review', 'interview', 'todo', 'job'] as const).map((k) => <li key={k} className="flex items-center gap-1"><span aria-hidden="true" className="inline-block size-2.5 rounded-full" style={{ background: CALENDAR_COLORS[kinds[k]] }} />{t.plan.colorKinds[k]}</li>)}
       <li>{t.plan.colorKinds.habit}</li>
     </ul>
   );

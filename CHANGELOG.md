@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — Career in the plan and on Today
+
+- A job you still want to apply to with a deadline in the next 7 days gets one 60-minute **Apply:** block before the deadline's end of day (Grape, like the job-search goals). Marking it applied, editing or removing the job takes back its unstarted block.
+- Job-application goal blocks name up to three jobs to work on (nearest deadline first) and list them with links in the event description; LinkedIn blocks name up to five contacts whose follow-up is due. Other goals are unchanged.
+- Today shows the three most urgent job-search steps (deadlines, due next steps, quiet applications, follow-ups) when there are any, with a link to Career. The deadline-risk card counts application deadlines too.
+- Research jobs whose title has no "Company · Role" form take the whole title as the company instead of a dash.
+
 ## Unreleased — Career: new jobs from watched companies
 
 - The server reads the public job boards (Greenhouse, Lever, Ashby, SmartRecruiters) of the companies you watch after each daily collection, and on **Check boards now** (6 times an hour at most). Official unauthenticated JSON endpoints only; no account, no applying, no API cost. A slow board never delays the collection: the read runs after the answer.
