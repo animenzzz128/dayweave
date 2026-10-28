@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased — Phone layout: bottom tabs and a one-line header
+
+- Phones (under 640 px) get a bottom tab bar with Today, Plan, Review (with its count) and Coursework, plus More, which opens a sheet with Week, Career, Email, Data health, Case study, theme, language and sign-out. Before, the top navigation scrolled sideways and hid Career, Email and Data health.
+- The demo and private-instance strip is one short line on phones; Details opens the explanation and the demo controls. The header is one row with the logo and search.
+- Wider screens keep the daily pages in the header and put Career, Email, Data health and Case study under More; theme, language and sign-out move into a Settings menu.
+- Controls in the header, tab bar and menus are at least 40–44 px tall, and the page respects the iPhone safe areas.
+
 ## Unreleased — Planning rules audit
 
 - Fix: a weekly goal asking for more sessions than its ticked weekdays allow (for example 7 a week on Monday–Friday at 1 a day) made the server refuse the whole save, so a new day start such as 08:30 was never stored, plans kept the old 09:00 and a refresh showed the old rules. The page now runs the same check before saving, says in place which goal cannot hold and why (ticked weekdays × per day, not the 7 planned days), keeps Save off until it holds, and marks unsaved edits.
