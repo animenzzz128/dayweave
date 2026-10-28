@@ -10,6 +10,7 @@ import effortSrc from '../../../src/effort.cjs?shared';
 import workloadSrc from '../../../src/workload.cjs?shared';
 import plannerSrc from '../../../src/planner.cjs?shared';
 import todosSrc from '../../../src/todos.cjs?shared';
+import careerSrc from '../../../src/career.cjs?shared';
 import demoSrc from '../../../src/demo.cjs?shared';
 import aiSrc from '../../../src/ai.cjs?shared';
 
@@ -39,5 +40,6 @@ export const Effort = load('effort', effortSrc);
 export const Workload = load('workload', workloadSrc);
 export const Planner = load('planner', plannerSrc);
 export const Todos = load('todos', todosSrc);
+export const Career = load('career', careerSrc);
 export const Demo = load('demo', demoSrc);
 export const AI = load('ai', aiSrc);

@@ -1,4 +1,4 @@
-import type { Approval, DataSource, HistoryPage, Loaded, PlanDay, PlanResult, PlanSettings, Proposal, Run, Todo, Trends, WriteResult } from './types';
+import type { Approval, ContactInput, DataSource, HistoryPage, JobInput, Loaded, PlanDay, PlanResult, PlanSettings, Proposal, Run, Todo, Trends, WriteResult } from './types';
 
 // Client for the existing Dayweave server (development port, synthetic data). The server owns every rule: sessions, CSRF,
 // validation, approvals and backups. This class only forwards requests.
@@ -40,6 +40,8 @@ export class ApiSource implements DataSource {
   async setWorkloadMode(mode: string) { await this.call('workload-mode', { mode }); }
   async saveTodo(todo: Partial<Todo>) { await this.call('todos/save', { todo }); }
   async completeTodo(id: string, done: boolean) { await this.call('todos/complete', { id, done }); }
+  async saveCareer(kind: 'job' | 'contact', record: JobInput | ContactInput) { await this.call('career/save', { kind, record }); }
+  async removeCareer(kind: 'job' | 'contact', id: string) { await this.call('career/remove', { kind, id }); }
   async generatePlan(date: string) { return this.call<PlanResult>('plan/generate', { date }); }
   async generatePlans(from: string, days: number) { return (await this.call<{ days: PlanDay[] }>('plan/generate', { date: from, days })).days; }
   async editProposal(id: string, changes: Partial<Proposal>) { await this.call('proposals/edit', { id, changes }); }
