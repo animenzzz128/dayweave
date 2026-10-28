@@ -77,7 +77,7 @@ test('goals stay inside the planning day, at most perDay a day, spread evenly ov
  for(let k=monday,i=0;i<7;i++,k=PL.nextDay(k)){const r=PL.plan({snapshot:d,date:k,now,settings:rules});d.proposals.push(...r.blocks);days.push(r.blocks.filter(b=>b.sourceRefs[0].kind==='habit').map(b=>local(b.start)));}
  a.deepEqual(days,[['17:00'],[],['17:00'],[],['17:00'],[],[]],'three sessions land Monday, Wednesday and Friday, in the window inside 09:00–24:00');
  const twice=PL.planSettings({habits:[{...gym,perWeek:7,perDay:2}]});a.equal(twice.habits[0].perDay,2);
- for(const [bad,re] of [[{...gym,perWeek:7},/7 sessions a week do not fit 5 allowed days at 1 a day/],[{...gym,perDay:4},/1–3/],[{...gym,windows:[{start:'07:00',end:'09:00'}]},/inside the planning day \(09:00–24:00\)/]])
+ for(const [bad,re] of [[{...gym,perWeek:7},/7 sessions a week need more room. Only 5 weekdays are ticked/],[{...gym,perDay:4},/1–3/],[{...gym,windows:[{start:'07:00',end:'09:00'}]},/inside the planning day \(09:00–24:00\)/]])
   a.throws(()=>PL.planSettings({habits:[bad]}),re,JSON.stringify(bad));
  a.equal(PL.planSettings({dayStart:'07:00',habits:[{...gym,windows:[{start:'07:00',end:'09:00'}]}]}).habits.length,1,'an earlier day start allows the morning window');});
 

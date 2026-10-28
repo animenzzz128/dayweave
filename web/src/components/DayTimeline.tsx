@@ -4,18 +4,20 @@ import { Core, Demo, Phase2 } from '../lib/shared';
 import { href } from '../lib/router';
 import { coveredMs, fitText, layoutLanes } from '../lib/overlap';
 import { CALENDAR_COLORS } from '../lib/calendarColors';
+import { firstHour } from '../lib/dayView';
 import type { CalendarEvent, Proposal } from '../data/types';
 
 interface Block { id: string; title: string; start: number; end: number; kind: 'event' | 'proposal' | 'done' | 'gone'; meta?: string; color?: string }
 
-/** The 09:00–24:00 planning day (from 07:00 when a weekly-goal block sits earlier): hatched = free, grey = calendar, dashed blue = AI proposal, solid blue = approved. */
-export function DayTimeline({ date, scale = 0.9, compact = false }: { date: string; scale?: number; compact?: boolean }) {
-  const { snapshot: d, f, now, started, progress, ownEvents } = useApp();
+/**
+ * The planning day from its saved start (earlier when an event or block begins before it) to 24:00: hatched = free, grey =
+ * calendar, dashed blue = AI proposal, solid blue = approved. `startHour` lines up several days (the Week page).
+ */
+export function DayTimeline({ date, scale = 0.9, compact = false, startHour: fixed }: { date: string; scale?: number; compact?: boolean; startHour?: number }) {
+  const { snapshot: d, f, now, started, progress, ownEvents, planSettings } = useApp();
   const { t } = useI18n();
-  const at = (hm: string) => Date.parse(Core.zonedISO(date, hm));
-  const early = d.proposals.some((p) => !progress.dismissed?.[p.id] && Date.parse(p.start) < at('09:00') && Date.parse(p.end) > at('07:00'));
-  const startHour = early ? 7 : 9;
-  const from = at(startHour === 7 ? '07:00' : '09:00');
+  const startHour = fixed ?? dayStartHour(d, progress.dismissed, date, planSettings.dayStart);
+  const from = Date.parse(Core.zonedISO(date, String(startHour).padStart(2, '0') + ':00'));
   const to = Date.parse(Core.zonedISO(Demo.addDays(date, 1), '00:00'));
   const inDay = (e: CalendarEvent) => Date.parse(e.end) > from && Date.parse(e.start) < to;
   const clamp = (e: CalendarEvent) => ({ start: Math.max(from, Date.parse(e.start)), end: Math.min(to, Date.parse(e.end)) });
@@ -93,4 +95,9 @@ export function DayTimeline({ date, scale = 0.9, compact = false }: { date: stri
       )}
     </div>
   );
+}
+
+/** The first hour to draw for `date`: busy timed events and live Dayweave blocks that begin before the saved day start pull it earlier. */
+export function dayStartHour(d: { events: CalendarEvent[]; proposals: Proposal[] }, dismissed: Record<string, unknown> | undefined, date: string, dayStart: string) {
+  return firstHour(date, dayStart, [...d.events.filter((e) => e.busy !== false), ...d.proposals.filter((p) => !dismissed?.[p.id] && p.action !== 'delete')]);
 }

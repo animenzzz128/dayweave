@@ -123,6 +123,16 @@ test('a written block the new plan places again stays as it is: no removal and n
  const {p,q}=setup(s),f=fakeGoogle();await GC.writeApproved(s,q.reference,client(f));readBack(s,p);
  const r=s.generatePlan(p.planDate);a.deepEqual(r.blocks.filter(b=>b.title===p.title||b.action==='delete'),[],JSON.stringify(r.blocks.map(b=>[b.title,b.action])));a.equal(s.snapshot().proposals.filter(x=>x.id===p.id).length,1);}));
 
+test('a rule change after a write moves the written block: removal of the old event plus the block at its new time',()=>withStore(async s=>{
+ const {p,q}=setup(s),f=fakeGoogle();await GC.writeApproved(s,q.reference,client(f));readBack(s,p);
+ // The owner moves the day start past the written block, saves and plans again (audit 2026-10-27: new rules reach the calendar).
+ const start=C.zonedISO(p.planDate,'00:00'),later=new Date(Date.parse(p.end)+3600000),hh=new Intl.DateTimeFormat('en-CA',{timeZone:TZ,hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(later);
+ a.ok(Date.parse(start)<Date.parse(p.start));s.savePlanSettings({dayStart:hh,dayEnd:'24:00',breaks:[],habits:[]});const r=s.generatePlan(p.planDate);
+ const removal=r.blocks.find(b=>b.action==='delete'),create=r.blocks.find(b=>b.action!=='delete'&&b.title===p.title);
+ a.ok(removal&&create,JSON.stringify(r.blocks.map(b=>[b.title,b.action,b.start])));a.equal(removal.replaces,p.id);a.ok(Date.parse(create.start)>=+later,'the new block starts at or after the new day start');
+ const q2=A.prepare(s,[create.id,removal.id]);X.approve(s,q2.reference,'student@example.com');const w=await GC.writeApproved(s,q2.reference,client(f));
+ a.deepEqual(w.actions.map(x=>x.status),['executed','executed'],JSON.stringify(w));a.deepEqual(f.events(p.calendarId).map(e=>e.start.dateTime).map(Date.parse),[Date.parse(create.start)],'one event, at the new time');}));
+
 test('a block the owner edited before approving is never removed by a later plan',()=>withStore(async s=>{
  const {p,q}=setup(s);A.edit(s,p.id,{title:p.title+' (mine)'});const e=s.snapshot().proposals.find(x=>x.id===p.id);a.equal(e.locked,true);a.equal(e.lockedBy,undefined);
  const q2=A.prepare(s,[p.id]);X.approve(s,q2.reference,'student@example.com');const f=fakeGoogle();await GC.writeApproved(s,q2.reference,client(f));readBack(s,e);

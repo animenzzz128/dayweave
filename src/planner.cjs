@@ -23,6 +23,7 @@ const RECOMMENDED=Object.freeze({dayStart:'09:00',dayEnd:'24:00',breaks:[{start:
  {id:'gym',title:'Gym',minutes:60,perWeek:3,days:[1,2,3,4,5],windows:[{start:'07:00',end:'09:00'},{start:'17:00',end:'19:00'}]},
  {id:'job-applications',title:'Job applications',minutes:60,perWeek:4,days:[1,2,3,4,5],windows:[{start:'13:00',end:'18:00'}]},
  {id:'linkedin',title:'LinkedIn connect',minutes:30,perWeek:5,days:[1,2,3,4,5],windows:[{start:'14:00',end:'18:00'}]}]});
+const WEEKDAYS=Object.freeze(['Mon','Tue','Wed','Thu','Fri','Sat','Sun']);
 const HM=/^([01]\d|2[0-3]):[0-5]\d$/,hmMin=x=>x==='24:00'?1440:+x.slice(0,2)*60+ +x.slice(3);
 function planSettings(v){if(!v||typeof v!=='object'||Array.isArray(v))throw Error('Planning settings must be an object.');
  const time=(x,name,end=false)=>{if(typeof x!=='string'||!(HM.test(x)||end&&x==='24:00'))throw Error(name+' must be a time like 08:00.');return x;};
@@ -44,7 +45,8 @@ function planSettings(v){if(!v||typeof v!=='object'||Array.isArray(v))throw Erro
   if(windows.every(w=>hmMin(w.end)-hmMin(w.start)<minutes))throw Error(title+': a window must fit one '+minutes+'-minute session.');
   if(h.color!=null&&!COLOR_IDS.includes(String(h.color)))throw Error(title+': choose one of the calendar colours.');
   const perDay=Number(h.perDay??1);if(!Number.isInteger(perDay)||perDay<1||perDay>3)throw Error(title+': sessions per day must be 1–3.');
-  if(perWeek>days.length*perDay)throw Error(`${title}: ${perWeek} sessions a week do not fit ${days.length} allowed days at ${perDay} a day. Allow more days or lower the sessions per week.`);
+  // Sessions per week are bounded by the ticked weekdays (not by how many days a generation covers).
+  if(perWeek>days.length*perDay)throw Error(`${title}: ${perWeek} sessions a week need more room. Only ${days.length} weekday${days.length===1?' is':'s are'} ticked (${days.map(x=>WEEKDAYS[x-1]).join(', ')}) at most ${perDay} a day, so at most ${days.length*perDay} fit. Tick more weekdays, raise the sessions per day or lower the sessions per week.`);
   // The planning day bounds every block, so at least one window must hold a session inside it.
   if(windows.every(w=>Math.min(hmMin(w.end),hmMin(dayEnd))-Math.max(hmMin(w.start),hmMin(dayStart))<minutes))throw Error(`${title}: no window fits a ${minutes}-minute session inside the planning day (${dayStart}–${dayEnd}).`);
   return {id,title,minutes,perWeek,perDay,days,windows,enabled:h.enabled!==false,...(h.color!=null?{color:String(h.color)}:{})};})};}
@@ -167,6 +169,10 @@ function plan({snapshot:d,date,now=new Date(),todos={},archive={},dismissed={},s
  // Kept proposals (anything this run does not replace) occupy every occurrence and cover part of some work. Removals do not.
  const live0=p=>p.action!=='delete'&&!gone.has(p.id);
  const kept=[...(d.proposals||[]).filter(p=>!attempted(d,p.id)&&!replaceable(d,p,date)&&!dismissed?.[p.id]&&live0(p)),...[...startedCopies.values()].filter(live0)],occ=new Map();
+ // This day's planner blocks that stay as they are (edited or in an approved version): new rules do not move them, so the
+ // summary names them, and says which now sit outside the planning day or in a break.
+ const inBreak=p=>s.breaks.some(b=>at(date,b.start)<Date.parse(p.end)&&Date.parse(p.start)<at(date,b.end));
+ result.held=kept.filter(p=>p.origin==='planner'&&p.planDate===date&&p.locked&&!attempted(d,p.id)).map(p=>({id:p.id,title:p.title,start:p.start,end:p.end,why:p.lockedBy==='approval'?'approved':'edited',...(Date.parse(p.start)<from||Date.parse(p.end)>to||inBreak(p)?{outside:true}:{})}));
  for(const p of kept){try{occ.set(p.id,P.occurrences(p).map(o=>[Date.parse(o.start),Date.parse(o.end)]));}catch(e){result.gaps.push('Proposal "'+String(p.title||p.id).slice(0,80)+'" could not be expanded into occurrences, so its time is unknown: '+e.message);}}
  if(result.gaps.length){result.unscheduled.push(...tasks.map(t=>({kind:t.kind,id:t.id,title:t.title,reason:'Not planned: existing proposals or actions could not be placed in time.',group:'action'})));return result;}
  const covered=new Map(),counted=new Set();

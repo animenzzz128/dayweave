@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { useApp } from '../data/AppData';
 import { useI18n } from '../i18n/I18n';
-import { DayTimeline } from '../components/DayTimeline';
+import { DayTimeline, dayStartHour } from '../components/DayTimeline';
 import { PageHeader } from '../components/ui';
 import { Core, Demo } from '../lib/shared';
 import { href } from '../lib/router';
 import type { PlanResult } from '../data/types';
 
 export function Week({ params }: { params: URLSearchParams }) {
-  const { snapshot: d, f, now, source, run } = useApp();
+  const { snapshot: d, f, now, source, run, progress, planSettings } = useApp();
   const { t } = useI18n();
   const today = f.dayKey(now);
   const days = Array.from({ length: 7 }, (_, i) => Demo.addDays(today, i) as string);
@@ -17,6 +17,8 @@ export function Week({ params }: { params: URLSearchParams }) {
   const [busy, setBusy] = useState(false);
   const cov = d.calendarCoverage;
   const noon = (day: string) => Date.parse(Core.zonedISO(day, '12:00'));
+  // One first hour for all seven columns so their hours line up.
+  const startHour = Math.min(...days.map((day) => dayStartHour(d, progress.dismissed, day, planSettings.dayStart)));
 
   const generate = async () => {
     setBusy(true);
@@ -35,7 +37,7 @@ export function Week({ params }: { params: URLSearchParams }) {
           {days.map((day) => (
             <div key={day}>
               <div className={`mb-1.5 text-center text-sm ${day === today ? 'font-semibold text-accent' : 'text-muted'}`}>{f.day(new Date(noon(day)).toISOString())}</div>
-              <DayTimeline date={day} scale={0.42} compact />
+              <DayTimeline date={day} scale={0.42} compact startHour={startHour} />
             </div>
           ))}
         </div>
