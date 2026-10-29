@@ -1,5 +1,5 @@
 'use strict';
-const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),{Store}=require('./store.cjs'),H=require('./hosted.cjs'),X=require('./execute.cjs'),GC=require('./gcal.cjs'),Canvas=require('./canvas.cjs'),Sites=require('./coursesite.cjs');
+const http=require('node:http'),fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),{Store}=require('./store.cjs'),H=require('./hosted.cjs'),X=require('./execute.cjs'),GC=require('./gcal.cjs'),Canvas=require('./canvas.cjs'),Sites=require('./coursesite.cjs'),CF=require('./career-fetch.cjs');
 // options.hosted (from hostedConfig) switches from the 127.0.0.1-only local session to Google sign-in for one account.
 // options.webDist is the built web/ front end it serves at / with its assets; it defaults to web/dist-server (`npm run
 // build:server` in web/); null turns the default off. Without a build, / explains how to make one. The classic UI was retired; its old paths lead to the
@@ -11,10 +11,13 @@ function loadWeb(dist){if(dist===null)return null;if(!dist&&fs.existsSync(path.j
  // The page's inline theme script (it avoids a light flash before the app loads) is allowed by its hash, not by 'unsafe-inline'.
  const hashes=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>"'sha256-"+crypto.createHash('sha256').update(m[1]).digest('base64')+"'");
  return {root,html,csp:`default-src 'self'; script-src 'self' ${hashes.join(' ')}; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`};}
-function createServer(dir,{hosted=null,ingestSecret='',executeSecret='',canvasIcsUrl='',canvasToken='',canvasFetch,courseSites=[],siteFetch,fetch,webDist=''}={}){const web=loadWeb(webDist),store=new Store(dir),sessions=new Map(),allow=H.limiter();
+function createServer(dir,{hosted=null,ingestSecret='',executeSecret='',canvasIcsUrl='',canvasToken='',canvasFetch,courseSites=[],siteFetch,careerFetch,fetch,webDist=''}={}){const web=loadWeb(webDist),store=new Store(dir),sessions=new Map(),allow=H.limiter();
  // Direct Google Calendar writes need the hosted OAuth client; the local app keeps the assistant bridge only.
  const tokens=hosted&&GC.vault(store,hosted.sessionSecret),auth=hosted&&H.createAuth(hosted,{fetch,onCalendar:({account,refreshToken,scope})=>tokens.save(account,{refreshToken,scope})});
  const calendar=()=>{const t=hosted&&tokens.load(hosted.email);return t?GC.client({account:hosted.email,refreshToken:t.refreshToken,clientId:hosted.clientId,clientSecret:hosted.clientSecret,fetch}):null;};
+ // Watched public job boards are read after each collection and on the owner's request (docs/data-contract.md, career inbox).
+ const refreshCareer=async()=>{const st=store.state(),settings=st.careerSettings?.main;if(!settings?.watch?.length)return {skipped:'No companies watched'};
+  return store.saveCareerFetch(await CF.collect({settings,profile:store.snapshot()?.career?.profile,existing:st.careerPosting||{},fetch:careerFetch}));};
  const calendarStatus=()=>{if(!hosted)return {available:false};const t=tokens.load(hosted.email);return {available:true,connected:!!t&&GC.hasScope(t.scope),account:hosted.email,connectedAt:t?.at||null};};const server=http.createServer(async(req,res)=>{
  const send=(status,value)=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(value));};
  try{const host=hosted?hosted.host:'127.0.0.1:'+server.address().port,origin=hosted?hosted.origin:'http://'+host;if(hosted)for(const [k,v] of Object.entries(H.securityHeaders))res.setHeader(k,v);
@@ -32,7 +35,9 @@ function createServer(dir,{hosted=null,ingestSecret='',executeSecret='',canvasIc
   if(u.searchParams.get('dryRun')==='1')return send(200,{ok:true,dryRun:true,...store.previewImport(incoming)});
   const archived=store.previewImport(incoming).archived,d=store.importSnapshot(incoming);
   // Drafts for the rest of today and the next six days follow every collection (docs/data-contract.md, daily plan). Locked blocks stay.
-  return send(200,{ok:true,generatedAt:d.generatedAt,assignments:d.assignments.length,events:d.events.length,archived,plans:store.autoPlan()});}
+  // The board read runs after the answer so a slow job board never delays the collection; its outcome is kept as careerFetch.
+  const plans=store.autoPlan(),career=server.careerRefresh=refreshCareer().catch(e=>({error:String(e.message).slice(0,200)}));void career;
+  return send(200,{ok:true,generatedAt:d.generatedAt,assignments:d.assignments.length,events:d.events.length,archived,plans,career:'checking watched job boards'});}
  // The calendar executor (docs/cloud-execute.md) uses its own bearer secret and only acts on versions the owner approved here.
  if(u.pathname==='/api/execute'||u.pathname.startsWith('/api/execute/')){if(!allow('execute:'+ip,60,3600000))return send(429,{error:'Too many requests'});if(!H.ingestAuthorized(req,executeSecret))return send(401,{error:'Invalid executor credentials'});
   if(req.method==='GET'&&u.pathname==='/api/execute')return send(200,X.context(store));if(req.method!=='POST')return send(405,{error:'Method not allowed'});
@@ -54,6 +59,8 @@ function createServer(dir,{hosted=null,ingestSecret='',executeSecret='',canvasIc
  if(req.method==='POST'&&u.pathname==='/api/todos/complete')return send(200,store.completeTodo(body?.id,body?.done));
  if(req.method==='POST'&&u.pathname==='/api/career/save')return send(200,store.saveCareer(body?.kind,body?.record));
  if(req.method==='POST'&&u.pathname==='/api/career/settings')return send(200,store.saveCareerSettings(body?.settings));
+ if(req.method==='POST'&&u.pathname==='/api/career/refresh'){if(!allow('career-refresh:'+ip,6,3600000))return send(429,{error:'Checked recently; try again later.'});return send(200,await refreshCareer());}
+ if(req.method==='POST'&&u.pathname==='/api/career/posting')return send(200,store.actOnPosting(body?.id,body?.action));
  if(req.method==='POST'&&u.pathname==='/api/career/remove')return send(200,store.removeCareer(body?.kind,body?.id));
  if(req.method==='POST'&&u.pathname==='/api/plan/generate')return send(200,body?.days==null?store.generatePlan(body?.date):{days:store.generatePlans(body?.date,body.days)});
  if(req.method==='POST'&&u.pathname==='/api/workload-mode')return send(200,{mode:store.setWorkloadMode(body?.mode)});

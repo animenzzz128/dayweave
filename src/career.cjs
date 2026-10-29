@@ -93,4 +93,28 @@ function cleanSettings(input,{now=new Date()}={}){
  return {watch:out,keywords,sources,updatedAt:new Date(now).toISOString()};
 }
 
-module.exports={ATS,cleanSettings,STAGES,SENT,OPEN,CHANNELS,MARKETS,RELATIONS,TRACKS,STALE_DAYS,canonical,cleanJob,cleanContact,fromResearch,nextActions,stats};
+// Rules-only match score (0–100) for a posting title and location; no AI and no network. Owner order: AI product, strategy and
+// operations roles first, consulting second. Full-time 2027 start, so senior titles and internships score low. `places` are the
+// owner's preferred cities/markets (snapshot.career.profile); `keywords` are the owner's own extra words.
+const TRACK_RULES=[['ai-pm',40,/\b(product manag|product owner|product lead|apm\b|associate pm|pm\b|product operations|product ops|product strateg)/i],
+ ['strategy',35,/\b(strateg|corporate development|corp dev|chief of staff|business analyst|bizops strateg|planning)/i],
+ ['operations',35,/\b(operations|bizops|business operations|program manag|go-to-market|gtm\b|growth|revenue operations|marketplace)/i],
+ ['consulting',20,/\b(consult|advisory)/i]];
+const AI=/\b(ai|a\.i\.|ml|machine learning|llm|genai|generative|artificial intelligence|agents?)\b/i,EARLY=/\b(new grad|graduate|associate|analyst|entry|early career|university|campus|rotational|20(26|27)|junior|leadership development|管培|校招|应届)\b/i;
+const SENIOR=/\b(senior|sr\.?|staff (engineer|product|software|data|scientist)|principal|director|head of|vp\b|vice president|manager,? (ii|iii)|lead\b|\b(ii|iii|iv)\b)/i,INTERN=/\b(intern|internship|co-op|实习)\b/i;
+function marketOf(location='',fallback='Other'){const l=String(location);if(/china|shanghai|beijing|shenzhen|hangzhou|guangzhou|中国|上海|北京|深圳|杭州|广州/i.test(l))return 'CN';if(/hong kong|香港/i.test(l))return 'HK';if(/singapore|新加坡/i.test(l))return 'SG';
+ if(/united states|\busa?\b|remote.{0,4}us|new york|san francisco|los angeles|seattle|san diego|boston|chicago|austin|palo alto|mountain view|menlo park|sunnyvale|san jose|washington|, (ca|ny|wa|ma|tx|il)\b/i.test(l))return 'US';return fallback;}
+function scorePosting({title='',location='',text:body=''},{places=[],keywords=[]}={}){
+ const reasons=[];let score=0,track='other';for(const [id,w,re] of TRACK_RULES)if(re.test(title)){track=id;score+=w;reasons.push('track:'+id);break;}
+ if(AI.test(title)||AI.test(body.slice(0,3000))){score+=10;reasons.push('ai');}
+ if(EARLY.test(title)){score+=20;reasons.push('early');}
+ if(SENIOR.test(title)&&!EARLY.test(title)){score-=40;reasons.push('senior');}
+ if(INTERN.test(title)){score-=30;reasons.push('intern');}
+ const place=places.find(p=>p&&String(location).toLowerCase().includes(String(p).toLowerCase()));if(place){score+=15;reasons.push('place:'+place);}
+ const hits=keywords.filter(k=>k&&(title+' '+body.slice(0,3000)).toLowerCase().includes(k.toLowerCase())).slice(0,2);for(const k of hits){score+=10;reasons.push('keyword:'+k);}
+ return {score:Math.max(0,Math.min(100,score)),track,reasons};}
+// Preferred places from the stored profile: markets and city lists, with the short market names spelled out.
+function placesFrom(profile={}){const names={US:'United States',HK:'Hong Kong',SG:'Singapore',CN:'China'};
+ return [...new Set([...(profile.primaryMarkets||[]),...(profile.usCityOrder||[]),...(profile.secondaryMarkets||[])].map(x=>names[x]||x).filter(x=>typeof x==='string'&&x.length>1&&!/other/i.test(x)))];}
+
+module.exports={ATS,cleanSettings,scorePosting,marketOf,placesFrom,STAGES,SENT,OPEN,CHANNELS,MARKETS,RELATIONS,TRACKS,STALE_DAYS,canonical,cleanJob,cleanContact,fromResearch,nextActions,stats};

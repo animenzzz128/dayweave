@@ -1,4 +1,4 @@
-import type { Approval, CareerSettings, ContactInput, DataSource, HistoryPage, JobInput, Loaded, PlanDay, PlanResult, PlanSettings, Proposal, Run, Todo, Trends, WriteResult } from './types';
+import type { Approval, CareerFetch, CareerSettings, ContactInput, DataSource, HistoryPage, JobInput, Loaded, PlanDay, PlanResult, PlanSettings, Proposal, Run, Todo, Trends, WriteResult } from './types';
 
 // Client for the existing Dayweave server (development port, synthetic data). The server owns every rule: sessions, CSRF,
 // validation, approvals and backups. This class only forwards requests.
@@ -43,6 +43,8 @@ export class ApiSource implements DataSource {
   async saveCareer(kind: 'job' | 'contact', record: JobInput | ContactInput) { await this.call('career/save', { kind, record }); }
   async removeCareer(kind: 'job' | 'contact', id: string) { await this.call('career/remove', { kind, id }); }
   async saveCareerSettings(settings: CareerSettings) { await this.call('career/settings', { settings }); }
+  async refreshCareer() { return this.call<Partial<CareerFetch> & { skipped?: string }>('career/refresh', {}); }
+  async actOnPosting(id: string, action: 'track' | 'dismiss' | 'restore') { await this.call('career/posting', { id, action }); }
   async generatePlan(date: string) { return this.call<PlanResult>('plan/generate', { date }); }
   async generatePlans(from: string, days: number) { return (await this.call<{ days: PlanDay[] }>('plan/generate', { date: from, days })).days; }
   async editProposal(id: string, changes: Partial<Proposal>) { await this.call('proposals/edit', { id, changes }); }

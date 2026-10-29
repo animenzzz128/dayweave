@@ -64,6 +64,18 @@ class Store{
   if(kind==='job')for(const r of this.db.prepare("SELECT id,value FROM progress WHERE kind='careerContact'").all()){const c=JSON.parse(r.value);if(c.jobId===id)this.db.prepare("UPDATE progress SET value=? WHERE kind='careerContact' AND id=?").run(JSON.stringify({...c,jobId:null}),r.id);}
   this.log('career','removed',id,{[kind]:JSON.parse(row.value)});return {removed:id};});}
  saveCareerSettings(input,now=new Date()){const v=require('./career.cjs').cleanSettings(input,{now});return this.transaction(()=>{this.db.prepare('INSERT OR REPLACE INTO progress VALUES(?,?,?,?)').run('careerSettings','main',JSON.stringify(v),v.updatedAt);this.log('career','settings','Career sources saved',{watch:v.watch.length,keywords:v.keywords.length});return {settings:v};});}
+ // Writes one board-read result (src/career-fetch.cjs) into the inbox; the owner's track/dismiss marks are kept.
+ saveCareerFetch(result){return this.transaction(()=>{const put=this.db.prepare('INSERT OR REPLACE INTO progress VALUES(?,?,?,?)');for(const p of Object.values(result.found))put.run('careerPosting',p.id,JSON.stringify(p),result.at);
+  for(const id of result.removed)this.db.prepare("DELETE FROM progress WHERE kind='careerPosting' AND id=?").run(id);
+  const status={at:result.at,boards:result.boards,found:Object.keys(result.found).length,removed:result.removed.length};put.run('careerFetch','last',JSON.stringify(status),result.at);this.log('career','fetched','Watched job boards read',status);return status;});}
+ // The owner's decision on an inbox posting: track copies it into the tracker as a job (origin ats); dismiss hides it.
+ actOnPosting(id,action,now=new Date()){if(!validId(id)||!['track','dismiss','restore'].includes(action))throw Error('Choose a posting and track, dismiss or restore');const K=require('./career.cjs');
+  return this.transaction(()=>{const row=this.db.prepare("SELECT value FROM progress WHERE kind='careerPosting' AND id=?").get(id);if(!row)throw Error('That posting is no longer in the inbox.');const p=JSON.parse(row.value),at=new Date(now).toISOString();let job=null;
+  if(action==='track'){const jobs=this.state().careerJob||{},same=Object.values(jobs).find(j=>j.url&&K.canonical(j.url)===K.canonical(p.url));
+   if(same)job=same;else{if(Object.keys(jobs).length>=MAX_CAREER)throw Error('At most '+MAX_CAREER+' jobs; remove some first.');job=K.cleanJob({title:p.title,company:p.company,url:p.url,location:p.location,market:p.market,track:p.track,channel:'website',notes:p.summary,origin:{type:'ats',ref:p.id}},{id:'job-'+crypto.randomBytes(6).toString('hex'),now});
+    this.db.prepare('INSERT INTO progress VALUES(?,?,?,?)').run('careerJob',job.id,JSON.stringify(job),at);}}
+  const next={...p,status:action==='track'?'tracked':action==='dismiss'?'dismissed':'new',...(job?{jobId:job.id}:{})};this.db.prepare("UPDATE progress SET value=?,at=? WHERE kind='careerPosting' AND id=?").run(JSON.stringify(next),at,id);
+  this.log('career','posting-'+action,id,{jobId:job?.id});return {posting:next,job};});}
  // Copies the assistant's earlier research into the tracker once (docs/data-contract.md, career tracker). Needs a snapshot.
  migrateCareer(now=new Date()){if(this.db.prepare("SELECT 1 FROM meta WHERE key='career-migrated'").get())return null;const d=this.snapshot();if(!d)return null;
   const {jobs,contacts}=require('./career.cjs').fromResearch(d.career,this.state().career||{},now),put=this.db.prepare('INSERT OR IGNORE INTO progress VALUES(?,?,?,?)');
