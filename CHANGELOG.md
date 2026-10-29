@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased — Career: a real application tracker
+
+- The private Career page is now a tracker instead of a read-only research list: **Applications** (stages from "want to apply" to offer, closed ones folded away), **Contacts**, and the assistant's earlier **research** as its own tab.
+- Add a posting by hand (title, company, link, market, city, track, deadline, channel, next step, notes). "I applied", the stage menu and notes add dated entries to the job's history. The same link (ignoring query and anchor) cannot be added twice.
+- Next steps list deadlines within 7 days, due next steps, applications quiet for 7 days and contact follow-ups. Counts: applied in the last 7 days against the weekly job-application habit, reply rate, interviews, in progress.
+- The research roles and people are copied into the tracker once (dismissed ones stay out; applied/contacted marks carry over).
+- Nothing is applied for, sent or signed in to: a stage change records what the owner did on the company's own site. The public demo keeps its preview panels for now.
+
 ## Unreleased — Every page and both switches in view
 
 - Screens 1024 px and wider show every page in the header again (Today, Plan, Coursework, Week, Review, Career, Email, Data health; Case study from 1536 px), with no More menu. Theme (Match system / Light / Dark, named from 1280 px) and language (EN / 中文) sit in the header as visible switches instead of behind a Settings button.

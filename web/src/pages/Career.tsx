@@ -4,19 +4,44 @@ import { useI18n } from '../i18n/I18n';
 import { Empty, External, PageHeader, Section, Tabs, Tag } from '../components/ui';
 import { JobsPanel, PeoplePanel, SoonBanner } from './CareerPreview';
 import { PipelinePanel } from './CareerPipeline';
+import { PeopleTracker, PipelineTracker } from './CareerTracker';
 import { Phase3 } from '../lib/shared';
 import type { Person, Role } from '../data/types';
 
 const TABS = ['jobs', 'pipeline', 'people', 'research'] as const;
 type Tab = (typeof TABS)[number];
 
-// The public demo previews the planned job match and people panels; the private instance shows only the assistant's research.
+const PRIVATE = ['pipeline', 'people', 'research'] as const;
+type PrivateTab = (typeof PRIVATE)[number];
+
+// The public demo previews the planned job match and people panels; the private instance runs the career tracker
+// (CareerTracker.tsx) and keeps the assistant's earlier research as its own tab.
 export function CareerPage({ params }: { params: URLSearchParams }) {
   const { source } = useApp();
+  if (source.mode !== 'demo') return <PrivateCareer params={params} />;
+  return <DemoCareer params={params} />;
+}
+
+function PrivateCareer({ params }: { params: URLSearchParams }) {
+  const { t } = useI18n();
+  const asked = params.get('tab') as PrivateTab | null;
+  const [tab, setTab] = useState<PrivateTab>(asked && PRIVATE.includes(asked) ? asked : 'pipeline');
+  const labels: Record<PrivateTab, string> = { pipeline: t.tracker.pipeline, people: t.tracker.people, research: t.career.tabs.research };
+  return (
+    <>
+      <PageHeader title={t.career.title} subtitle={t.career.trackerSubtitle} />
+      <Tabs label={t.career.title} value={tab} onChange={setTab} items={PRIVATE.map((x) => [x, labels[x]] as [PrivateTab, string])} />
+      {tab === 'pipeline' && <PipelineTracker />}
+      {tab === 'people' && <PeopleTracker />}
+      {tab === 'research' && <Research />}
+    </>
+  );
+}
+
+function DemoCareer({ params }: { params: URLSearchParams }) {
   const { t } = useI18n();
   const asked = params.get('tab') as Tab | null;
   const [tab, setTab] = useState<Tab>(asked && TABS.includes(asked) ? asked : 'jobs');
-  if (source.mode !== 'demo') return <><PageHeader title={t.career.title} subtitle={t.career.subtitle} /><Research /></>;
   const focus = params.get('id');
   return (
     <>

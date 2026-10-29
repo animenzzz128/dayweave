@@ -71,6 +71,21 @@ export interface Todo {
   origin: { type: string; messageId?: string; subject?: string }; createdAt: string; updatedAt: string; completedAt: string | null;
 }
 
+export type JobStage = 'saved' | 'preparing' | 'applied' | 'assessment' | 'interview' | 'offer' | 'rejected' | 'withdrawn';
+/** A posting in the career tracker (src/career.cjs). Stage changes and notes go on its timeline. */
+export interface Job {
+  id: string; title: string; company: string; url: string; location: string; market: string; track: string; deadline: string | null;
+  channel: string; notes: string; nextStep: string; nextDate: string | null; stage: JobStage; origin: { type: string; ref?: string };
+  appliedAt: string | null; timeline: { at: string; kind: string; stage?: string; from?: string; note?: string }[]; createdAt: string; updatedAt: string; version: number;
+}
+export interface Contact {
+  id: string; name: string; company: string; role: string; relation: string; url: string; jobId: string | null; notes: string;
+  lastContactAt: string | null; nextFollowUp: string | null; origin: { type: string; ref?: string }; createdAt: string; updatedAt: string; version: number;
+}
+/** What the owner enters; `event` adds a note to a job's timeline. */
+export type JobInput = Partial<Omit<Job, 'timeline' | 'appliedAt' | 'createdAt' | 'updatedAt' | 'version'>> & { event?: string };
+export type ContactInput = Partial<Omit<Contact, 'origin' | 'createdAt' | 'updatedAt' | 'version'>>;
+
 // Progress mirrors the server's `progress` table: kind -> id -> value.
 export interface Progress {
   checks?: Record<string, boolean>;
@@ -80,6 +95,8 @@ export interface Progress {
   dismissed?: Record<string, boolean>;
   preferences?: { workloadMode?: string };
   todo?: Record<string, Todo>;
+  careerJob?: Record<string, Job>;
+  careerContact?: Record<string, Contact>;
   emailTriage?: Record<string, { category?: TriageCategory; handled?: boolean; at?: string } | null>;
   [kind: string]: Record<string, unknown> | undefined;
 }
@@ -135,6 +152,9 @@ export interface DataSource {
   setWorkloadMode(mode: string): Promise<void>;
   saveTodo(todo: Partial<Todo> & { origin?: { type: string; messageId?: string } }): Promise<void>;
   completeTodo(id: string, done: boolean): Promise<void>;
+  /** Server only for now: the career tracker. Stage changes record what the owner did; nothing is sent anywhere. */
+  saveCareer?(kind: 'job' | 'contact', record: JobInput | ContactInput): Promise<void>;
+  removeCareer?(kind: 'job' | 'contact', id: string): Promise<void>;
   generatePlan(date: string): Promise<PlanResult>;
   /** Plans `days` days from `from`, earliest first, in one go (the server's generatePlans). */
   generatePlans(from: string, days: number): Promise<PlanDay[]>;

@@ -1,7 +1,7 @@
 'use strict';
 const fs=require('node:fs'),path=require('node:path'),crypto=require('node:crypto'),{DatabaseSync}=require('node:sqlite');
 const C=require('./core.cjs'),R=require('./routine.cjs'),E=require('./effort.cjs'),W=require('./workload.cjs'),T=require('./trends.cjs');
-const collections=['courses','assignments','events','proposals','sources'],MAX_SNAPSHOT_READ=1000,MAX_OPEN_TODOS=200,PLAN_DAYS=7;
+const collections=['courses','assignments','events','proposals','sources'],MAX_SNAPSHOT_READ=1000,MAX_OPEN_TODOS=200,MAX_CAREER=1000,PLAN_DAYS=7;
 const validId=id=>typeof id==='string'&&!!id&&id.length<=1000&&!['__proto__','constructor','prototype'].includes(id);
 class Store{
  constructor(dir){this.dir=dir;fs.mkdirSync(dir,{recursive:true});this.file=path.join(dir,'dayweave.sqlite');this.open();}
@@ -52,6 +52,22 @@ class Store{
  completeTodo(id,done,now=new Date()){if(!validId(id)||typeof done!=='boolean')throw Error('Choose a todo and done or open');return this.transaction(()=>{const todos=this.state().todo||{},t=todos[id];if(!t)throw Error('Unknown todo');if(!done&&t.status!=='open'&&Object.values(todos).filter(x=>x.status==='open').length>=MAX_OPEN_TODOS)throw Error('At most '+MAX_OPEN_TODOS+' open todos; complete some first.');
   const at=new Date(now).toISOString(),todo={...t,status:done?'done':'open',completedAt:done?at:null,updatedAt:at,version:t.version+1};this.db.prepare('INSERT OR REPLACE INTO progress VALUES(?,?,?,?)').run('todo',id,JSON.stringify(todo),at);
   const removedBlocks=this.dropPlanned(r=>r.kind==='todo'&&r.id===id);this.log('todo',done?'completed':'reopened',id,{removedBlocks});return {todo,removedBlocks};});}
+ // Career tracker records (src/career.cjs) are written only here. Removing one deletes it; the audit log keeps the last copy.
+ saveCareer(kind,input,now=new Date()){if(!['job','contact'].includes(kind))throw Error('Unknown career record');const K=require('./career.cjs'),table=kind==='job'?'careerJob':'careerContact';
+  return this.transaction(()=>{this.migrateCareer();const st=this.state(),all=st[table]||{},id=input?.id;let existing=null;
+  if(id!==undefined){if(!validId(id)||!all[id])throw Error('Unknown '+kind);existing=all[id];}else if(Object.keys(all).length>=MAX_CAREER)throw Error('At most '+MAX_CAREER+' '+kind+'s; remove some first.');
+  const newId=existing?existing.id:kind+'-'+crypto.randomBytes(6).toString('hex'),record=kind==='job'?K.cleanJob(input,{existing,id:newId,now}):K.cleanContact(input,{existing,id:newId,now,jobs:st.careerJob||{}});
+  if(kind==='job'&&record.url){const same=Object.values(all).find(j=>j.id!==record.id&&j.url&&K.canonical(j.url)===K.canonical(record.url));if(same)throw Error('This posting is already in your tracker: '+same.company+' · '+same.title);}
+  this.db.prepare('INSERT OR REPLACE INTO progress VALUES(?,?,?,?)').run(table,record.id,JSON.stringify(record),record.updatedAt);this.log('career',existing?'edited':'created',record.id,{[kind]:record});return {[kind]:record};});}
+ removeCareer(kind,id){if(!['job','contact'].includes(kind)||!validId(id))throw Error('Choose a career record');const table=kind==='job'?'careerJob':'careerContact';
+  return this.transaction(()=>{const row=this.db.prepare('SELECT value FROM progress WHERE kind=? AND id=?').get(table,id);if(!row)throw Error('Unknown '+kind);this.db.prepare('DELETE FROM progress WHERE kind=? AND id=?').run(table,id);
+  if(kind==='job')for(const r of this.db.prepare("SELECT id,value FROM progress WHERE kind='careerContact'").all()){const c=JSON.parse(r.value);if(c.jobId===id)this.db.prepare("UPDATE progress SET value=? WHERE kind='careerContact' AND id=?").run(JSON.stringify({...c,jobId:null}),r.id);}
+  this.log('career','removed',id,{[kind]:JSON.parse(row.value)});return {removed:id};});}
+ // Copies the assistant's earlier research into the tracker once (docs/data-contract.md, career tracker). Needs a snapshot.
+ migrateCareer(now=new Date()){if(this.db.prepare("SELECT 1 FROM meta WHERE key='career-migrated'").get())return null;const d=this.snapshot();if(!d)return null;
+  const {jobs,contacts}=require('./career.cjs').fromResearch(d.career,this.state().career||{},now),put=this.db.prepare('INSERT OR IGNORE INTO progress VALUES(?,?,?,?)');
+  for(const r of Object.values(jobs))put.run('careerJob',r.id,JSON.stringify(r),r.updatedAt);for(const r of Object.values(contacts))put.run('careerContact',r.id,JSON.stringify(r),r.updatedAt);
+  this.db.prepare("INSERT INTO meta VALUES('career-migrated',?)").run(new Date(now).toISOString());this.log('career','migrated','Research copied into tracker',{jobs:Object.keys(jobs).length,contacts:Object.keys(contacts).length});return {jobs:Object.keys(jobs).length,contacts:Object.keys(contacts).length};}
  dropPlanned(match){const d=this.snapshot(),PL=require('./planner.cjs');if(!d)return [];const gone=d.proposals.filter(p=>p.origin==='planner'&&!PL.attempted(d,p.id)&&(p.sourceRefs||[]).some(match)).map(p=>p.id);if(!gone.length)return [];d.proposals=d.proposals.filter(p=>!gone.includes(p.id));this.writeSnapshot(d);this.invalidate();return gone;}
  // Frozen approval copies of started actions (pending, unverified, executed), matched to their receipt fingerprint. The approvals
  // and receipts tables survive restore, so these stay the canonical protections when a snapshot no longer carries the proposal.
