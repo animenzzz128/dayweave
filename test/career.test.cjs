@@ -46,3 +46,10 @@ test('research is copied into the tracker once; dismissed items stay out and own
  a.equal(Object.values(s.state().careerContact)[0].name,'Sam Example');
  s.removeCareer('job',jobs[0].id);a.equal(s.migrateCareer(),null,'a second run never re-adds what the owner removed');a.equal(Object.keys(s.state().careerJob||{}).length,0);
 }));
+
+test('source settings: known boards only, short board names, duplicates folded, written only by the settings route',()=>withStore(s=>{
+ for(const [bad,re] of [[{watch:[{ats:'workday',slug:'acme'}]},/job board/],[{watch:[{ats:'greenhouse',slug:'https://boards.greenhouse.io/acme'}]},/short name/],[{watch:Array(61).fill({ats:'lever',slug:'x'})},/At most/]])a.throws(()=>s.saveCareerSettings(bad),re);
+ const {settings}=s.saveCareerSettings({watch:[{ats:'greenhouse',slug:'acme',company:'Acme'},{ats:'greenhouse',slug:'ACME'},{ats:'lever',slug:'beta-co',market:'SG'}],keywords:[' product ','',' strategy'],sources:{linkedin:false,'bad key!':true}});
+ a.deepEqual(settings.watch.map(w=>w.ats+':'+w.slug+':'+w.market),['greenhouse:acme:US','lever:beta-co:SG']);a.deepEqual(settings.keywords,['product','strategy']);a.deepEqual(settings.sources,{linkedin:false});
+ a.throws(()=>s.saveState('careerSettings','main',settings),/Invalid progress field/);a.equal(s.state().careerSettings.main.watch.length,2);
+}));

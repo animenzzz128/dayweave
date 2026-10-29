@@ -5,13 +5,14 @@ import { Empty, External, PageHeader, Section, Tabs, Tag } from '../components/u
 import { JobsPanel, PeoplePanel, SoonBanner } from './CareerPreview';
 import { PipelinePanel } from './CareerPipeline';
 import { PeopleTracker, PipelineTracker } from './CareerTracker';
+import { SourcesTracker } from './CareerSources';
 import { Phase3 } from '../lib/shared';
 import type { Person, Role } from '../data/types';
 
 const TABS = ['jobs', 'pipeline', 'people', 'research'] as const;
 type Tab = (typeof TABS)[number];
 
-const PRIVATE = ['pipeline', 'people', 'research'] as const;
+const PRIVATE = ['pipeline', 'people', 'sources', 'research'] as const;
 type PrivateTab = (typeof PRIVATE)[number];
 
 // The public demo previews the planned job match and people panels; the private instance runs the career tracker
@@ -26,13 +27,14 @@ function PrivateCareer({ params }: { params: URLSearchParams }) {
   const { t } = useI18n();
   const asked = params.get('tab') as PrivateTab | null;
   const [tab, setTab] = useState<PrivateTab>(asked && PRIVATE.includes(asked) ? asked : 'pipeline');
-  const labels: Record<PrivateTab, string> = { pipeline: t.tracker.pipeline, people: t.tracker.people, research: t.career.tabs.research };
+  const labels: Record<PrivateTab, string> = { pipeline: t.tracker.pipeline, people: t.tracker.people, sources: t.sources.tab, research: t.career.tabs.research };
   return (
     <>
       <PageHeader title={t.career.title} subtitle={t.career.trackerSubtitle} />
       <Tabs label={t.career.title} value={tab} onChange={setTab} items={PRIVATE.map((x) => [x, labels[x]] as [PrivateTab, string])} />
       {tab === 'pipeline' && <PipelineTracker />}
       {tab === 'people' && <PeopleTracker />}
+      {tab === 'sources' && <SourcesTracker />}
       {tab === 'research' && <Research />}
     </>
   );
