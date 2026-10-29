@@ -22,7 +22,7 @@ const en = {
     outageNote: 'Google Calendar and Gmail failed in the last read (simulated).',
   },
   local: { banner: 'Local mode: connected to the Dayweave server on this computer.', hosted: 'Private instance: your own data, signed in with Google.', signOut: 'Sign out' },
-  shell: { more: 'More', settings: 'Settings', menu: 'More pages and settings', details: 'Details', hide: 'Hide', demo: 'Demo · fictional data', hosted: 'Private instance', local: 'Local mode', pages: 'Pages', close: 'Close menu' },
+  shell: { tabs: { coursework: 'Courses' } as Partial<Record<string, string>>, toDark: 'Switch to dark', toLight: 'Switch to light', search: 'Search', more: 'More', settings: 'Settings', menu: 'More pages and settings', details: 'Details', hide: 'Hide', demo: 'Demo · fictional data', hosted: 'Private instance', local: 'Local mode', pages: 'Pages', close: 'Close menu' },
   ai: {
     aiTag: 'AI', rulesTag: 'Rules',
     generated: (model: string, day: string) => `Written by ${model} on ${day}, then checked against today’s sources in this browser.`,
@@ -412,7 +412,7 @@ const zh: Messages = {
     simulated: '演示中为模拟执行，没有写入任何日历。',
   },
   local: { banner: '本地模式：已连接这台电脑上的 Dayweave 服务。', hosted: '私人实例：你自己的数据，已用 Google 登录。', signOut: '退出登录' },
-  shell: { more: '更多', settings: '设置', menu: '更多页面和设置', details: '详情', hide: '收起', demo: '演示 · 虚构数据', hosted: '私人实例', local: '本地模式', pages: '页面', close: '关闭菜单' },
+  shell: { tabs: {} as Partial<Record<string, string>>, toDark: '切换到深色', toLight: '切换到浅色', search: '搜索', more: '更多', settings: '设置', menu: '更多页面和设置', details: '详情', hide: '收起', demo: '演示 · 虚构数据', hosted: '私人实例', local: '本地模式', pages: '页面', close: '关闭菜单' },
   ai: {
     aiTag: 'AI', rulesTag: '规则',
     generated: (model: string, day: string) => `由 ${model} 于 ${day} 生成，并已在本浏览器中对照今天的来源重新校验。`,
