@@ -1,8 +1,9 @@
-import { useState, type FormEvent } from 'react';
+import { useState, type FormEvent, type ReactNode } from 'react';
 import { useApp } from '../data/AppData';
 import { useI18n } from '../i18n/I18n';
 import { Empty, External, Section, Tag, type Tone } from '../components/ui';
 import { Career, Core } from '../lib/shared';
+import { href } from '../lib/router';
 import type { Contact, ContactInput, Job, JobInput, JobStage } from '../data/types';
 
 // The private career tracker: the owner's own postings, applications and contacts (src/career.cjs). Moving a card records
@@ -88,12 +89,12 @@ const byUrgency = (a: Job, b: Job) => (a.nextDate || a.deadline || '9999').local
 
 interface Action { kind: 'deadline' | 'next' | 'stale' | 'followup'; id: string; due?: string; days?: number; text?: string; job?: Job; contact?: Contact }
 
-export function NextActions({ actions, today, limit }: { actions: Action[]; today: string; limit?: number }) {
+export function NextActions({ actions, today, limit, title, aside }: { actions: Action[]; today: string; limit?: number; title?: string; aside?: ReactNode }) {
   const { t } = useI18n();
   const shown = limit ? actions.slice(0, limit) : actions;
   const tone: Record<Action['kind'], Tone> = { deadline: 'danger', next: 'info', stale: 'warn', followup: 'warn' };
   return (
-    <Section title={t.tracker.next}>
+    <Section title={title ?? t.tracker.next} aside={aside}>
       {shown.length ? (
         <ul className="panel divide-y divide-line">
           {shown.map((a) => (
@@ -285,4 +286,14 @@ function ContactForm({ contact, onDone }: { contact?: Contact; onDone: () => voi
       <div className="flex gap-2"><button type="submit" className="btn btn-primary">{contact ? t.tracker.save : t.tracker.addContact}</button><button type="button" className="btn btn-quiet" onClick={onDone}>{t.tracker.cancel}</button></div>
     </form>
   );
+}
+
+/** Today: the three most urgent career steps, only when there are any (private instance). */
+export function CareerToday() {
+  const { t } = useI18n();
+  const { jobs, contacts } = useCareer();
+  const today = useToday();
+  const actions = Career.nextActions(jobs, contacts, today) as Action[];
+  if (!actions.length) return null;
+  return <NextActions actions={actions} today={today} limit={3} title={t.tracker.todayTitle} aside={<a href={href('career')}>{t.tracker.openCareer(actions.length)} →</a>} />;
 }

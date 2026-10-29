@@ -58,11 +58,11 @@ class Store{
   if(id!==undefined){if(!validId(id)||!all[id])throw Error('Unknown '+kind);existing=all[id];}else if(Object.keys(all).length>=MAX_CAREER)throw Error('At most '+MAX_CAREER+' '+kind+'s; remove some first.');
   const newId=existing?existing.id:kind+'-'+crypto.randomBytes(6).toString('hex'),record=kind==='job'?K.cleanJob(input,{existing,id:newId,now}):K.cleanContact(input,{existing,id:newId,now,jobs:st.careerJob||{}});
   if(kind==='job'&&record.url){const same=Object.values(all).find(j=>j.id!==record.id&&j.url&&K.canonical(j.url)===K.canonical(record.url));if(same)throw Error('This posting is already in your tracker: '+same.company+' · '+same.title);}
-  this.db.prepare('INSERT OR REPLACE INTO progress VALUES(?,?,?,?)').run(table,record.id,JSON.stringify(record),record.updatedAt);this.log('career',existing?'edited':'created',record.id,{[kind]:record});return {[kind]:record};});}
+  this.db.prepare('INSERT OR REPLACE INTO progress VALUES(?,?,?,?)').run(table,record.id,JSON.stringify(record),record.updatedAt);const removedBlocks=existing&&kind==='job'?this.dropPlanned(r=>r.kind==='job'&&r.id===record.id):[];this.log('career',existing?'edited':'created',record.id,{[kind]:record,removedBlocks});return {[kind]:record,removedBlocks};});}
  removeCareer(kind,id){if(!['job','contact'].includes(kind)||!validId(id))throw Error('Choose a career record');const table=kind==='job'?'careerJob':'careerContact';
   return this.transaction(()=>{const row=this.db.prepare('SELECT value FROM progress WHERE kind=? AND id=?').get(table,id);if(!row)throw Error('Unknown '+kind);this.db.prepare('DELETE FROM progress WHERE kind=? AND id=?').run(table,id);
   if(kind==='job')for(const r of this.db.prepare("SELECT id,value FROM progress WHERE kind='careerContact'").all()){const c=JSON.parse(r.value);if(c.jobId===id)this.db.prepare("UPDATE progress SET value=? WHERE kind='careerContact' AND id=?").run(JSON.stringify({...c,jobId:null}),r.id);}
-  this.log('career','removed',id,{[kind]:JSON.parse(row.value)});return {removed:id};});}
+  const removedBlocks=kind==='job'?this.dropPlanned(r=>r.kind==='job'&&r.id===id):[];this.log('career','removed',id,{[kind]:JSON.parse(row.value),removedBlocks});return {removed:id,removedBlocks};});}
  saveCareerSettings(input,now=new Date()){const v=require('./career.cjs').cleanSettings(input,{now});return this.transaction(()=>{this.db.prepare('INSERT OR REPLACE INTO progress VALUES(?,?,?,?)').run('careerSettings','main',JSON.stringify(v),v.updatedAt);this.log('career','settings','Career sources saved',{watch:v.watch.length,keywords:v.keywords.length});return {settings:v};});}
  // Writes one board-read result (src/career-fetch.cjs) into the inbox; the owner's track/dismiss marks are kept.
  saveCareerFetch(result){return this.transaction(()=>{const put=this.db.prepare('INSERT OR REPLACE INTO progress VALUES(?,?,?,?)');for(const p of Object.values(result.found))put.run('careerPosting',p.id,JSON.stringify(p),result.at);
@@ -114,7 +114,7 @@ class Store{
   for(const p of d.proposals)if(approved.has(p.id)&&p.origin==='planner'&&!p.locked){p.locked=true;p.lockedBy='approval';}}
  // One day inside a caller's transaction. `cleared` lists this day's drafts a multi-day run already removed (for the summary).
  planDay(date,now,{auto=false,cleared=[]}={}){const PL=require('./planner.cjs'),d=this.snapshot();if(!d)throw Error('No database snapshot');const st=this.state();this.lockApproved(d);
-  const result=PL.plan({snapshot:d,date,now,todos:st.todo,archive:st.archive,dismissed:st.dismissed,started:this.startedCopies(d),settings:this.planSettings()||PL.planSettings(PL.RECOMMENDED),emailTriage:st.emailTriage,rewrite:true});
+  const result=PL.plan({snapshot:d,date,now,todos:st.todo,archive:st.archive,dismissed:st.dismissed,started:this.startedCopies(d),settings:this.planSettings()||PL.planSettings(PL.RECOMMENDED),emailTriage:st.emailTriage,rewrite:true,career:{jobs:st.careerJob,contacts:st.careerContact}});
   // The automatic run after a collection never clears blocks on a day it cannot plan (for example incomplete coverage).
   if(auto&&!result.ready)return result;
   const ids=new Set(result.blocks.map(b=>b.id)),replaced=[...cleared,...d.proposals.filter(p=>PL.replaceable(d,p,date))].map(p=>p.id).filter(id=>!ids.has(id));

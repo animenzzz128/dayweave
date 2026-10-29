@@ -4,6 +4,7 @@ import { useI18n } from '../i18n/I18n';
 import { DayTimeline } from '../components/DayTimeline';
 import { Brief } from '../components/Brief';
 import { DeadlineRisks } from '../components/DeadlineRisks';
+import { CareerToday } from './CareerTracker';
 import { Dot, Empty, Tag, sourceTone, type Tone } from '../components/ui';
 import { Core, Demo, Email, Phase3, Workload } from '../lib/shared';
 import { href } from '../lib/router';
@@ -58,6 +59,7 @@ export function Today() {
       </div>
 
       <DeadlineRisks />
+      {source.mode !== 'demo' && <CareerToday />}
 
       <div className="flex flex-wrap gap-6">
         <section aria-labelledby="day" className="panel min-w-0 flex-[1_1_340px] p-4 max-md:order-2">

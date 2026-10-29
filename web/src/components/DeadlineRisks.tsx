@@ -12,7 +12,7 @@ export function DeadlineRisks() {
   const { t } = useI18n();
   const list = useMemo(() => {
     try {
-      return Planner.risks({ snapshot: d, now, days: 7, todos: progress.todo || {}, archive: progress.archive || {}, dismissed: progress.dismissed || {}, settings: planSettings, emailTriage: progress.emailTriage || {} }) as Risk[];
+      return Planner.risks({ snapshot: d, now, days: 7, todos: progress.todo || {}, archive: progress.archive || {}, dismissed: progress.dismissed || {}, settings: planSettings, career: { jobs: progress.careerJob || {}, contacts: progress.careerContact || {} }, emailTriage: progress.emailTriage || {} }) as Risk[];
     } catch { return [] as Risk[]; }
   }, [d, now, progress, planSettings]);
   if (!list.length) return null;

@@ -53,7 +53,7 @@ function fromResearch(career,marks={},now=new Date()){
  for(const r of career.roles||[]){if(!r?.id||!r.title||status(r)==='dismissed')continue;
   const [company,...rest]=String(r.title).split(' · '),title=rest.length?rest.join(' · '):company,s=status(r),stage=s==='applied'?'applied':'saved';
   const market=MARKETS.includes(r.market)?r.market:'Other',id='job-r-'+String(r.id).replace(/[^a-z0-9-]/gi,'').slice(0,60);
-  jobs[id]={id,title:title.slice(0,200),company:(rest.length?company:'').slice(0,120)||'—',url:/^https?:\/\//.test(r.source||'')?r.source:'',location:'',market,track:'other',deadline:null,channel:'website',
+  jobs[id]={id,title:title.slice(0,200),company:company.slice(0,120),url:/^https?:\/\//.test(r.source||'')?r.source:'',location:'',market,track:'other',deadline:null,channel:'website',
    notes:[r.fit,r.evidence].filter(Boolean).join('\n\n').slice(0,4000),nextStep:'',nextDate:null,stage,origin:{type:'research',ref:String(r.id).slice(0,300)},
    appliedAt:stage==='applied'?(marks[r.id]?.at||at):null,timeline:[{at,kind:'added',stage,note:'From assistant research'}],createdAt:at,updatedAt:at,version:1};}
  for(const p of career.candidates||[]){if(!p?.id||!p.name||status(p)==='dismissed')continue;const id='contact-r-'+String(p.id).replace(/[^a-z0-9-]/gi,'').slice(0,60),s=status(p);
