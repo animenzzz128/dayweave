@@ -13,6 +13,11 @@
 - The research roles and people are copied into the tracker once (dismissed ones stay out; applied/contacted marks carry over).
 - Nothing is applied for, sent or signed in to: a stage change records what the owner did on the company's own site. The public demo keeps its preview panels for now.
 
+## Unreleased — Every page and both switches in view
+
+- Screens 1024 px and wider show every page in the header again (Today, Plan, Coursework, Week, Review, Career, Email, Data health; Case study from 1536 px), with no More menu. Theme (Match system / Light / Dark, named from 1280 px) and language (EN / 中文) sit in the header as visible switches instead of behind a Settings button.
+- Phones and tablets get a six-tab bar: Today, Plan, Courses, Review, Career and Email. The header keeps the language switch and a light/dark button in view; the menu button holds search, Week, Data health, Case study, the full theme choice and sign-out.
+
 ## Unreleased — Plan: one main button, days you can swipe
 
 - The Plan page has one main button: approve the day. "Plan the next 7 days" is a secondary button and "Regenerate this day" a text action.
