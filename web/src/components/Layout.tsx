@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useApp } from '../data/AppData';
 import { useI18n } from '../i18n/I18n';
-import { DESKTOP_NAV, href, MORE, TABS, type Route } from '../lib/router';
+import { href, MENU, NAV, TABS, type Route } from '../lib/router';
 import { THEMES, useTheme, type ThemePref } from '../lib/theme';
 import { ErrorBoundary, ErrorState } from './ui';
 import { CommandPalette, shortcutLabel } from './CommandPalette';
@@ -13,12 +13,14 @@ const THEME_ICONS: Record<ThemePref, ReactNode> = {
 };
 
 // 20px line icons for the phone tab bar, drawn on the same 16-unit grid as the theme icons.
-const TAB_ICONS: Record<(typeof TABS)[number] | 'more', ReactNode> = {
+const TAB_ICONS: Record<(typeof TABS)[number] | 'menu', ReactNode> = {
   today: <><rect x="2" y="3" width="12" height="11" rx="2" /><path d="M2 6.5h12M5.5 1.5v3M10.5 1.5v3" /><circle cx="8" cy="10" r="1.2" fill="currentColor" stroke="none" /></>,
   plan: <><path d="M3 2.5v11" /><rect x="5.5" y="3" width="8" height="3" rx="1" /><rect x="5.5" y="8.5" width="5" height="3" rx="1" /></>,
   review: <><rect x="2" y="2" width="12" height="12" rx="2.5" /><path d="m5.2 8.2 2 2 3.6-4" /></>,
   coursework: <><path d="M2.5 3.5c2-1 4-1 5.5 0v10c-1.5-1-3.5-1-5.5 0Z" /><path d="M13.5 3.5c-2-1-4-1-5.5 0v10c1.5-1 3.5-1 5.5 0Z" /></>,
-  more: <><circle cx="3.5" cy="8" r="1.1" fill="currentColor" stroke="none" /><circle cx="8" cy="8" r="1.1" fill="currentColor" stroke="none" /><circle cx="12.5" cy="8" r="1.1" fill="currentColor" stroke="none" /></>,
+  career: <><rect x="2" y="5" width="12" height="8.5" rx="1.5" /><path d="M5.5 5V3.5a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1V5M2 9h12" /></>,
+  email: <><rect x="2" y="3.5" width="12" height="9" rx="1.5" /><path d="m2.5 4.5 5.5 4.5 5.5-4.5" /></>,
+  menu: <path d="M2.5 4h11M2.5 8h11M2.5 12h11" />,
 };
 
 const Icon = ({ size = 16, children }: { size?: number; children: ReactNode }) => (
@@ -42,7 +44,8 @@ function useMenu() {
   return { open, setOpen, ref };
 }
 
-function ThemeLang() {
+/** Theme and language, always in view: icons with their names on wide screens, and labelled again in the phone menu. */
+function ThemeLang({ labels }: { labels: 'always' | 'wide' }) {
   const { t, lang, setLang } = useI18n();
   const { pref, setPref } = useTheme();
   return (
@@ -50,8 +53,8 @@ function ThemeLang() {
       <div role="group" aria-label={t.theme.label} className="flex rounded-lg border border-line p-0.5">
         {THEMES.map((p) => (
           <button key={p} type="button" aria-pressed={pref === p} aria-label={t.theme[p]} title={t.theme[p]} onClick={() => setPref(p)}
-            className={`grid min-h-10 min-w-10 place-items-center rounded-md transition-colors ${pref === p ? 'bg-ink text-on-ink' : 'text-sub hover:bg-soft'}`}>
-            <Icon>{THEME_ICONS[p]}</Icon>
+            className={`flex min-h-10 min-w-10 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-2 text-[13px] transition-colors ${pref === p ? 'bg-ink text-on-ink' : 'text-sub hover:bg-soft'}`}>
+            <Icon>{THEME_ICONS[p]}</Icon><span className={labels === 'wide' ? 'max-xl:sr-only' : ''}>{t.theme[p]}</span>
           </button>
         ))}
       </div>
@@ -103,17 +106,35 @@ function Banner({ route }: { route: Route }) {
   );
 }
 
-const navLink = (active: boolean) => `whitespace-nowrap rounded-lg px-3 py-2 text-sm no-underline transition-colors ${active ? 'bg-selected font-medium text-ink' : 'text-sub hover:bg-soft hover:text-ink'}`;
+/** Phones: language and light/dark stay visible in the header; the three-way theme choice is in the menu. */
+function PhoneSettings() {
+  const { t, lang, setLang } = useI18n();
+  const { dark, setPref } = useTheme();
+  return (
+    <div className="flex items-center gap-1.5 lg:hidden">
+      <div role="group" aria-label={t.lang.label} className="flex rounded-lg border border-line p-0.5">
+        {(['en', 'zh'] as const).map((l) => (
+          <button key={l} type="button" aria-pressed={lang === l} onClick={() => setLang(l)}
+            className={`min-h-9 rounded-md px-2 text-[13px] transition-colors ${lang === l ? 'bg-ink text-on-ink' : 'text-sub'}`}>{t.lang[l]}</button>
+        ))}
+      </div>
+      <button type="button" aria-label={dark ? t.shell.toLight : t.shell.toDark} title={dark ? t.shell.toLight : t.shell.toDark} onClick={() => setPref(dark ? 'light' : 'dark')}
+        className="grid min-h-10 min-w-10 place-items-center rounded-lg border border-line text-sub">
+        <Icon size={18}>{THEME_ICONS[dark ? 'light' : 'dark']}</Icon>
+      </button>
+    </div>
+  );
+}
+
+const navLink = (active: boolean) => `whitespace-nowrap rounded-lg px-2.5 py-2 2xl:px-3 text-sm no-underline transition-colors ${active ? 'bg-selected font-medium text-ink' : 'text-sub hover:bg-soft hover:text-ink'}`;
 const menuLink = (active: boolean) => `flex min-h-11 items-center rounded-lg px-3 text-[15px] no-underline transition-colors ${active ? 'bg-selected font-medium text-ink' : 'text-body hover:bg-soft hover:text-ink'}`;
 
 export function Layout({ route, children }: { route: Route; children: ReactNode }) {
   const { t } = useI18n();
   const { source, waiting, notice, dismissNotice } = useApp();
   const [palette, setPalette] = useState(false);
-  const more = useMenu();
-  const settings = useMenu();
-  const sheet = useMenu();
-  const inMore = (MORE as readonly Route[]).includes(route);
+  const menu = useMenu();
+  const inMenu = (MENU as readonly Route[]).includes(route);
   const badge = waiting.length > 0 && <span className="ml-1.5 rounded-full bg-accent px-1.5 font-mono text-[11px] text-on-accent">{waiting.length}</span>;
   return (
     <div className="min-h-screen bg-surface">
@@ -124,43 +145,39 @@ export function Layout({ route, children }: { route: Route; children: ReactNode 
           <div className="flex min-w-0 items-center gap-x-6">
             <a href={href('today')} className="flex shrink-0 items-center gap-2 text-lg font-bold tracking-tight text-ink no-underline">
               <svg width="22" height="22" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="#2558D9" /><path d="M7 12c4 0 4 10 9 10s5-10 9-10" fill="none" stroke="#fff" strokeWidth="3" strokeLinecap="round" /></svg>
-              {t.brand}
+              <span className="lg:max-xl:sr-only">{t.brand}</span>
             </a>
-            <nav aria-label="Main" className="flex min-w-0 items-center gap-0.5 max-sm:hidden">
-              <div className="-mx-1 flex min-w-0 gap-0.5 overflow-x-auto px-1">
-                {DESKTOP_NAV.map((r) => (
-                  <a key={r} href={href(r)} aria-current={r === route ? 'page' : undefined} className={navLink(r === route)}>{t.nav[r]}{r === 'review' && badge}</a>
-                ))}
-              </div>
-              <div ref={more.ref} className="relative">
-                <button type="button" aria-expanded={more.open} aria-haspopup="true" onClick={() => more.setOpen(!more.open)} className={`${navLink(inMore)} flex items-center gap-1`}>
-                  {inMore ? t.nav[route] : t.shell.more}
-                  <Icon size={12}><path d="m4 6 4 4 4-4" /></Icon>
-                </button>
-                {more.open && (
-                  <div className="animate-fade absolute left-0 top-full z-40 mt-1 w-52 rounded-xl border border-line bg-raised p-1.5 shadow-lg">
-                    {MORE.map((r) => <a key={r} href={href(r)} aria-current={r === route ? 'page' : undefined} className={menuLink(r === route)}>{t.nav[r]}</a>)}
-                  </div>
-                )}
-              </div>
+            <nav aria-label="Main" className="-mx-1 flex min-w-0 gap-0.5 overflow-x-auto px-1 max-lg:hidden">
+              {NAV.map((r) => (
+                <a key={r} href={href(r)} aria-current={r === route ? 'page' : undefined} className={navLink(r === route)}>{t.nav[r]}{r === 'review' && badge}</a>
+              ))}
+              <a href={href('case-study')} aria-current={route === 'case-study' ? 'page' : undefined} className={`${navLink(route === 'case-study')} max-2xl:hidden ${route === 'case-study' ? '' : '!text-accent'}`}>{t.nav['case-study']}</a>
             </nav>
           </div>
-          <div className="flex items-center gap-2">
-            <button type="button" onClick={() => setPalette(true)} aria-keyshortcuts="Control+K Meta+K" aria-haspopup="dialog" aria-label={t.palette.open}
-              className="flex min-h-10 min-w-10 items-center justify-center gap-2 rounded-lg border border-line px-2.5 text-[13px] text-muted transition-colors hover:bg-soft hover:text-ink">
+          <div className="flex shrink-0 items-center gap-2">
+            <button type="button" onClick={() => setPalette(true)} aria-keyshortcuts="Control+K Meta+K" aria-haspopup="dialog" aria-label={t.palette.open} title={`${t.palette.open} (${shortcutLabel})`}
+              className="grid min-h-10 min-w-10 place-items-center rounded-lg border border-line text-muted transition-colors hover:bg-soft hover:text-ink max-lg:hidden">
               <Icon><circle cx="7" cy="7" r="4.5" /><path d="m10.5 10.5 3 3" /></Icon>
-              <span className="max-lg:hidden">{t.palette.open}</span>
-              <kbd className="whitespace-nowrap rounded border border-line px-1 font-mono text-[11px] max-lg:hidden">{shortcutLabel}</kbd>
             </button>
-            <div ref={settings.ref} className="relative max-sm:hidden">
-              <button type="button" aria-expanded={settings.open} aria-haspopup="true" aria-label={t.shell.settings} title={t.shell.settings} onClick={() => settings.setOpen(!settings.open)}
-                className="grid min-h-10 min-w-10 place-items-center rounded-lg border border-line text-sub transition-colors hover:bg-soft hover:text-ink">
-                <Icon><circle cx="8" cy="8" r="2" /><path d="M8 1.5v2M8 12.5v2M1.5 8h2M12.5 8h2M3.4 3.4l1.4 1.4M11.2 11.2l1.4 1.4M3.4 12.6l1.4-1.4M11.2 4.8l1.4-1.4" /></Icon>
+            <div className="max-lg:hidden"><ThemeLang labels="wide" /></div>
+            <PhoneSettings />
+            <div ref={menu.ref} className="relative lg:hidden">
+              <button type="button" aria-expanded={menu.open} aria-haspopup="true" aria-label={t.shell.menu} onClick={() => menu.setOpen(!menu.open)}
+                className={`grid min-h-10 min-w-10 place-items-center rounded-lg border transition-colors ${menu.open || inMenu ? 'border-accent-line bg-accent-soft text-accent' : 'border-line text-sub'}`}>
+                <Icon size={18}>{TAB_ICONS.menu}</Icon>
               </button>
-              {settings.open && (
-                <div className="animate-fade absolute right-0 top-full z-40 mt-1 grid w-max gap-3 rounded-xl border border-line bg-raised p-3 shadow-lg">
-                  <ThemeLang />
-                  {source.hosted && <SignOut className="w-full" />}
+              {menu.open && (
+                <div className="animate-fade absolute right-0 top-full z-50 mt-1 grid w-72 max-w-[calc(100vw-2rem)] gap-3 rounded-xl border border-line bg-raised p-2 shadow-lg">
+                  <button type="button" className={menuLink(false)} onClick={() => { menu.setOpen(false); setPalette(true); }}>
+                    <span className="flex items-center gap-2"><Icon><circle cx="7" cy="7" r="4.5" /><path d="m10.5 10.5 3 3" /></Icon>{t.shell.search}</span>
+                  </button>
+                  <nav aria-label={t.shell.pages} className="grid gap-0.5 border-t border-line pt-2">
+                    {MENU.map((r) => <a key={r} href={href(r)} aria-current={r === route ? 'page' : undefined} className={menuLink(r === route)}>{t.nav[r]}</a>)}
+                  </nav>
+                  <div className="grid gap-2 border-t border-line px-1 pt-3">
+                    <ThemeLang labels="always" />
+                    {source.hosted && <SignOut className="w-full" />}
+                  </div>
                 </div>
               )}
             </div>
@@ -173,47 +190,23 @@ export function Layout({ route, children }: { route: Route; children: ReactNode 
           <button type="button" className="shrink-0 underline" onClick={dismissNotice}>{t.common.close}</button>
         </div></div>
       )}
-      <main id="main" tabIndex={-1} className="mx-auto max-w-[1360px] px-4 pb-28 pt-5 outline-none sm:px-8 sm:pb-16 sm:pt-7">
+      <main id="main" tabIndex={-1} className="mx-auto max-w-[1360px] px-4 pb-28 pt-5 outline-none sm:px-8 lg:pb-16 sm:pt-7">
         <ErrorBoundary key={route} fallback={(e, reset) => <ErrorState title={t.common.pageError} message={e.message} hint={t.common.errorHint} onRetry={reset} retry={t.common.retry} />}>
           <div className="animate-rise">{children}</div>
         </ErrorBoundary>
       </main>
-      <div ref={sheet.ref} className="sm:hidden">
-        {sheet.open && (
-          <>
-            <div aria-hidden="true" className="animate-fade fixed inset-0 z-30 bg-black/30" onClick={() => sheet.setOpen(false)} />
-            <div role="dialog" aria-modal="true" aria-label={t.shell.menu}
-              className="animate-rise fixed inset-x-0 bottom-0 z-40 grid gap-4 rounded-t-2xl border-t border-line bg-raised px-4 pt-3 shadow-2xl"
-              style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 76px)' }}>
-              <div aria-hidden="true" className="mx-auto h-1 w-10 rounded-full bg-line" />
-              <nav aria-label={t.shell.pages} className="grid gap-0.5">
-                {(['week', ...MORE] as Route[]).map((r) => <a key={r} href={href(r)} aria-current={r === route ? 'page' : undefined} className={menuLink(r === route)}>{t.nav[r]}</a>)}
-              </nav>
-              <div className="grid gap-3 border-t border-line pt-4">
-                <ThemeLang />
-                {source.hosted && <SignOut className="w-full" />}
-              </div>
-            </div>
-          </>
-        )}
-        <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-surface/95 backdrop-blur" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-          <div className="grid grid-cols-5">
-            {TABS.map((r) => (
-              <a key={r} href={href(r)} aria-current={r === route ? 'page' : undefined}
-                className={`relative flex min-h-14 flex-col items-center justify-center gap-0.5 text-[12px] no-underline ${r === route ? 'font-medium text-accent' : 'text-muted'}`}>
-                <Icon size={20}>{TAB_ICONS[r]}</Icon>
-                {t.nav[r]}
-                {r === 'review' && waiting.length > 0 && <span className="absolute left-1/2 top-1.5 ml-1.5 min-w-4 rounded-full bg-accent px-1 text-center font-mono text-[10px] leading-4 text-on-accent">{waiting.length}</span>}
-              </a>
-            ))}
-            <button type="button" aria-expanded={sheet.open} aria-haspopup="dialog" onClick={() => sheet.setOpen(!sheet.open)}
-              className={`flex min-h-14 flex-col items-center justify-center gap-0.5 text-[12px] ${sheet.open || inMore || route === 'week' ? 'font-medium text-accent' : 'text-muted'}`}>
-              <Icon size={20}>{TAB_ICONS.more}</Icon>
-              {t.shell.more}
-            </button>
-          </div>
-        </nav>
-      </div>
+      <nav aria-label="Main" className="fixed inset-x-0 bottom-0 z-50 border-t border-line bg-surface/95 backdrop-blur lg:hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+        <div className="grid grid-cols-6">
+          {TABS.map((r) => (
+            <a key={r} href={href(r)} aria-current={r === route ? 'page' : undefined}
+              className={`relative flex min-h-14 flex-col items-center justify-center gap-0.5 text-[12px] no-underline ${r === route ? 'font-medium text-accent' : 'text-muted'}`}>
+              <Icon size={20}>{TAB_ICONS[r]}</Icon>
+              {t.shell.tabs[r] ?? t.nav[r]}
+              {r === 'review' && waiting.length > 0 && <span className="absolute left-1/2 top-1.5 ml-1.5 min-w-4 rounded-full bg-accent px-1 text-center font-mono text-[10px] leading-4 text-on-accent">{waiting.length}</span>}
+            </a>
+          ))}
+        </div>
+      </nav>
       <CommandPalette open={palette} onOpenChange={setPalette} />
     </div>
   );

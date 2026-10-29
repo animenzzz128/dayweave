@@ -4,10 +4,10 @@ import { useEffect, useState } from 'react';
 export const NAV = ['today', 'plan', 'coursework', 'week', 'review', 'career', 'email', 'health'] as const;
 export const ROUTES = [...NAV, 'case-study'] as const;
 export type Route = (typeof ROUTES)[number];
-// Phones get a bottom tab bar with the daily pages; everything else sits behind "More" on every width.
-export const TABS = ['today', 'plan', 'review', 'coursework'] as const satisfies readonly Route[];
-export const DESKTOP_NAV = ['today', 'plan', 'coursework', 'week', 'review'] as const satisfies readonly Route[];
-export const MORE = ['career', 'email', 'health', 'case-study'] as const satisfies readonly Route[];
+// Wide screens show every page in the header. Phones show the six daily pages as a bottom tab bar; Week, Data health and
+// Case study sit in the header menu.
+export const TABS = ['today', 'plan', 'coursework', 'review', 'career', 'email'] as const satisfies readonly Route[];
+export const MENU = ['week', 'health', 'case-study'] as const satisfies readonly Route[];
 
 export interface Location { route: Route; params: URLSearchParams }
 
