@@ -210,9 +210,9 @@ function PhoneApproveBar({ ok, version }: { ok: Proposal[]; version?: Approval }
   if (!ok.length && !version) return null;
   return (
     <>
-      <div aria-hidden="true" className="h-20 sm:hidden" />
+      <div aria-hidden="true" className="h-20 lg:hidden" />
       {/* A portal: the page's entrance animation leaves a transform on its wrapper, which would pin a fixed bar to the page. */}
-      {createPortal(<div className="fixed inset-x-0 z-40 border-t border-line bg-surface/95 px-4 py-2 backdrop-blur sm:hidden" style={{ bottom: 'calc(57px + env(safe-area-inset-bottom, 0px))' }}>
+      {createPortal(<div className="fixed inset-x-0 z-40 border-t border-line bg-surface/95 px-4 py-2 backdrop-blur lg:hidden" style={{ bottom: 'calc(57px + env(safe-area-inset-bottom, 0px))' }}>
         {version
           ? <a href="#approve-day" className="btn w-full no-underline" onClick={(e) => { e.preventDefault(); document.getElementById('approve-day')?.scrollIntoView({ behavior: 'smooth', block: 'center' }); }}>{t.plan.toApproval} ↓</a>
           : <button type="button" className="btn btn-primary w-full" onClick={() => run(() => source.prepare(ok.map((p) => p.id)))}>{t.plan.approveDay(...split(ok))}</button>}
