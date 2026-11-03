@@ -35,6 +35,7 @@ export function Health() {
               {cov?.note && <p className="mt-1 text-muted">{cov.note}</p>}
             </div>
           </Section>
+          <CalendarAccess />
           <WeeklyTrends />
           {source.history && <History />}
         </div>
@@ -247,6 +248,24 @@ function Runs() {
             ))}
           </ul>
         ) : <p>{t.health.noRuns}</p>}
+      </div>
+    </Section>
+  );
+}
+
+// Hosted only: the direct-write Google Calendar access and when Google is expected to end it (docs/google-direct.md).
+function CalendarAccess() {
+  const { calendarWrite: c, f } = useApp();
+  const { t } = useI18n();
+  if (!c?.available) return null;
+  const when = (x?: string | null) => `${f.day(x)} ${f.time(x)}`;
+  const ended = !!c.connected && !!c.expired;
+  return (
+    <Section title={t.health.calendar}>
+      <div className="panel space-y-2 p-4 text-sm">
+        {c.connected ? <p>{t.health.calendarOn(c.account || '', when(c.connectedAt))}</p> : <p>{t.health.calendarNone}</p>}
+        {c.connected && (ended ? <p className="text-danger">{t.health.calendarEnded}</p> : c.expiresAt && <p className="text-muted">{t.health.calendarUntil(when(c.expiresAt))}</p>)}
+        <a className="btn no-underline" href="/auth/calendar/connect">{c.connected ? t.review.reconnect : t.review.connect}</a>
       </div>
     </Section>
   );
