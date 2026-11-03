@@ -11,14 +11,18 @@ function loadWeb(dist){if(dist===null)return null;if(!dist&&fs.existsSync(path.j
  // The page's inline theme script (it avoids a light flash before the app loads) is allowed by its hash, not by 'unsafe-inline'.
  const hashes=[...html.matchAll(/<script>([\s\S]*?)<\/script>/g)].map(m=>"'sha256-"+crypto.createHash('sha256').update(m[1]).digest('base64')+"'");
  return {root,html,csp:`default-src 'self'; script-src 'self' ${hashes.join(' ')}; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`};}
-function createServer(dir,{hosted=null,ingestSecret='',executeSecret='',canvasIcsUrl='',canvasToken='',canvasFetch,courseSites=[],siteFetch,careerFetch,fetch,webDist=''}={}){const web=loadWeb(webDist),store=new Store(dir),sessions=new Map(),allow=H.limiter();
+function createServer(dir,{hosted=null,ingestSecret='',executeSecret='',canvasIcsUrl='',canvasToken='',canvasFetch,courseSites=[],siteFetch,careerFetch,fetch,webDist='',calendarTokenDays=7}={}){const web=loadWeb(webDist),store=new Store(dir),sessions=new Map(),allow=H.limiter();
  // Direct Google Calendar writes need the hosted OAuth client; the local app keeps the assistant bridge only.
  const tokens=hosted&&GC.vault(store,hosted.sessionSecret),auth=hosted&&H.createAuth(hosted,{fetch,onCalendar:({account,refreshToken,scope})=>tokens.save(account,{refreshToken,scope})});
  const calendar=()=>{const t=hosted&&tokens.load(hosted.email);return t?GC.client({account:hosted.email,refreshToken:t.refreshToken,clientId:hosted.clientId,clientSecret:hosted.clientSecret,fetch}):null;};
  // Watched public job boards are read after each collection and on the owner's request (docs/data-contract.md, career inbox).
  const refreshCareer=async()=>{const st=store.state(),settings=st.careerSettings?.main;if(!settings?.watch?.length)return {skipped:'No companies watched'};
   return store.saveCareerFetch(await CF.collect({settings,profile:store.snapshot()?.career?.profile,existing:st.careerPosting||{},fetch:careerFetch}));};
- const calendarStatus=()=>{if(!hosted)return {available:false};const t=tokens.load(hosted.email);return {available:true,connected:!!t&&GC.hasScope(t.scope),account:hosted.email,connectedAt:t?.at||null};};const server=http.createServer(async(req,res)=>{
+ // A Google OAuth app in Testing gets refresh tokens that stop working after 7 days (calendarTokenDays; 0 once the app is
+ // published). The expected end is shown ahead of time, and a connection past it asks to reconnect instead of writing.
+ const calendarStatus=()=>{if(!hosted)return {available:false};const t=tokens.load(hosted.email),connected=!!t&&GC.hasScope(t.scope),at=t?.at||null;
+  const expiresAt=connected&&at&&calendarTokenDays>0?new Date(Date.parse(at)+calendarTokenDays*86400000).toISOString():null;
+  return {available:true,connected,account:hosted.email,connectedAt:at,expiresAt,expired:!!expiresAt&&Date.now()>=Date.parse(expiresAt)};};const server=http.createServer(async(req,res)=>{
  const send=(status,value)=>{res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'});res.end(JSON.stringify(value));};
  try{const host=hosted?hosted.host:'127.0.0.1:'+server.address().port,origin=hosted?hosted.origin:'http://'+host;if(hosted)for(const [k,v] of Object.entries(H.securityHeaders))res.setHeader(k,v);
  if(req.headers.host!==host)return send(403,{error:hosted?'Unknown host':'Local requests only'});
@@ -69,7 +73,7 @@ function createServer(dir,{hosted=null,ingestSecret='',executeSecret='',canvasIc
  if(req.method==='POST'&&u.pathname==='/api/approvals/withdraw')return send(200,X.revoke(store,body?.reference));
  // Writes an approved version straight to Google Calendar with the owner's stored consent (docs/google-direct.md).
  if(req.method==='POST'&&u.pathname==='/api/calendar/write'){const c=calendar();if(!c)return send(409,{error:'Connect Google Calendar first.',connect:'/auth/calendar/connect'});
-  try{return send(200,await GC.writeApproved(store,body?.reference,c));}catch(e){if(e.reconnect)return send(409,{error:e.message,connect:'/auth/calendar/connect'});throw e;}}
+  try{return send(200,await GC.writeApproved(store,body?.reference,c));}catch(e){if(e.reconnect){tokens.remove(hosted.email);return send(409,{error:e.message,connect:'/auth/calendar/connect'});}throw e;}}
  if(req.method==='POST'&&u.pathname==='/api/calendar/disconnect'){const t=hosted&&tokens.load(hosted.email);if(t)await GC.revoke(t.refreshToken,{fetch});if(hosted)tokens.remove(hosted.email);return send(200,calendarStatus());}
  if(req.method==='POST'&&u.pathname==='/api/backup')return send(200,{name:store.backup()});
  if(req.method==='POST'&&u.pathname==='/api/restore'){store.restore(body.name);return send(200,{ok:true});}

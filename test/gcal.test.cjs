@@ -168,3 +168,27 @@ test('a removal is refused unless it names a written, unstarted block by its own
  a.ok(P.errors(rm({remoteRef:p.calendarId+'/evt9'}),d,new Date(),[]).length,'another event');
  a.ok(P.errors(rm({start:new Date(Date.parse(p.start)+60000).toISOString()}),d,new Date(),[]).length,'another time');
  a.ok(P.errors(rm(),d,new Date(Date.parse(p.start)+60000),[]).length,'already started');}));
+
+test('the page shows when Google ends calendar access, and a refused refresh drops the stored grant so the page offers to reconnect',async()=>{
+ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'dw-gcal-expiry-')),api=fakeGoogle({refresh:'expired'});let nonce='',grant={};
+ const idToken=()=>'h.'+Buffer.from(JSON.stringify({iss:'https://accounts.google.com',aud:'client-1',exp:Date.now()/1000+600,email_verified:true,email:'student@example.com',nonce})).toString('base64url')+'.sig';
+ const fetch=async(url,init)=>url==='https://oauth2.googleapis.com/token'&&new URLSearchParams(init.body).get('grant_type')==='authorization_code'?{ok:true,status:200,json:async()=>({id_token:idToken(),...grant})}:api(url,init);
+ const open=async options=>{const s=createServer(dir,{hosted:hostedConfig(env),fetch,...options});await new Promise(r=>s.listen(0,'127.0.0.1',r));return s;};
+ const go=async(port,start,g)=>{const r=await request(port,start.path,{headers:start.headers});const q=new URL(r.headers.location).searchParams;nonce=q.get('nonce');grant=g;return {r,q,cb:await request(port,'/auth/callback?code=c1&state='+q.get('state'),{headers:{Cookie:[start.headers?.Cookie,jar(r)].filter(Boolean).join('; ')}})};};
+ const status=async(port,cookie)=>(await request(port,'/api/snapshot',{headers:{Cookie:cookie}})).json().calendarWrite;
+ let s=await open({}),port=s.address().port;
+ try{const cookie=jar((await go(port,{path:'/auth/login'},{})).cb).split('; ').find(c=>c.startsWith(SESSION_COOKIE+'='));
+  await go(port,{path:'/auth/calendar/connect',headers:{Cookie:cookie}},{refresh_token:'rt-1',scope:'openid email '+GC.SCOPE});
+  let c=await status(port,cookie);a.equal(c.connected,true);a.equal(c.expired,false);a.equal(Date.parse(c.expiresAt)-Date.parse(c.connectedAt),7*86400000,'7 days while the Google app is in testing');
+  await new Promise(r=>s.close(r));
+  // 0 days once the Google app is published: no expected end.
+  s=await open({calendarTokenDays:0});port=s.address().port;c=await status(port,cookie);a.equal(c.expiresAt,null);a.equal(c.expired,false);await new Promise(r=>s.close(r));
+  // The same stored grant, past its expected end (here a fraction of a millisecond).
+  s=await open({calendarTokenDays:1e-9});port=s.address().port;
+  c=await status(port,cookie);a.equal(c.connected,true);a.equal(c.expired,true);
+  const {q}=setup(s.store),csrf=(await request(port,'/api/session',{headers:{Cookie:cookie}})).json().csrf;
+  const w=await request(port,'/api/calendar/write',{method:'POST',headers:{Cookie:cookie,Origin:origin,'x-dayweave-token':csrf,'Content-Type':'application/json'},body:JSON.stringify({reference:q.reference})});
+  a.equal(w.status,409);a.equal(w.json().connect,'/auth/calendar/connect');a.equal(api.inserted.length,0,'nothing written');
+  c=await status(port,cookie);a.equal(c.connected,false,'the refused grant is dropped, so the page offers Connect');a.equal(c.expiresAt,null);
+}
+ finally{await new Promise(r=>s.close(r));fs.rmSync(dir,{recursive:true,force:true});}});

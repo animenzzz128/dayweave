@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased — Reconnect Google Calendar
+
+- Data health shows the Google Calendar connection and when Google is expected to end it (7 days while the OAuth app is in Testing; `DAYWEAVE_GOOGLE_TOKEN_DAYS`, `0` once published). Today warns a day ahead, and past that time Review offers Reconnect instead of a write.
+- A grant Google refuses during a write is dropped, so the page offers Connect again instead of repeating the error.
+
 ## Unreleased — Career in the plan and on Today
 
 - A job you still want to apply to with a deadline in the next 7 days gets one 60-minute **Apply:** block before the deadline's end of day (Grape, like the job-search goals). Marking it applied, editing or removing the job takes back its unstarted block.
