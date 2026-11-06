@@ -325,10 +325,11 @@ function Rules() {
   useEffect(() => { setV(JSON.parse(saved)); }, [saved]);
   const dirty = JSON.stringify(v) !== saved;
   const problem = refusal(v);
-  const hm = (x: string) => (x === '24:00' ? 1440 : Number(x.slice(0, 2)) * 60 + Number(x.slice(3)));
   // The goal problems the page explains in place, in the page's language; other refusals show the planner's own words.
   const tooMany = (h: Habit) => h.perWeek > h.days.length * (h.perDay ?? 1);
-  const noWindow = (h: Habit) => h.windows.every((w) => Math.min(hm(w.end), hm(v.dayEnd)) - Math.max(hm(w.start), hm(v.dayStart)) < h.minutes);
+  // Free minutes of each window inside the planning day and outside the breaks (the planner's own rule).
+  const room = (h: Habit) => h.windows.map((w) => Planner.windowRoom(w, v.dayStart, v.dayEnd, v.breaks) as number);
+  const noWindow = (h: Habit) => room(h).every((m) => m < h.minutes);
   const explained = v.habits.some((h) => tooMany(h) || noWindow(h));
   // Saving applies at once: the next PLAN_DAYS days are planned again with the new rules (a refused save changes nothing).
   const save = async () => {
@@ -394,7 +395,7 @@ function Rules() {
               ))}
               {h.windows.length < 3 && <button type="button" className="btn py-0.5 text-xs" onClick={() => goal(i, { windows: [...h.windows, { start: '19:00', end: '21:00' }] })}>{t.plan.addWindow}</button>}
             </div>
-            {noWindow(h) && <p className="mt-1.5 text-xs text-danger">{t.plan.noWindow(h.minutes, v.dayStart, v.dayEnd)}</p>}
+            {noWindow(h) && <p className="mt-1.5 text-xs text-danger">{t.plan.noWindow(h.title, h.minutes, h.windows.map((w, k) => t.plan.windowRoom(w.start, w.end, room(h)[k])))}</p>}
             {tooMany(h) && <p className="mt-1.5 text-xs text-danger">{t.plan.tooMany(h.perWeek, h.days.map((x) => t.plan.weekdays[x - 1]), h.perDay ?? 1)}</p>}
             {h.windows.some((w) => w.start < v.dayStart || (v.dayEnd !== '24:00' && (w.end === '24:00' || w.end > v.dayEnd))) && <p className="mt-1.5 text-xs text-warn">{t.plan.outsideDay}</p>}
           </li>
