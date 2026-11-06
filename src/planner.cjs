@@ -35,6 +35,10 @@ const RECOMMENDED=Object.freeze({dayStart:'09:00',dayEnd:'24:00',breaks:[{start:
  {id:'linkedin',title:'LinkedIn connect',minutes:30,perWeek:5,days:[1,2,3,4,5],windows:[{start:'14:00',end:'18:00'}]}]});
 const WEEKDAYS=Object.freeze(['Mon','Tue','Wed','Thu','Fri','Sat','Sun']);
 const HM=/^([01]\d|2[0-3]):[0-5]\d$/,hmMin=x=>x==='24:00'?1440:+x.slice(0,2)*60+ +x.slice(3);
+// The longest stretch (minutes) of a goal window that lies inside the planning day and outside every break: where a session can go.
+function windowRoom(w,dayStart,dayEnd,breaks=[]){const lo=Math.max(hmMin(w.start),hmMin(dayStart)),hi=Math.min(hmMin(w.end),hmMin(dayEnd));let best=0,t=lo;
+ for(const [a,b] of breaks.map(x=>[hmMin(x.start),hmMin(x.end)]).sort((x,y)=>x[0]-y[0])){if(b<=t)continue;if(a>=hi)break;best=Math.max(best,Math.min(a,hi)-t);t=Math.max(t,b);}
+ return Math.max(best,hi-t,0);}
 function planSettings(v){if(!v||typeof v!=='object'||Array.isArray(v))throw Error('Planning settings must be an object.');
  const time=(x,name,end=false)=>{if(typeof x!=='string'||!(HM.test(x)||end&&x==='24:00'))throw Error(name+' must be a time like 08:00.');return x;};
  const span=(x,name)=>{if(!x||typeof x!=='object')throw Error(name+' needs a start and an end.');const a=time(x.start,name+' start'),b=time(x.end,name+' end',true);if(hmMin(b)<=hmMin(a))throw Error(name+' must end after it starts.');return {start:a,end:b};};
@@ -44,7 +48,8 @@ function planSettings(v){if(!v||typeof v!=='object'||Array.isArray(v))throw Erro
  const habits=v.habits??[];if(!Array.isArray(habits)||habits.length>12)throw Error('Use at most 12 weekly goals.');const ids=new Set();
  // Optional daily cap on coursework minutes (assignments, review and todos); null leaves only the 20% reserve.
  const maxDailyWork=v.maxDailyWork==null||v.maxDailyWork===''?null:Number(v.maxDailyWork);if(maxDailyWork!==null&&(!Number.isInteger(maxDailyWork)||maxDailyWork<60||maxDailyWork>720||maxDailyWork%15))throw Error('Daily coursework limit must be 60–720 minutes in steps of 15, or empty.');
- return {dayStart,dayEnd,breaks:breaks.map((b,i)=>span(b,'Break '+(i+1))),...(maxDailyWork!==null?{maxDailyWork}:{}),habits:habits.map((h,i)=>{const name='Weekly goal '+(i+1);if(!h||typeof h!=='object')throw Error(name+' is invalid.');
+ const cleanBreaks=breaks.map((b,i)=>span(b,'Break '+(i+1)));
+ return {dayStart,dayEnd,breaks:cleanBreaks,...(maxDailyWork!==null?{maxDailyWork}:{}),habits:habits.map((h,i)=>{const name='Weekly goal '+(i+1);if(!h||typeof h!=='object')throw Error(name+' is invalid.');
   const id=String(h.id||'');if(!/^[a-z0-9][a-z0-9-]{0,39}$/.test(id)||ids.has(id))throw Error(name+' needs a unique short ID.');ids.add(id);
   const title=String(h.title||'').trim();if(!title||title.length>80)throw Error(name+' needs a title of at most 80 characters.');
   const minutes=Number(h.minutes),perWeek=Number(h.perWeek);if(!Number.isInteger(minutes)||minutes<15||minutes>240||minutes%5)throw Error(title+': minutes per session must be 15–240 in steps of 5.');
@@ -57,8 +62,10 @@ function planSettings(v){if(!v||typeof v!=='object'||Array.isArray(v))throw Erro
   const perDay=Number(h.perDay??1);if(!Number.isInteger(perDay)||perDay<1||perDay>3)throw Error(title+': sessions per day must be 1–3.');
   // Sessions per week are bounded by the ticked weekdays (not by how many days a generation covers).
   if(perWeek>days.length*perDay)throw Error(`${title}: ${perWeek} sessions a week need more room. Only ${days.length} weekday${days.length===1?' is':'s are'} ticked (${days.map(x=>WEEKDAYS[x-1]).join(', ')}) at most ${perDay} a day, so at most ${days.length*perDay} fit. Tick more weekdays, raise the sessions per day or lower the sessions per week.`);
-  // The planning day bounds every block, so at least one window must hold a session inside it.
-  if(windows.every(w=>Math.min(hmMin(w.end),hmMin(dayEnd))-Math.max(hmMin(w.start),hmMin(dayStart))<minutes))throw Error(`${title}: no window fits a ${minutes}-minute session inside the planning day (${dayStart}–${dayEnd}).`);
+  // The planning day and the breaks bound every block, so at least one window must hold a session outside them (audit 2026-11-06:
+  // a 90-minute gym with an 08:30 start and an 18:00–19:00 dinner had 30 and 60 minutes left and was never planned).
+  const room=windows.map(w=>windowRoom(w,dayStart,dayEnd,cleanBreaks));
+  if(room.every(m=>m<minutes))throw Error(`${title}: no window holds a ${minutes}-minute session once the planning day (${dayStart}–${dayEnd}) and breaks are taken out (${windows.map((w,j)=>w.start+'–'+w.end+': '+room[j]+' minutes').join(', ')}). Widen or add a window, shorten the session, or move the day start or a break.`);
   return {id,title,minutes,perWeek,perDay,days,windows,enabled:h.enabled!==false,...(h.color!=null?{color:String(h.color)}:{})};})};}
 const isoDay=k=>new Date(Date.parse(k+'T12:00:00Z')).getUTCDay()||7;
 const addDays=(k,n)=>new Date(Date.parse(k+'T12:00:00Z')+n*86400000).toISOString().slice(0,10);
@@ -325,6 +332,6 @@ function ownEventIds(d){const receipt=new Map((d.actionHistory||[]).filter(h=>AT
  // An event found only by its receipt, with no copy left to draw in its place, stays visible.
  const refs=new Map((d.actionHistory||[]).filter(h=>h.status==='executed'&&h.remoteRef).map(h=>[h.remoteRef,h.id])),ref=e=>refs.get(e.remoteRef)??refs.get(e.id)??(e.calendarId&&e.id?refs.get(e.calendarId+'/'+e.id):undefined);
  return new Set([...ownEvents(d,copies,occ)].filter(e=>{const id=ref(e);return id===undefined||copies.has(id);}).map(e=>e.id));}
-const api={habitFocus,APPLY,risks,addDays,SETTINGS,RECOMMENDED,COLORS,HABIT_COLOR,HABIT_COLORS,COLOR_IDS,habitColor,REVIEW,INTERVIEW,validDate,nextDay,hash,chunks,merge,minutesFree,slot,sourceProblem,candidates,gaps,plan,summary,keep,replaceable,attempted,ATTEMPTED,planSettings,isoDay,ownEventIds};
+const api={windowRoom,habitFocus,APPLY,risks,addDays,SETTINGS,RECOMMENDED,COLORS,HABIT_COLOR,HABIT_COLORS,COLOR_IDS,habitColor,REVIEW,INTERVIEW,validDate,nextDay,hash,chunks,merge,minutesFree,slot,sourceProblem,candidates,gaps,plan,summary,keep,replaceable,attempted,ATTEMPTED,planSettings,isoDay,ownEventIds};
 if(typeof module!=='undefined')module.exports=api;else window.PlannerPlanner=api;
 })();
