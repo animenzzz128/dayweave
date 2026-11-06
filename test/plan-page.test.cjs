@@ -26,8 +26,10 @@ test('blocks in a version the owner approved stay through regeneration and keep 
  a.ok(!r.unscheduled.some(u=>u.kind==='habit'&&have.has(u.id)),'a goal already met today is not reported as not fitting');a.ok(ids.every(id=>now.some(p=>p.id===id&&p.locked)),'approved blocks stay, locked');a.equal(A.read(s,q.reference).status,'prepared');}));
 
 test('after a collection, drafts are made for today and the next six days; a day that cannot be planned keeps its blocks',()=>withStore(s=>{
- const real=Date.now();s.importSnapshot(snap(real));const date=tomorrowOf(real),r=s.autoPlan(new Date(real));
- a.deepEqual(r.map(x=>x.date),[0,1,2,3,4,5,6].map(i=>PL.addDays(C.dayKey(real),i)));a.ok(r[1].ready);a.equal(r[3].ready,false,'the checked calendar window ends after day 3');a.ok(planned(s,date).length>0);const before=planned(s,date).map(p=>p.id);
+ const real=Date.now();s.importSnapshot(snap(real));const r=s.autoPlan(new Date(real));
+ a.deepEqual(r.map(x=>x.date),[0,1,2,3,4,5,6].map(i=>PL.addDays(C.dayKey(real),i)));a.ok(r[1].ready);a.equal(r[3].ready,false,'the checked calendar window ends after day 3');
+ // Which covered day gets blocks depends on the real clock (on a Friday the work fits today and the weekend has no goals).
+ const date=r.slice(0,3).map(x=>x.date).find(k=>planned(s,k).length);a.ok(date,'drafts on a covered day');const before=planned(s,date).map(p=>p.id);
  s.importSnapshot(snap(real+1000,d=>{d.calendarCoverage.complete=false;return d;}));const r2=s.autoPlan(new Date(real+1000));
  a.equal(r2[1].ready,false);a.ok(before.every(id=>planned(s,date).some(p=>p.id===id)),'nothing cleared');}));
 
