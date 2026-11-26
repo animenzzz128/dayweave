@@ -37,6 +37,8 @@ This uses the OAuth client that already handles sign-in. No new redirect URI and
 3. Audience: the owner's account must be a test user. In Testing status (the current choice, 2026-10-27, because publishing asks for a privacy policy link), Google expires the refresh token after 7 days. The page then asks to connect again, which is one click. Publishing later removes the weekly reconnect.
 4. Deploy, then click **Connect Google Calendar** on the Plan or Review page.
 
+When the access ends (2026-11-03): Data health shows when it was connected and when Google is expected to end it (connection time + `DAYWEAVE_GOOGLE_TOKEN_DAYS`, default 7). Today warns from 24 hours before. Past that time Review and Plan offer **Reconnect Google Calendar** instead of a write. If Google refuses the stored grant during a write (`invalid_grant`), nothing is written, the stored grant is deleted and the page offers Connect again. Reconnecting is the same `/auth/calendar/connect` consent.
+
 Before other people use the site, Google verification of the sensitive scope is required. That needs a privacy policy and the site's own domain. Until then, at most 100 users can use the app and each sees the warning.
 
 ## Relation to the cloud executor

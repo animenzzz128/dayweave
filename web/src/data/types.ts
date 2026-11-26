@@ -132,7 +132,8 @@ export interface Habit { id: string; title: string; minutes: number; perWeek: nu
 export interface PlanSettings { dayStart: string; dayEnd: string; breaks: { start: string; end: string }[]; habits: Habit[]; maxDailyWork?: number }
 
 /** Hosted only: whether the owner connected Google Calendar for direct writes (docs/google-direct.md). */
-export interface CalendarWrite { available: boolean; connected?: boolean; account?: string; connectedAt?: string | null }
+/** expiresAt: when Google is expected to end the access (7 days while the OAuth app is in testing); expired once it has passed. */
+export interface CalendarWrite { available: boolean; connected?: boolean; account?: string; connectedAt?: string | null; expiresAt?: string | null; expired?: boolean }
 /** One direct write run: each action's outcome, or why the whole version stopped. */
 export interface WriteResult { reference: string; stopped: string[]; actions: { id: string; title: string; status: string; already?: boolean; errors?: string[]; mismatches?: string[] }[] }
 

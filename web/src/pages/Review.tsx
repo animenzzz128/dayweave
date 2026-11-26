@@ -143,12 +143,15 @@ export function ApproveButton({ approval }: { approval: Approval }) {
   const { t } = useI18n();
   const ref = approval.reference;
   // Hosted with Google Calendar connected: approving writes straight away (docs/google-direct.md).
-  const direct = !!calendarWrite?.connected && !!source.writeCalendar;
-  const connect = !!calendarWrite?.available && !calendarWrite.connected && <>
+  // Access past its expected end asks to reconnect instead of offering a write Google would refuse.
+  const ended = !!calendarWrite?.connected && !!calendarWrite.expired;
+  const direct = !!calendarWrite?.connected && !ended && !!source.writeCalendar;
+  const label = ended ? t.review.reconnect : t.review.connect;
+  const connect = !!calendarWrite?.available && (!calendarWrite.connected || ended) && <>
     {source.connectCalendar
-      ? <button type="button" className="btn w-full" onClick={() => run(() => source.connectCalendar!(), t.review.calendarConnected)}>{t.review.connect}</button>
-      : <a className="btn w-full text-center" href="/auth/calendar/connect">{t.review.connect}</a>}
-    <p className="text-xs text-muted">{source.connectCalendar ? t.review.connectDemoNote : t.review.connectNote}</p>
+      ? <button type="button" className="btn w-full" onClick={() => run(() => source.connectCalendar!(), t.review.calendarConnected)}>{label}</button>
+      : <a className="btn w-full text-center" href="/auth/calendar/connect">{label}</a>}
+    <p className="text-xs text-muted">{source.connectCalendar ? t.review.connectDemoNote : ended ? t.review.reconnectNote : t.review.connectNote}</p>
   </>;
   const write = async () => {
     const r = await source.writeCalendar!(ref);

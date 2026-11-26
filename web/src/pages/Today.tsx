@@ -16,7 +16,7 @@ export function emailHealth(email: unknown, now: Date) {
 }
 
 export function Today() {
-  const { snapshot: d, progress, f, now, source, run, classify, waiting, mark, isPast } = useApp();
+  const { snapshot: d, progress, f, now, source, run, classify, waiting, mark, isPast, calendarWrite: cw } = useApp();
   const { t } = useI18n();
   const today = f.dayKey(now);
   const tomorrow: string = Demo.addDays(today, 1);
@@ -35,6 +35,8 @@ export function Today() {
   const openWork = d.assignments.filter((a) => !a.archivedFromSource && !mark(a) && !isPast(a) && !['submitted', 'graded', 'excused'].includes(a.status));
   const overdue = due72.filter((a) => classify(a) === 'overdue').length;
   const attention = failing.length;
+  // Google ends the calendar access on a fixed date while its OAuth app is in testing; warn a day ahead and once it has ended.
+  const accessEnds = cw?.connected && cw.expiresAt ? Date.parse(cw.expiresAt) - now.getTime() : Infinity;
 
   return (
     <div className="space-y-6">
@@ -47,6 +49,13 @@ export function Today() {
           <Dot tone={attention ? 'danger' : 'ok'} />{attention ? t.today.sourcesAttention(attention) : t.today.sourcesOk(d.sources.length)}
         </a>
       </header>
+
+      {accessEnds < 86400000 && (
+        <div role="status" className={`flex flex-wrap items-center justify-between gap-2 rounded-xl border px-4 py-3 text-sm ${cw?.expired || accessEnds <= 0 ? 'border-danger-line bg-danger-soft text-danger' : 'border-warn-line bg-warn-soft text-warn'}`}>
+          <span>{cw?.expired || accessEnds <= 0 ? t.today.calendarEnded : t.today.calendarSoon(`${f.day(cw!.expiresAt)} ${f.time(cw!.expiresAt)}`)}</span>
+          <a className="btn no-underline" href="/auth/calendar/connect">{t.review.reconnect}</a>
+        </div>
+      )}
 
       <div className="grid gap-3 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]">
         <NowNext top={(mode === 'reduced' ? [...focus.urgent, ...focus.upcoming] : due72)[0]} />
