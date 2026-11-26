@@ -61,3 +61,13 @@ test('blocks the owner edited stay through new rules, and the plan names them an
  a.ok(s.snapshot().proposals.some(x=>x.id===p.id),'the edited block stays');a.deepEqual(r.held.map(h=>[h.id,h.why,h.outside]),[[p.id,'edited',true]]);
  a.equal(r.blocks.filter(b=>b.sourceRefs?.[0]?.id==='gym').length,0,'and it still counts as that day\'s gym session');
  const stored=s.state().plan[WEEK[0]];a.equal(stored.held.length,1,'the stored summary keeps it for the page');}));
+
+test('a goal whose windows lose too much to the day start and breaks is refused before saving, with each window\'s free minutes',()=>{
+ // The 2026-11-06 case: 90-minute gym, day from 08:30, dinner 18:00–19:00: 07:00–09:00 keeps 30 minutes, 17:00–19:00 keeps 60.
+ const v={dayStart:'08:30',dayEnd:'24:00',breaks:[{start:'12:00',end:'13:00'},{start:'18:00',end:'19:00'}],habits:[{...gym,minutes:90,perWeek:5}]};
+ a.throws(()=>PL.planSettings(v),/Gym: no window holds a 90-minute session once the planning day \(08:30–24:00\) and breaks are taken out \(07:00–09:00: 30 minutes, 17:00–19:00: 60 minutes\)/);
+ a.deepEqual([[{start:'11:00',end:'15:00'},[{start:'12:00',end:'13:00'}],120],[{start:'17:00',end:'19:00'},[{start:'16:00',end:'20:00'}],0],[{start:'07:00',end:'09:00'},[],30]].map(([w,b])=>PL.windowRoom(w,'08:30','24:00',b)),[120,0,30]);
+ for(const fix of [{habits:[{...v.habits[0],windows:[...v.habits[0].windows,{start:'19:00',end:'21:00'}]}]},{habits:[{...v.habits[0],minutes:60}]},{breaks:[{start:'19:00',end:'20:00'}]},{dayStart:'07:00'}])a.doesNotThrow(()=>PL.planSettings({...v,...fix}),JSON.stringify(fix));
+ // And what passes the check is planned: the evening-window fix gives five 90-minute sessions in the week.
+ withStore(s=>{s.importSnapshot(snap());s.savePlanSettings({...v,habits:[{...v.habits[0],windows:[...v.habits[0].windows,{start:'19:00',end:'21:00'}]}]});
+  const g=kind(week(s),'habit').filter(p=>p.sourceRefs[0].id==='gym');a.equal(g.length,5);a.ok(g.every(p=>mins(p)===90&&hm(p.start)>='19:00'));});});

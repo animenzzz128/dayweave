@@ -5,6 +5,10 @@
 - Data health shows the Google Calendar connection and when Google is expected to end it (7 days while the OAuth app is in Testing; `DAYWEAVE_GOOGLE_TOKEN_DAYS`, `0` once published). Today warns a day ahead, and past that time Review offers Reconnect instead of a write.
 - A grant Google refuses during a write is dropped, so the page offers Connect again instead of repeating the error.
 
+## Unreleased — Weekly goals checked against breaks
+
+- Fix: a weekly goal could be saved although no window had room for one session once the day start and the breaks were taken out (for example a 90-minute gym with the day from 08:30 and dinner 18:00–19:00: 30 and 60 minutes left), so it was silently never planned. The rule check (server and page) now subtracts breaks too, and the page names each window's free minutes and keeps Save off until one window fits.
+
 ## Unreleased — Career in the plan and on Today
 
 - A job you still want to apply to with a deadline in the next 7 days gets one 60-minute **Apply:** block before the deadline's end of day (Grape, like the job-search goals). Marking it applied, editing or removing the job takes back its unstarted block.
