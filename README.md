@@ -10,7 +10,7 @@ The repository contains reusable application code and fictional examples only. P
 
 ## Highlights (October 2026)
 
-- **In daily use as a private instance.** Deployed on Fly.io behind Google sign-in for one allowlisted account, with an encrypted volume and daily backups ([private instance](docs/private-instance.md)).
+- **Runs as a private instance.** Deployed on Fly.io behind Google sign-in for one allowlisted account, with an encrypted volume and daily backups ([private instance](docs/private-instance.md)).
 - **Daily cloud collection, no laptop needed.** A Claude cloud scheduled task reads Google Calendar, school mail (Gmail `label:Yale`), the Canvas feed and two course sites through read-only connectors every morning, builds the next snapshot, dry-runs it and imports it ([cloud collection](docs/cloud-collection.md)). Failed reads keep earlier records and show as stale, never as empty.
 - **A full day plan, not just a task list.** The planner fills the day from the owner's rules: interview prep first, then work due within 72 hours, weekly goals (gym, job applications, LinkedIn outreach), quiz and exam review, with meals kept free and 20% of the day left open. The Plan page lets you drag, resize and lock blocks, shows planned against free minutes, and approves the day as one version.
 - **Approval-gated calendar writes.** Approving a version on the site writes it to Google Calendar right away, with the owner's one-time consent (`calendar.events` only, token sealed per account). The site re-reads the live calendar first, records pending, creates each event once, reads it back and records the result. Nothing is moved, deleted or retried blindly ([direct writes](docs/google-direct.md)).
